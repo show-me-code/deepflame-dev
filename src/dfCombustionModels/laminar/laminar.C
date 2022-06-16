@@ -74,13 +74,6 @@ template<class ReactionThermo>
 Foam::tmp<Foam::volScalarField>
 Foam::combustionModels::laminar<ReactionThermo>::tc() const
 {
-    FatalErrorInFunction
-        << "wrong implementation!"
-        << exit(FatalError);
-
-    return this->chemistryPtr_->Qdot();
-    //return this->chemistryPtr_->tc();
-
     tmp<volScalarField> ttc
     (
         volScalarField::New
@@ -91,7 +84,6 @@ Foam::combustionModels::laminar<ReactionThermo>::tc() const
         )
     );
     scalarField& tc = ttc.ref();
-
 
     const int nCells = this->mesh_.nCells();
     for(int cellI=0; cellI < nCells; ++cellI)
