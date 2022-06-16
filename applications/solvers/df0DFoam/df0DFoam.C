@@ -46,6 +46,8 @@ Description
 //#include "fvOptions.H"
 #include "localEulerDdtScheme.H"
 #include "fvcSmooth.H"
+#include "basicThermo.H"
+#include "CombustionModel.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

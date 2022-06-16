@@ -178,6 +178,8 @@ public:
 
         // update T, psi, mu, alpha, rhoD, hai (if needed)
         void correctThermo();
+
+        ThermoType& thermo() {return thermo_;}
 };
 
 

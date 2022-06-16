@@ -87,12 +87,16 @@ multivariateSurfaceInterpolationScheme<scalar>::fieldTable fields;
 #include "createMRF.H"
 //#include "createFvOptions.H"
 
-
-
-dfChemistryModel<basicThermo> chemistry(thermo);
-PtrList<volScalarField>& Y = chemistry.Y();
-const word inertSpecie(chemistry.lookup("inertSpecie"));
-const label inertIndex(chemistry.species()[inertSpecie]);
+Info<< "Creating reaction model\n" << endl;
+autoPtr<CombustionModel<basicThermo>> combustion
+(
+    CombustionModel<basicThermo>::New(thermo, turbulence())
+);
+Info<< "end Creating reaction model\n" << endl;
+dfChemistryModel<basicThermo>* chemistry = combustion->chemistry();
+PtrList<volScalarField>& Y = chemistry->Y();
+const word inertSpecie(chemistry->lookup("inertSpecie"));
+const label inertIndex(chemistry->species()[inertSpecie]);
 
 forAll(Y, i)
 {
