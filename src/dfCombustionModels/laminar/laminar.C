@@ -74,15 +74,47 @@ template<class ReactionThermo>
 Foam::tmp<Foam::volScalarField>
 Foam::combustionModels::laminar<ReactionThermo>::tc() const
 {
-    return this->chemistryPtr_->tc();
+    FatalErrorInFunction
+        << "wrong implementation!"
+        << exit(FatalError);
+
+    return this->chemistryPtr_->Qdot();
+    //return this->chemistryPtr_->tc();
+
+    tmp<volScalarField> ttc
+    (
+        volScalarField::New
+        (
+            "tc",
+            this->mesh_,
+            dimensionedScalar(dimTime, 0)
+        )
+    );
+    scalarField& tc = ttc.ref();
+
+
+    const int nCells = this->mesh_.nCells();
+    for(int cellI=0; cellI < nCells; ++cellI)
+    {
+        PtrList<volScalarField>& Y = this->chemistryPtr_->Y();
+        forAll(Y, i)
+        {
+            scalar tc_i = 0;
+            const scalar mag_RR = mag(this->chemistryPtr_->RR(i)[cellI]);
+            if(mag_RR > small) tc_i = Y[i][cellI]/mag_RR;
+            tc[cellI] = max(tc[cellI], tc_i);
+        }
+    }
+
+    return ttc;
 }
 
 
 template<class ReactionThermo>
 void Foam::combustionModels::laminar<ReactionThermo>::correct()
 {
-    if (integrateReactionRate_)
-    {
+    //if (integrateReactionRate_)
+    //{
         if (fv::localEulerDdt::enabled(this->mesh()))
         {
             const scalarField& rDeltaT =
@@ -109,11 +141,11 @@ void Foam::combustionModels::laminar<ReactionThermo>::correct()
         {
             this->chemistryPtr_->solve(this->mesh().time().deltaTValue());
         }
-    }
-    else
-    {
-        this->chemistryPtr_->calculate();
-    }
+    // }
+    // else
+    // {
+    //     this->chemistryPtr_->calculate();
+    // }
 }
 
 
@@ -124,7 +156,8 @@ Foam::combustionModels::laminar<ReactionThermo>::R(volScalarField& Y) const
     tmp<fvScalarMatrix> tSu(new fvScalarMatrix(Y, dimMass/dimTime));
     fvScalarMatrix& Su = tSu.ref();
 
-    const label specieI = this->thermo().composition().species()[Y.member()];
+    //const label specieI = this->chemistryPtr_->thermo().specieI(Y.member());
+    const label specieI = this->chemistryPtr_->species()[Y.member()];
     Su += this->chemistryPtr_->RR(specieI);
 
     return tSu;

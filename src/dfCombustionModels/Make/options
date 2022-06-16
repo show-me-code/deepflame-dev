@@ -1,4 +1,4 @@
-EXE_INC = \
+EXE_INC = -std=c++14 \
     -I$(LIB_SRC)/transportModels/compressible/lnInclude \
     -I$(LIB_SRC)/thermophysicalModels/basic/lnInclude \
     -I$(LIB_SRC)/thermophysicalModels/specie/lnInclude \
@@ -8,13 +8,26 @@ EXE_INC = \
     -I$(LIB_SRC)/TurbulenceModels/compressible/lnInclude \
     -I$(LIB_SRC)/radiationModels/lnInclude \
     -I$(LIB_SRC)/finiteVolume/lnInclude \
-    -I$(LIB_SRC)/meshTools/lnInclude
+    -I$(LIB_SRC)/meshTools/lnInclude \
+    -I$(DF_SRC)/CanteraMixture/lnInclude \
+    -I$(DF_SRC)/dfChemistryModel/lnInclude \
+    -I$(CANTERA_ROOT)/include \
+    -I$(TORCH_ROOT)/include \
+    -I$(TORCH_ROOT)/include/torch/csrc/api/include
 
 LIB_LIBS = \
     -lcompressibleTransportModels \
     -lturbulenceModels \
-    -lcompressibleTurbulenceModels \
     -lchemistryModel \
     -lradiationModels \
     -lfiniteVolume \
-    -lmeshTools
+    -lmeshTools \
+	-L$(FOAM_USER_LIBBIN) \
+	-ldfCompressibleTurbulenceModels \
+    -lCanteraMixture \
+    -ldfChemistryModel \
+    $(CANTERA_ROOT)/lib/libcantera.so \
+    $(TORCH_ROOT)/lib/libtorch.so \
+    $(TORCH_ROOT)/lib/libc10.so \
+    -rdynamic \
+    -lpthread

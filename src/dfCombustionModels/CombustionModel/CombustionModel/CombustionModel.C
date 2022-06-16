@@ -36,7 +36,8 @@ Foam::CombustionModel<ReactionThermo>::CombustionModel
     const word& combustionProperties
 )
 :
-    combustionModel(modelType, thermo, turb, combustionProperties)
+    combustionModel(modelType, thermo, turb, combustionProperties),
+    chemistryPtr_(new dfChemistryModel<ReactionThermo>(thermo))
 {}
 
 
@@ -65,7 +66,9 @@ Foam::CombustionModel<ReactionThermo>::New
 
 template<class ReactionThermo>
 Foam::CombustionModel<ReactionThermo>::~CombustionModel()
-{}
+{
+    delete chemistryPtr_;
+}
 
 
 // * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * * //

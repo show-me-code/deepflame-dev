@@ -24,19 +24,16 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "makeCombustionTypes.H"
-
 #include "CombustionModel.H"
+#include "basicThermo.H"
 
-#include "rhoReactionThermo.H"
-#include "psiReactionThermo.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
 {
 
-makeCombustion(psiReactionThermo);
-makeCombustion(rhoReactionThermo);
+makeCombustion(basicThermo);
 
 }
 

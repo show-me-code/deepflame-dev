@@ -35,9 +35,11 @@ SourceFiles
 #ifndef ChemistryCombustion_H
 #define ChemistryCombustion_H
 
+#include "dfChemistryModel.H"
 #include "autoPtr.H"
 #include "CombustionModel.H"
-#include "BasicChemistryModel.H"
+//#include "BasicChemistryModel.H"
+
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -56,9 +58,6 @@ class ChemistryCombustion
 protected:
 
     // Protected data
-
-        //- Pointer to chemistry model
-        autoPtr<BasicChemistryModel<ReactionThermo>> chemistryPtr_;
 
 
 public:
@@ -86,6 +85,7 @@ public:
 
         //- Return const access to the thermo package
         virtual const ReactionThermo& thermo() const;
+
 };
 
 

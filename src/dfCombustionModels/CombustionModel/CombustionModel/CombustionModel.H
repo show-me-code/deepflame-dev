@@ -37,6 +37,7 @@ SourceFiles
 #ifndef CombustionModel_H
 #define CombustionModel_H
 
+#include "dfChemistryModel.H"
 #include "combustionModel.H"
 #include "autoPtr.H"
 #include "runTimeSelectionTables.H"
@@ -55,6 +56,10 @@ class CombustionModel
 :
     public combustionModel
 {
+protected:
+
+    dfChemistryModel<ReactionThermo>* chemistryPtr_;
+
 public:
 
     //- Thermo type
@@ -113,6 +118,9 @@ public:
 
         //- Return const access to the thermo package
         virtual const ReactionThermo& thermo() const = 0;
+
+        void correctThermo();
+        dfChemistryModel<ReactionThermo>* chemistry() { return chemistryPtr_;}
 
 
     // IO

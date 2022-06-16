@@ -42,8 +42,7 @@ Foam::ChemistryCombustion<ReactionThermo>::ChemistryCombustion
         thermo,
         turb,
         combustionProperties
-    ),
-    chemistryPtr_(BasicChemistryModel<ReactionThermo>::New(thermo))
+    )
 {}
 
 
@@ -61,7 +60,7 @@ template<class ReactionThermo>
 ReactionThermo&
 Foam::ChemistryCombustion<ReactionThermo>::thermo()
 {
-    return chemistryPtr_->thermo();
+    return this->chemistryPtr_->thermo();
 }
 
 
@@ -69,7 +68,7 @@ template<class ReactionThermo>
 const ReactionThermo&
 Foam::ChemistryCombustion<ReactionThermo>::thermo() const
 {
-    return chemistryPtr_->thermo();
+    return this->chemistryPtr_->thermo();
 }
 
 

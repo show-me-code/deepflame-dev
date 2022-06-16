@@ -23,11 +23,10 @@ License
 
 \*---------------------------------------------------------------------------*/
 
+#include "EDC.H"
 #include "makeCombustionTypes.H"
 
-#include "psiReactionThermo.H"
-#include "rhoReactionThermo.H"
-#include "EDC.H"
+#include "basicThermo.H"
 
 // * * * * * * * * * * * * * Static Member Data  * * * * * * * * * * * * * * //
 
@@ -58,8 +57,7 @@ Foam::combustionModels::EDCdefaultVersion
 namespace Foam
 {
 
-makeCombustionTypes(EDC, psiReactionThermo);
-makeCombustionTypes(EDC, rhoReactionThermo);
+makeCombustionTypes(EDC, basicThermo);
 
 }
 

@@ -12,6 +12,7 @@ wmake src/dfChemistryModel
 wmake src/TurbulenceModels/compressible
 wmake src/regionModels/surfaceFilmModels
 src/lagrangian/Allwmake $targetType $*
+wmake src/dfCombustionModels
 
 wmake applications/solvers/df0DFoam
 wmake applications/solvers/dfLowMachFoam

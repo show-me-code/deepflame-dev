@@ -58,7 +58,7 @@ Foam::combustionModels::EDC<ReactionThermo>::EDC
     (
         IOobject
         (
-            this->thermo().phasePropertyName(typeName + ":kappa"),
+            "EDC_kappa",
             this->mesh().time().timeName(),
             this->mesh(),
             IOobject::NO_READ,
@@ -98,7 +98,7 @@ void Foam::combustionModels::EDC<ReactionThermo>::correct()
 
     if (version_ == EDCversions::v2016)
     {
-        tmp<volScalarField> ttc(this->chemistryPtr_->tc());
+        tmp<volScalarField> ttc(this->tc());
         const volScalarField& tc = ttc();
 
         forAll(tauStar, i)
@@ -185,7 +185,7 @@ Foam::combustionModels::EDC<ReactionThermo>::Qdot() const
 {
     return volScalarField::New
     (
-        this->thermo().phasePropertyName(typeName + ":Qdot"),
+        "EDC_Qdot",
         kappa_*this->chemistryPtr_->Qdot()
     );
 }

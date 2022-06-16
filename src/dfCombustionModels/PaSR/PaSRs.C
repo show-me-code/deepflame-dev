@@ -23,19 +23,18 @@ License
 
 \*---------------------------------------------------------------------------*/
 
+#include "PaSR.H"
 #include "makeCombustionTypes.H"
 
-#include "psiReactionThermo.H"
-#include "rhoReactionThermo.H"
-#include "PaSR.H"
+#include "basicThermo.H"
+
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
 {
 
-makeCombustionTypes(PaSR, psiReactionThermo);
-makeCombustionTypes(PaSR, rhoReactionThermo);
+makeCombustionTypes(PaSR, basicThermo);
 
 }
 

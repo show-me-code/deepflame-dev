@@ -23,19 +23,21 @@ License
 
 \*---------------------------------------------------------------------------*/
 
+#include "laminar.H"
 #include "makeCombustionTypes.H"
 
-#include "psiReactionThermo.H"
-#include "rhoReactionThermo.H"
-#include "laminar.H"
+//#include "psiReactionThermo.H"
+//#include "rhoReactionThermo.H"
+#include "basicThermo.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
 {
 
-makeCombustionTypes(laminar, psiReactionThermo);
-makeCombustionTypes(laminar, rhoReactionThermo);
+//makeCombustionTypes(laminar, psiReactionThermo);
+//makeCombustionTypes(laminar, rhoReactionThermo);
+makeCombustionTypes(laminar, basicThermo);
 
 }
 

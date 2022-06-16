@@ -1,14 +1,15 @@
 combustionModel/combustionModel.C
 CombustionModel/CombustionModel/CombustionModels.C
 
-diffusion/diffusions.C
-infinitelyFastChemistry/infinitelyFastChemistrys.C
+/*diffusion/diffusions.C*/
+/*infinitelyFastChemistry/infinitelyFastChemistrys.C*/
 
 PaSR/PaSRs.C
 EDC/EDCs.C
 
 laminar/laminars.C
 
+/*
 FSD/reactionRateFlameAreaModels/consumptionSpeed/consumptionSpeed.C
 FSD/reactionRateFlameAreaModels/reactionRateFlameArea/reactionRateFlameArea.C
 FSD/reactionRateFlameAreaModels/reactionRateFlameArea/reactionRateFlameAreaNew.C
@@ -23,6 +24,6 @@ noCombustion/noCombustions.C
 functionObjects/Qdot/Qdot.C
 
 radiationModels/absorptionEmissionModels/greyMeanCombustion/greyMeanCombustion.C
-radiationModels/absorptionEmissionModels/wideBandCombustion/wideBandCombustion.C
+radiationModels/absorptionEmissionModels/wideBandCombustion/wideBandCombustion.C*/
 
-LIB = $(FOAM_LIBBIN)/libcombustionModels
+LIB = $(FOAM_USER_LIBBIN)/libdfCombustionModels
