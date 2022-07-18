@@ -218,7 +218,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve
     }
     else
     {
-        result = canteraSolve(deltaT);
+        result = solve_loadBalance(deltaT);
     }
     return result;
 }
@@ -643,7 +643,6 @@ void Foam::dfChemistryModel<ThermoType>::solveSingle
     ChemistryProblem& problem, ChemistrySolution& solution
 )
 {
-    // scalarList c0 = problem.c;
 
     // Timer begins
     clockTime time;
@@ -665,9 +664,7 @@ void Foam::dfChemistryModel<ThermoType>::solveSingle
 
     sim.advance(problem.deltaT);
 
-    // get new concentrations
     CanteraGas_->getMassFractions(yTemp_.begin());
-    // problem.c = cTemp_;
 
     for (size_t i=0; i<CanteraGas_->nSpecies(); i++)
     {
@@ -709,7 +706,6 @@ Foam::dfChemistryModel<ThermoType>::getProblems
             CanteraGas_->getConcentrations(cTemp_.begin());
 
             ChemistryProblem problem;
-            // problem.c = cTemp_;
             problem.Y = yTemp_;
             problem.Ti = T[celli];
             problem.pi = p[celli];
