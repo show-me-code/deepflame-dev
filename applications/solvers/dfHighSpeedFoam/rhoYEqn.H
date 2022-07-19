@@ -39,7 +39,7 @@ const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
 
         if (i != inertIndex)
         {
-            tmp<volScalarField> DEff = chemistry.rhoD(i) + turbulence->mut()/Sct;
+            tmp<volScalarField> DEff = chemistry.rhoD(i);
             fvScalarMatrix YiEqn
             (
                  fvm::ddt(rho, Yi)
@@ -49,6 +49,11 @@ const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
               ==
                  chemistry.RR(i)
             );
+
+            if (!inviscid)
+            {
+                YiEqn -= fvm::laplacian(turbulence->muEff(), Yi);
+            }
 
             YiEqn.relax();
 
