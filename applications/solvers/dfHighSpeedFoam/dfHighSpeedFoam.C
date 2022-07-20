@@ -42,8 +42,7 @@ Description
 #include "directionInterpolate.H"
 #include "localEulerDdtScheme.H"
 #include "fvcSmooth.H"
-//add
-//#include "fvOptions.H"
+#include "PstreamGlobals.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -57,7 +56,11 @@ int main(int argc, char *argv[])
     #include "createDynamicFvMesh.H"
     #include "createFields.H"
     #include "createTimeControls.H"
-    //#include "createFvOptions.H"
+
+    double time_monitor_flow;
+    double time_monitor_chem;
+    double time_monitor_Y;
+    clock_t start, end;
 
     turbulence->validate();
 
@@ -200,11 +203,14 @@ int main(int argc, char *argv[])
         volTensorField tauMC("tauMC", muEff*dev2(Foam::T(fvc::grad(U))));
 
         // --- Solve density
-        //solve(fvm::ddt(rho) + fvc::div(phi));
         #include "rhoEqn.H"
 
+        start = std::clock();
         // --- Solve momentum
         #include "rhoUEqn.H"
+        end = std::clock();
+        time_monitor_flow += double(end - start) / double(CLOCKS_PER_SEC);
+
 
         // --- Solve species
         #include "rhoYEqn.H"
@@ -215,6 +221,10 @@ int main(int argc, char *argv[])
         turbulence->correct();
 
         runTime.write();
+
+        Info<< "MonitorTime_chem = " << time_monitor_chem << " s" << nl << endl;
+        Info<< "MonitorTime_Y = " << time_monitor_Y << " s" << nl << endl;
+        Info<< "MonitorTime_flow = " << time_monitor_flow << " s" << nl << endl;
 
         Info<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
             << "  ClockTime = " << runTime.elapsedClockTime() << " s"

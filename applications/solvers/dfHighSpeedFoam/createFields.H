@@ -127,3 +127,44 @@ forAll(Y, i)
     fields.add(Y[i]);
 }
 fields.add(thermo.he());
+
+const scalar Sct = chemistry.lookupOrDefault("Sct", 1.);
+volScalarField diffAlphaD
+(
+    IOobject
+    (
+        "diffAlphaD",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedScalar(dimEnergy/dimTime/dimVolume, 0)
+);
+volVectorField hDiffCorrFlux
+(
+    IOobject
+    (
+        "hDiffCorrFlux",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedVector(dimensionSet(1,0,-3,0,0,0,0), Zero)
+);
+volVectorField sumYDiffError
+(
+    IOobject
+    (
+        "sumYDiffError",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedVector("sumYDiffError", dimDynamicViscosity/dimLength, Zero)
+);

@@ -41,7 +41,6 @@ boundary
 (
     Left
     {
-        // type patch;
         type symmetryPlane;
         faces
         (
@@ -50,7 +49,6 @@ boundary
     }
     Right
     {
-        // type patch;
         type symmetryPlane;
         faces
         (

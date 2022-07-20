@@ -10,9 +10,9 @@ surfaceScalarField sigmaDotU
 
 solve
 (
-    fvm::ddt(rhoE)
-  + fvc::div(phiEp)
-  - fvc::div(sigmaDotU)
+      fvm::ddt(rhoE)
+    + fvc::div(phiEp)
+    - fvc::div(sigmaDotU)
 );
 
 e = rhoE/rho - 0.5*magSqr(U);
@@ -27,9 +27,14 @@ if (!inviscid)
 {
     fvScalarMatrix eEqn
     (
-        fvm::ddt(rho, e) - fvc::ddt(rho, e)
-      - fvc::laplacian(turbulence->alphaEff(), e)
+           fvm::ddt(rho, e) - fvc::ddt(rho, e)
+        // alpha in deepflame is considered to calculate h by default (kappa/Cp), so multiply gamma to correct alpha
+         - fvc::laplacian(turbulence->alphaEff()*thermo.gamma(), e)
+         + diffAlphaD
+      ==
+           fvc::div(hDiffCorrFlux)
     );
+
     eEqn.solve("e");
 
     ha = e + p/rho;
