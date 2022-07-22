@@ -56,6 +56,7 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
     Y_(mixture_.Y()),
     rhoD_(mixture_.nSpecies()),
     hai_(mixture_.nSpecies()),
+    hc_(mixture_.nSpecies()),
     yTemp_(mixture_.nSpecies()),
     dTemp_(mixture_.nSpecies()),
     hrtTemp_(mixture_.nSpecies()),
@@ -163,6 +164,11 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
     Info<<"--- I am here in Cantera-construct ---"<<endl;
     Info<<"relTol_ === "<<relTol_<<endl;
     Info<<"absTol_ === "<<absTol_<<endl;
+
+    forAll(hc_, i)
+    {
+        hc_[i] = CanteraGas_->Hf298SS(i)/CanteraGas_->molecularWeight(i);
+    }
 }
 
 
@@ -251,7 +257,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::canteraSolve
         scalar pi = p_[cellI];
         try
         {
-            for (size_t i=0; i<CanteraGas_->nSpecies(); i++)
+            for (size_t i=0; i<CanteraGas_->nSpecies(); ++i)
             {
                 yTemp_[i] = Y_[i][cellI];
             }
@@ -271,7 +277,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::canteraSolve
 
             CanteraGas_->getConcentrations(cTemp_.begin()); // value --> cTemp_
 
-            for (size_t i=0; i<CanteraGas_->nSpecies(); i++)
+            for (size_t i=0; i<CanteraGas_->nSpecies(); ++i)
             {
                 RR_[i][cellI] = (cTemp_[i] - c0[i])*CanteraGas_->molecularWeight(i)/deltaT[cellI];
             }
@@ -279,8 +285,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::canteraSolve
 
             forAll(Y_, i)
             {
-                const scalar hc = CanteraGas_->Hf298SS(i)/CanteraGas_->molecularWeight(i); // J/kg
-                Qdot_[cellI] -= hc*RR_[i][cellI];
+                Qdot_[cellI] -= hc_[i]*RR_[i][cellI];
             }
         }
         catch(Cantera::CanteraError& err)
@@ -353,7 +358,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::torchSolve
     }
     torch::jit::script::Module torchModel_ = torch::jit::load(torchModelName_, device);
 
-    std::vector<size_t> torch_cell;
+    std::vector<label> torch_cell;
     label torch_cellname= 0;
 
     // obtain the number of DNN cells
@@ -381,12 +386,12 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::torchSolve
             std::vector<double> inputs_;
             inputs_.push_back((Ti - Xmu_[0])/Xstd_[0]);
             inputs_.push_back((pi / 101325 - Xmu_[1])/Xstd_[1]);
-            for (size_t i=0; i<CanteraGas_->nSpecies(); i++)
+            for (size_t i=0; i<CanteraGas_->nSpecies(); ++i)
             {
                 yPre_[i] = Y_[i][cellI];
                 yBCT_[i] = (pow(yPre_[i],lambda) - 1) / lambda; // function BCT
             }
-            for (size_t i=0; i<CanteraGas_->nSpecies(); i++)
+            for (size_t i=0; i<CanteraGas_->nSpecies(); ++i)
             {
                 inputs_.push_back((yBCT_[i] - Xmu_[i+2]) / Xstd_[i+2]);
             }
@@ -397,7 +402,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::torchSolve
         else
         {
             Qdot_[cellI] = 0.0;
-            for (size_t i=0; i<CanteraGas_->nSpecies(); i++)
+            for (size_t i=0; i<CanteraGas_->nSpecies(); ++i)
             {
                 yPre_[i] = Y_[i][cellI];
             }
@@ -413,11 +418,10 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::torchSolve
 
             CanteraGas_->getMassFractions(yTemp_.begin());
 
-            for (size_t i=0; i<CanteraGas_->nSpecies(); i++)
+            for (size_t i=0; i<CanteraGas_->nSpecies(); ++i)
             {
                 RR_[i][cellI] = (yTemp_[i] - yPre_[i])*rhoi/deltaT;
-                const scalar hc = CanteraGas_->Hf298SS(i)/CanteraGas_->molecularWeight(i); // J/kg
-                Qdot_[cellI] -= hc*RR_[i][cellI];
+                Qdot_[cellI] -= hc_[i]*RR_[i][cellI];
             }
         }
     }
@@ -430,24 +434,23 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::torchSolve
     {
         // update y
         scalar Yt = 0;
-        for (size_t i=0; i<CanteraGas_->nSpecies(); i++)
+        for (size_t i=0; i<CanteraGas_->nSpecies(); ++i)
         {
             yPre_[i] = Y_[i][torch_cell[cellI]];
             yTemp_[i] = Y_[i][torch_cell[cellI]];
             yBCT_[i] = (pow(yPre_[i],lambda) - 1) / lambda; // function BCT
         }
-        for (size_t i=0; i<(CanteraGas_->nSpecies()); i++)//
+        for (size_t i=0; i<(CanteraGas_->nSpecies()); ++i)//
         {
             u_[i+2] = outputs[cellI][i+2].item().to<double>()*Ystd_[i+2]+Ymu_[i+2];
             yTemp_[i] = pow((yBCT_[i] + u_[i+2]*deltaT)*lambda+1,1/lambda);
             Yt += yTemp_[i];
         }
-        for (size_t i=0; i<CanteraGas_->nSpecies(); i++)
+        for (size_t i=0; i<CanteraGas_->nSpecies(); ++i)
         {
             yTemp_[i] = yTemp_[i] / Yt;
             RR_[i][torch_cell[cellI]] = (yTemp_[i] - Y_[i][torch_cell[cellI]])*rho_[torch_cell[cellI]]/deltaT;
-            const scalar hc = CanteraGas_->Hf298SS(i)/CanteraGas_->molecularWeight(i); // J/kg
-            Qdot_[torch_cell[cellI]] -= hc*RR_[i][torch_cell[cellI]];
+            Qdot_[torch_cell[cellI]] -= hc_[i]*RR_[i][torch_cell[cellI]];
         }
     }
 
