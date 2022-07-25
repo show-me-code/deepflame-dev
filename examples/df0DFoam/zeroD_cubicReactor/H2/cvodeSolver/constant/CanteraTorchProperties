@@ -28,5 +28,10 @@ zeroDReactor
 {
     constantProperty "pressure";
 }
+loadbalancing
+{
+        active  false;
+        //log   true;
+}
 
 // ************************************************************************* //
