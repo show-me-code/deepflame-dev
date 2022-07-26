@@ -29,7 +29,7 @@ if (!inviscid)
     (
            fvm::ddt(rho, e) - fvc::ddt(rho, e)
         // alpha in deepflame is considered to calculate h by default (kappa/Cp), so multiply gamma to correct alpha
-         - fvc::laplacian(turbulence->alphaEff()*thermo.gamma(), e)
+         - fvm::laplacian(turbulence->alphaEff()*thermo.gamma(), e)
          + diffAlphaD
       ==
            fvc::div(hDiffCorrFlux)

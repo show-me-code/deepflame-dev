@@ -19,41 +19,41 @@ solvers
 {
 	U
 	{
-		//solver		smoothSolver;
-		//smoother	GaussSeidel;
-		//nSweeps		2;
-		//tolerance	1e-17;
-		//relTol		0;
+        //solver        smoothSolver;
+        //smoother      GaussSeidel;
+        //nSweeps		2;
+        //tolerance	1e-17;
+        //relTol		0;
 
-		solver			PBiCGStab;
-		preconditioner	DIC;
-		tolerance		1e-11;
-		relTol			0;
+        solver          PBiCGStab;
+        preconditioner  DIC;
+        tolerance       1e-11;
+        relTol          0;
 	}
 	
 	h
 	{
-		$U;
-		tolerance	1e-11;
-		relTol		0;
+        $U;
+        tolerance   1e-11;
+        relTol      0;
 	}
 
 	e
 	{
-		$U;
-		tolerance	1e-11;
-		relTol		0;
+        $U;
+        tolerance   1e-11;
+        relTol      0;
 	}
 
 	"rho.*"
 	{
-		solver		diagonal;
+        solver      diagonal;
 	}
 
 	"(O2|N2|Yi)"
 	{
-		solver          PBiCGStab;
-        preconditioner	DILU;
+        solver          PBiCGStab;
+        preconditioner  DILU;
         tolerance       1e-11;
         relTol          0;
 	}
