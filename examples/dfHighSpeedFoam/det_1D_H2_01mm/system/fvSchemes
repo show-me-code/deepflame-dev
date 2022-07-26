@@ -46,7 +46,7 @@ interpolationSchemes
     reconstruct(rho)       Minmod;
     reconstruct(U)         MinmodV;
     reconstruct(T)         Minmod;
-    reconstruct(Yi)	       Minmod;
+    reconstruct(Yi)        Minmod;
 }
 
 snGradSchemes
