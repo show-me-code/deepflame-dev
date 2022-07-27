@@ -1,3 +1,10 @@
+if (!inviscid)
+{
+    hDiffCorrFlux = Zero;
+    diffAlphaD = Zero;
+    sumYDiffError = Zero;
+}
+
 tmp<fv::convectionScheme<scalar>> mvConvection
 (
     fv::convectionScheme<scalar>::New
@@ -37,10 +44,6 @@ tmp<fv::convectionScheme<scalar>> mvConvection
 
             if (!inviscid)
             {
-                hDiffCorrFlux = Zero;
-                diffAlphaD = Zero;
-                sumYDiffError = Zero;
-
                 forAll(Y, i)
                 {
                     sumYDiffError += chemistry.rhoD(i)*fvc::grad(Y[i]);
