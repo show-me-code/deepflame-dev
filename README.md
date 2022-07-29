@@ -85,3 +85,6 @@ Note: For the example cases with torchSolver, an additional DNN model file in th
 If you use DeepFlame for a publication, please use the citation: 
 
 DeepFlame: A computational fluid dynamics suite for multiphase turbulent reacting flows at all speeds with machine learning. URL:https://github.com/deepmodeling/deepflame-dev, 2022.
+
+## Useful resources
+- First release v0.1.0 introduction talk on [DeepModeling Community's official bilibili website](https://www.bilibili.com/video/BV1Vf4y1f7wB?vd_source=309a67109ca33c4ef79bf506f8ce70ab).
