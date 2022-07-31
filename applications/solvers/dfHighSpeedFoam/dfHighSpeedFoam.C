@@ -80,6 +80,15 @@ int main(int argc, char *argv[])
     {
         #include "readTimeControls.H"
 
+        tmp<volScalarField> tmagGradP = mag(fvc::grad(p));
+        volScalarField normalisedGradP
+        (
+            "normalisedGradP",
+            tmagGradP()/max(tmagGradP())
+        );
+        normalisedGradP.writeOpt() = IOobject::AUTO_WRITE;
+        tmagGradP.clear();
+
         if (!LTS)
         {
             #include "setDeltaT.H"
