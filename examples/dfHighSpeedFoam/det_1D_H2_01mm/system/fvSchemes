@@ -19,39 +19,39 @@ fluxScheme		Kurganov;
 
 ddtSchemes
 {
-    default         Euler;
+    default                Euler;
 }
 
 gradSchemes
 {
-	default         Gauss linear;
+    default                Gauss linear;
 }
 
 divSchemes
 {
-    default         		none;
-	div(tauMC)				Gauss linear;
-	div(hDiffCorrFlux)    	Gauss cubic;
-	div(phi,Yi_h)			Gauss vanLeer;
+    default                none;
+    div(tauMC)             Gauss linear;
+    div(hDiffCorrFlux)     Gauss cubic;
+    div(phi,Yi_h)          Gauss vanLeer;
 }
 
 laplacianSchemes
 {
-	default			Gauss linear uncorrected;	
+    default                Gauss linear uncorrected;	
 }
 
 interpolationSchemes
 {
-    default				linear;
-	reconstruct(rho)	Minmod;
-	reconstruct(U)		MinmodV;
-	reconstruct(T)		Minmod;
-	reconstruct(Yi)		Minmod;
+    default                linear;
+    reconstruct(rho)       Minmod;
+    reconstruct(U)         MinmodV;
+    reconstruct(T)         Minmod;
+    reconstruct(Yi)        Minmod;
 }
 
 snGradSchemes
 {
-	default				uncorrected;
+    default                uncorrected;
 }
 
 
