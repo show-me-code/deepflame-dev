@@ -87,6 +87,8 @@ public IOdictionary
     PtrList<volScalarField> rhoD_;
     // species absolute enthalpy, [J/kg]
     PtrList<volScalarField> hai_;
+    // species chemistry enthalpy, [J/kg]
+    scalarList hc_;
     // temp mass fraction
     mutable scalarList yTemp_;
     // temp mass diffusion coefficients

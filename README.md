@@ -1,10 +1,14 @@
-# DeepFlame v0.1.0
+# DeepFlame v0.2.0
 DeepFlame is a computational fluid dynamics suite for single or multiphase, laminar or turbulent reacting flows at all speeds with machine learning capabilities. It aims to provide an open-source platform bringing together the individual strengths of [OpenFOAM](https://openfoam.org), [Cantera](https://cantera.org) and [pyTorch](https://pytorch.org/) libraries for machine learning assisted reacting flow simulations. It is also has the scope to incorporate next-generation heterogenous supercomputing and AI acceleration infrustructures such as GPU and FPGAs.  
 
 ## Dependencies
 [OpenFOAM-7](https://openfoam.org/version/7), [Cantera C++ lib 2.6.0](https://anaconda.org/conda-forge/libcantera-devel), [Torch C++ lib 1.11.0](https://pytorch.org/)
 
 ## Features
+New in v0.2.0:
+- Dynamic load balancing for chemistry solver
+
+From v0.1.0:
 - Native Cantera reader for chemical mechanisms in `.cti`, `.xml` or `.ymal` formats
 - Full compatiblity with Cantera's `UnityLewis`, `Mix` and `Multi` transport models
 - Zero-dimensional constant pressure or constant volume reactor solver `df0DFoam`
@@ -36,7 +40,7 @@ conda create -n libcantera
 
 conda activate libcantera
 
-conda install -c conda-forge boost fmt libcantera-devel
+conda install -c conda-forge boost libcantera-devel
 ```
 Note: Check your Miniconda3/envs/libcantera directory and make sure the install was successful (lib/ include/ etc. exist).
 
@@ -81,3 +85,6 @@ Note: For the example cases with torchSolver, an additional DNN model file in th
 If you use DeepFlame for a publication, please use the citation: 
 
 DeepFlame: A computational fluid dynamics suite for multiphase turbulent reacting flows at all speeds with machine learning. URL:https://github.com/deepmodeling/deepflame-dev, 2022.
+
+## Useful resources
+- First release v0.1.0 introduction talk (in Chinese) on [DeepModeling Community's official bilibili website](https://www.bilibili.com/video/BV1Vf4y1f7wB?vd_source=309a67109ca33c4ef79bf506f8ce70ab).

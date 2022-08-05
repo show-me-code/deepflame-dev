@@ -211,7 +211,7 @@ public:
         const volScalarField& Y(const word& specieName) const {return Y_[species_[specieName]];}
 
         const hashedWordList& species() const {return species_;}
-        scalar nSpecies() {return CanteraGas_->nSpecies();}
+        size_t nSpecies() {return CanteraGas_->nSpecies();}
 
         std::shared_ptr<Cantera::ThermoPhase> CanteraGas() {return CanteraGas_;}
 

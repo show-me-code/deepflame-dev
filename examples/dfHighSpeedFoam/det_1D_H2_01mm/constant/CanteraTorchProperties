@@ -19,6 +19,11 @@ FoamFile
 chemistry           on;
 CanteraMechanismFile "H2_Li.xml";
 transportModel "UnityLewis";
+loadbalancing
+{
+        active  false;
+        //log   true;
+}
 odeCoeffs
 {}
 inertSpecie        "N2";
@@ -26,5 +31,10 @@ inertSpecie        "N2";
 zeroDReactor
 {
     //cvorcp "UV";
+}
+loadbalancing
+{
+        active  true;
+        //log   true;
 }
 // ************************************************************************* //

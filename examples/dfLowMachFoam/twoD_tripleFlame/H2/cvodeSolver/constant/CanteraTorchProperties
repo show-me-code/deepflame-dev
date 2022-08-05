@@ -29,4 +29,9 @@ zeroDReactor
 {
     //cvorcp "UV";
 }
+loadbalancing
+{
+        active  true;
+        //log   true;
+}
 // ************************************************************************* //
