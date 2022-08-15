@@ -30,7 +30,7 @@ License
 
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
-
+//34-199载入数据
 template<class ThermoType>
 Foam::dfChemistryModel<ThermoType>::dfChemistryModel
 (
@@ -209,7 +209,7 @@ Foam::dfChemistryModel<ThermoType>::
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
-
+//调用负载均衡做求解器
 template<class ThermoType>
 template<class DeltaTType>
 Foam::scalar Foam::dfChemistryModel<ThermoType>::solve
@@ -229,6 +229,8 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve
     return result;
 }
 
+//- Solve the reaction system for the given time step
+//  and return the characteristic time
 template<class ThermoType>
 Foam::scalar Foam::dfChemistryModel<ThermoType>::solve
 (
@@ -243,7 +245,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve
     );
 }
 
-
+//函数重载solve
 template<class ThermoType>
 Foam::scalar Foam::dfChemistryModel<ThermoType>::solve
 (
@@ -253,7 +255,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve
     return this->solve<scalarField>(deltaT);
 }
 
-
+//使用cantera进行求解
 template<class ThermoType>
 template<class DeltaTType>
 Foam::scalar Foam::dfChemistryModel<ThermoType>::canteraSolve
@@ -278,9 +280,9 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::canteraSolve
 
     Qdot_ = Zero;
 
-    forAll(T_, cellI)
+    forAll(T_, cellI) //openfoam对for的封装
     {
-        scalar Ti = T_[cellI];
+        scalar Ti = T_[cellI];//类成员对象
         scalar pi = p_[cellI];
         try
         {
@@ -338,7 +340,7 @@ void Foam::dfChemistryModel<ThermoType>::setNumerics(Cantera::ReactorNet &sim)
     sim.setTolerances(relTol_,absTol_);
 }
 
-
+//装载torch的模型并用于模拟求解
 template<class ThermoType>
 template<class DeltaTType>
 Foam::scalar Foam::dfChemistryModel<ThermoType>::torchSolve
@@ -367,7 +369,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::torchSolve
     torch::DeviceIndex index = -1;
     if (0)
     {
-        device_type = torch::kCUDA;
+        device_type = torch::kCUDA; //调用GPU
         index = 0;
     }
     else
@@ -383,7 +385,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::torchSolve
             << " doesn't exist!"
             << exit(FatalError);
     }
-    torch::jit::script::Module torchModel_ = torch::jit::load(torchModelName_, device);
+    torch::jit::script::Module torchModel_ = torch::jit::load(torchModelName_, device); //装载模型
 
     std::vector<label> torch_cell;
     label torch_cellname= 0;
@@ -397,7 +399,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::torchSolve
         }
     }
 
-    torch::Tensor inputs(torch::zeros({torch_cell.size(),mixture_.nSpecies()+2}));
+    torch::Tensor inputs(torch::zeros({torch_cell.size(),mixture_.nSpecies()+2})); //设置输入数据
     forAll(T_, cellI)
     {
         scalar Ti = T_[cellI];
@@ -422,7 +424,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::torchSolve
             {
                 inputs_.push_back((yBCT_[i] - Xmu_[i+2]) / Xstd_[i+2]);
             }
-            inputs[torch_cellname] = torch::tensor(inputs_);
+            inputs[torch_cellname] = torch::tensor(inputs_); //形成输入数据
             torch_cellname ++;
             // Info << "cell_name = "<< cellI <<endl;
         }
@@ -457,7 +459,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::torchSolve
     auto outputs_raw = torchModel_.forward(INPUTS);
     auto outputs = outputs_raw.toTensor();
 
-    for(size_t cellI = 0; cellI<torch_cell.size(); cellI ++)
+    for(size_t cellI = 0; cellI<torch_cell.size(); cellI ++) //执行了类似cantara的后处理工作
     {
         // update y
         scalar Yt = 0;
@@ -485,6 +487,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::torchSolve
     return deltaTMin;
 }
 
+// update T, psi, mu, alpha, rhoD, hai (if needed)
 template<class ThermoType>
 void Foam::dfChemistryModel<ThermoType>::correctThermo()
 {
@@ -640,6 +643,8 @@ void Foam::dfChemistryModel<ThermoType>::correctThermo()
     }
 }
 
+//单一求解器，不做负载均衡并计时
+//返回结果到solution里面
 template<class ThermoType>
 void Foam::dfChemistryModel<ThermoType>::solveSingle
 (
@@ -648,7 +653,7 @@ void Foam::dfChemistryModel<ThermoType>::solveSingle
 {
 
     // Timer begins
-    clockTime time;
+    clockTime time; //这里用的时间尺度是否合理？
     time.timeIncrement();
 
     Cantera::Reactor react;
@@ -681,7 +686,7 @@ void Foam::dfChemistryModel<ThermoType>::solveSingle
 }
 
 
-
+//得到已经解决的问题
 template <class ThermoType>
 template<class DeltaTType>
 Foam::DynamicList<Foam::ChemistryProblem>
@@ -725,7 +730,7 @@ Foam::dfChemistryModel<ThermoType>::getProblems
     return solved_problems;
 }
 
-
+//解决一系列的化学问题并且返回一串结果
 template <class ThermoType>
 Foam::DynamicList<Foam::ChemistrySolution>
 Foam::dfChemistryModel<ThermoType>::solveList
@@ -738,12 +743,12 @@ Foam::dfChemistryModel<ThermoType>::solveList
 
     for(label i = 0; i < problems.size(); ++i)
     {
-        solveSingle(problems[i], solutions[i]);
+        solveSingle(problems[i], solutions[i]); //使用solvesingle解决一串问题
     }
     return solutions;
 }
 
-
+//- Solve the problem buffer coming from the balancer
 template <class ThermoType>
 Foam::RecvBuffer<Foam::ChemistrySolution>
 Foam::dfChemistryModel<ThermoType>::solveBuffer
@@ -756,13 +761,13 @@ Foam::dfChemistryModel<ThermoType>::solveBuffer
 
     for(auto& p : problems)
     {
-        solutions.append(solveList(p));
+        solutions.append(solveList(p)); //从缓存中读取一串问题并放入solvelist中求解
     }
     return solutions;
 }
 
 
-
+//- Update the reaction rates from a list of solutions
 template <class ThermoType>
 Foam::scalar
 Foam::dfChemistryModel<ThermoType>::updateReactionRates
@@ -790,7 +795,7 @@ Foam::dfChemistryModel<ThermoType>::updateReactionRates
 }
 
 
-
+//- Create a load balancer object
 template <class ThermoType>
 Foam::LoadBalancer
 Foam::dfChemistryModel<ThermoType>::createBalancer()
@@ -823,7 +828,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_loadBalance
     Info<<"=== begin DLB-solve === "<<endl;
     // CPU time analysis
     clockTime timer;
-    scalar t_getProblems(0);
+    scalar t_getProblems(0);//初始化为0
     scalar t_updateState(0);
     scalar t_balance(0);
     scalar t_solveBuffer(0);
@@ -838,33 +843,33 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_loadBalance
     DynamicList<ChemistryProblem> allProblems = getProblems(deltaT);
     t_getProblems = timer.timeIncrement();
 
-    RecvBuffer<ChemistrySolution> incomingSolutions;
+    RecvBuffer<ChemistrySolution> incomingSolutions; //创建一个缓存
 
-    if(balancer_.active())
+    if(balancer_.active()) //如果开启负载均衡
     {
         timer.timeIncrement();
-        balancer_.updateState(allProblems);
+        balancer_.updateState(allProblems); //更新状态
         t_updateState = timer.timeIncrement();
 
         timer.timeIncrement();
-        auto guestProblems = balancer_.balance(allProblems);
-        auto ownProblems = balancer_.getRemaining(allProblems);
+        auto guestProblems = balancer_.balance(allProblems); //平均分问题
+        auto ownProblems = balancer_.getRemaining(allProblems); //划分问题
         t_balance = timer.timeIncrement();
 
         timer.timeIncrement();
-        auto ownSolutions = solveList(ownProblems);
-        auto guestSolutions = solveBuffer(guestProblems);
+        auto ownSolutions = solveList(ownProblems); //解决ownProblems
+        auto guestSolutions = solveBuffer(guestProblems); //解决guestProblems
         t_solveBuffer = timer.timeIncrement();
 
         timer.timeIncrement();
-        incomingSolutions = balancer_.unbalance(guestSolutions);
+        incomingSolutions = balancer_.unbalance(guestSolutions); //返回值
         incomingSolutions.append(ownSolutions);
         t_unbalance = timer.timeIncrement();
     }
     else
     {
         timer.timeIncrement();
-        incomingSolutions.append(solveList(allProblems));
+        incomingSolutions.append(solveList(allProblems)); //不使用负载均衡，直接解决所有问题并加入incomingSolutions
         t_solveBuffer = timer.timeIncrement();
     }
 
