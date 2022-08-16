@@ -317,7 +317,7 @@ void Foam::multiCritRefinement::updateRefinementField()
                 IOobject::NO_WRITE,
                 false
             )
-        ).subDict("dynamicRefineFvMeshCoeffs")
+        ).subDict("dynamicRefineFvMeshNewCoeffs")
     );
     scalar globalMaxRefLevel = readScalar(refineDict.lookup("maxRefinement"));
 

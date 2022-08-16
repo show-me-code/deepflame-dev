@@ -10,31 +10,58 @@ FoamFile
     version     2.0;
     format      ascii;
     class       dictionary;
-    location    "constant";
-    object      chemistryProperties;
+    location    "system";
+    object      fvSolution;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
+solvers
+{
+	U
+	{
+		//solver		smoothSolver;
+		//smoother	GaussSeidel;
+		//nSweeps		2;
+		//tolerance	1e-17;
+		//relTol		0;
 
-chemistry           on;
-CanteraMechanismFile "H2_Li.xml";
-transportModel "UnityLewis";
-loadbalancing
-{
-        active  false;
-        //log   true;
-}
-odeCoeffs
-{}
-inertSpecie        "N2";
+		solver			PBiCGStab;
+		preconditioner	DIC;
+		tolerance		1e-11;
+		relTol			0;
+	}
+	
+	h
+	{
+		$U;
+		tolerance	1e-11;
+		relTol		0;
+	}
 
-zeroDReactor
-{
-    //cvorcp "UV";
+	e
+	{
+		$U;
+		tolerance	1e-11;
+		relTol		0;
+	}
+
+	"rho.*"
+	{
+		solver		diagonal;
+	}
+
+	"(O2|N2|Yi)"
+	{
+		solver          PBiCGStab;
+        preconditioner	DILU;
+        tolerance       1e-11;
+        relTol          0;
+	}
+	
 }
-loadbalancing
+
+CENTRAL
 {
-        active  true;
-        //log   true;
 }
+
 // ************************************************************************* //

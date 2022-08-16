@@ -9,10 +9,34 @@ FoamFile
 {
     version     2.0;
     format      ascii;
-    class       dictionary;
-    location    "constant";
-    object      thermophysicalProperties;
+    class       volScalarField;
+    location    "0";
+    object      AR;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
-inviscid      true;
+
+dimensions      [0 0 0 0 0 0 0];
+
+internalField   uniform 0.8861; 
+
+
+boundaryField
+{
+    Left
+    {
+        type            zeroGradient;
+    }
+    
+    Right
+    {
+        type            zeroGradient;
+    }
+
+    empty
+    {
+        type            empty;
+    }
+}
+
+
 // ************************************************************************* //
