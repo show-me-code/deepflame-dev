@@ -43,7 +43,7 @@ Foam::LoadBalancer::updateState(
  * 如果是sender，填充目的地，时间，计数器，问题数量
  * 如果是receiver，填充源地址，留存问题数量选择默认
  */
-//Todo 里面的time到底指代什么？
+// 里面的time指代CPU时间
 Foam::LoadBalancerBase::BalancerState
 Foam::LoadBalancer::operationsToInfo(
     const std::vector<Operation>&        operations,
@@ -171,6 +171,50 @@ Foam::LoadBalancer::getOperations(
 
     return large; //返回大操作列表
 }
+
+td::vector<Foam::LoadBalancer::Operation>
+Foam::LoadBalancer::getOperationsRedezVous(int &loads, const ChemistryLoad &myLoad)
+{
+    double globalMean = getMean(loads); //calculate the mean load
+    std::vector<Operation> operations;
+    std::sort(loads.begin(), loads.end()); //sort the loads
+    auto sender = loads.end() - 1;
+    auto receiver = loads.begin();
+
+    while(sender != receiver)
+    {
+        double send_value = (sender->value - receiver->value) / 2; // calculate the send value
+        Operation operation{sender->rank, receiver->rank, send_value};
+        if(sender->rank == myLoad.rank || receiver->rank == myLoad.rank)
+        {
+            operations.push_back(operation); // if send or recv rank related to my rank, add to operations
+        }
+        sender->value -= send_value; // update the load
+        receiver->value += send_value; // update the load
+        sender--;
+        receiver++;
+    }
+
+    // explicitly filter very small operations
+    std::vector<Operation> large;
+    for(const auto& op:operations)
+    {
+        if(op.value > 0.01 * globalMean) //if send value is larger than 1% of global mean
+        {
+            large.push_back(op); // add to large operations
+        }
+    }
+    runtime_assert(
+            !((isSender(operations, myLoad.rank) &&
+            isReceiver(operations, myLoad.rank))),
+            "Only sender or receiver should be possible.");
+
+    runtime_assert(
+            std::abs(getMean(loads) - globalMean) < 1E-7, "Vanishing load");
+
+    return large; //return large operations
+}
+
 
 // 查看操作中的源是否是自己，如果是则为接收者，否则为发送者
 bool

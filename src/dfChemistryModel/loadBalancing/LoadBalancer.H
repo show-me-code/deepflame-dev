@@ -103,6 +103,9 @@ protected:
     static std::vector<LoadBalancer::Operation> getOperations(
         DynamicList<ChemistryLoad>& loads, const ChemistryLoad& myLoad);
 
+    static std::vector<LoadBalancer::Operation> getOperationsRedezVous(
+            DynamicList<ChemistryLoad>& loads, const ChemistryLoad& myLoad);
+
     //- Convert the operations to send and receive info to handle balancing
     static BalancerState operationsToInfo(
         const std::vector<Operation>& operations,
