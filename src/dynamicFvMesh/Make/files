@@ -1,0 +1,4 @@
+dynamicRefineFvMeshNew/multiCritRefinement.C
+dynamicRefineFvMeshNew/dynamicRefineFvMeshNew.C
+
+LIB = $(FOAM_USER_LIBBIN)/libnewdynamicFvMesh
