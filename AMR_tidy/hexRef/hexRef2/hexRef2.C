@@ -336,23 +336,6 @@ Foam::labelListList Foam::hexRef2::setRefinement
         isDivisibleEdge[edgeI] = false;
     }
 
-    // for (label facei = mesh_.nInternalFaces(); facei < mesh_.nFaces(); facei++)
-    // {
-    //     const label & patchID = mesh_.boundaryMesh().whichPatch(facei);
-
-    //     if (mesh_.boundaryMesh()[patchID].type() != "empty")
-    //     {
-    //         isDivisibleFace[facei] = false;
-    //         const labelList& fEdges = mesh_.faceEdges(facei);
-
-    //         forAll(fEdges, i)
-    //         {
-    //             label edgeI = fEdges[i];
-    //             isDivisibleEdge[edgeI] = false;
-    //         }
-    //     }
-    // }
-
     for (label facei = 0; facei < mesh_.nInternalFaces(); facei++)
     {
         isDivisibleFace[facei] = false;
@@ -898,11 +881,13 @@ Foam::labelListList Foam::hexRef2::setRefinement
                 face newFace(2);
 
                 // maybe need to adjust the point order
-                DynamicList<label> faceVerts(4);
-                
+                // DynamicList<label> faceVerts(4);              
 
                 forAll(f, fp)
                 {
+                    //maybe need to put inside (but nothing wrong to be put outside)
+                    DynamicList<label> faceVerts(4);
+
                     label pointi = f[fp];
 
                     label nextpointi = f[f.fcIndex(fp)];

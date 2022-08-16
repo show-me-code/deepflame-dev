@@ -14,7 +14,6 @@ FoamFile
     object      controlDict;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
-libs ("libfieldFunctionObjects.so");
 
 application     dfHighSpeedFoam;
 
@@ -24,9 +23,9 @@ startTime       0;
 
 stopAt          endTime;
 
-endTime         2.4e-4;
+endTime         23e-5;
 
-deltaT          1e-09;
+deltaT          1e-08;
 
 writeControl    adjustableRunTime;
 
@@ -36,7 +35,7 @@ cycleWrite      0;
 
 writeFormat     ascii;
 
-writePrecision  8;
+writePrecision  6;
 
 writeCompression on;
 
@@ -48,20 +47,13 @@ runTimeModifiable true;
 
 adjustTimeStep  yes;
 
-maxCo           0.02;
+maxCo           0.1;
 
 maxDeltaT       1;
 
 functions
 {
-    minMax
-    {
-      type          fieldMinMax;
-      libs          ("libfieldFunctionObjects.so");
-      writeControl  timeStep; //writeTime;
-      fields        (p);
-    }
+    #includeFunc mag(U)
 }
-
 
 // ************************************************************************* //
