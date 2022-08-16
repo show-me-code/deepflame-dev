@@ -172,7 +172,8 @@ Foam::LoadBalancer::getOperations(
     return large; //返回大操作列表
 }
 
-td::vector<Foam::LoadBalancer::Operation>
+//perform load balance with Redez-vous algorithm
+std::vector<Foam::LoadBalancer::Operation>
 Foam::LoadBalancer::getOperationsRedezVous(int &loads, const ChemistryLoad &myLoad)
 {
     double globalMean = getMean(loads); //calculate the mean load
