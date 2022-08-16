@@ -24,6 +24,7 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "ChemistryProblem.H"
-namespace Foam{
+
+namespace Foam {
 
 }

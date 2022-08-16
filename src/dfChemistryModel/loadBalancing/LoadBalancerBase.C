@@ -46,7 +46,7 @@ Foam::LoadBalancerBase::computeLoad(const DynamicList<ChemistryProblem>& problem
     };
     scalar sum =
         std::accumulate(problems.begin(), problems.end(), scalar(0), lambda);
-    return ChemistryLoad(Pstream::myProcNo(), sum);
+    return ChemistryLoad(Pstream::myProcNo(), sum); //(rank, value)
 }
 
 Foam::scalar Foam::LoadBalancerBase::getMean(const DynamicList<ChemistryLoad>& loads)

@@ -30,6 +30,11 @@ Description
 
 \*---------------------------------------------------------------------------*/
 
+/*
+ * 化学结果类
+ * 用于存储相关结果并进行相关序列化和重载
+ * 带有CPU计时器
+ */
 #ifndef ChemistrySolution_H
 #define ChemistrySolution_H
 

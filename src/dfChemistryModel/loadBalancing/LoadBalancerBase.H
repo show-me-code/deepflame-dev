@@ -67,7 +67,7 @@ private:
 
 
 public:
-    LoadBalancerBase() = default;
+    LoadBalancerBase() = default; //default constructor
 
     virtual ~LoadBalancerBase() = default;
 
@@ -143,20 +143,22 @@ public:
     }
 };
 
+//收集所有数据并将其分发给所有人
 template <class T>
 DynamicList<T> LoadBalancerBase::allGather(const T& myData)
 {
 
-    DynamicList<T> ret(Pstream::nProcs(), myData);
-    ret[Pstream::myProcNo()] = myData;
+    DynamicList<T> ret(Pstream::nProcs(), myData); //初始化list，长度为进程数，大小为myData
+    ret[Pstream::myProcNo()] = myData; //自己的进程号对应的值为myData
 
-    label tag = 1;
-    Pstream::gatherList(ret, tag);
-    Pstream::scatterList(ret, tag);
+    label tag = 1; //comm world
+    Pstream::gatherList(ret, tag); //调用openfoam的gatherList函数,收集数据，但将各个值分开。
+    Pstream::scatterList(ret, tag); //调用openfoam的scatterList函数,分发数据，但将各个值分开。
 
     return ret;
 }
 
+//- Split the values evenly between the sources and destinations
 template <class T>
 RecvBuffer<T> LoadBalancerBase::balance(const DynamicList<T>& values) const
 {
@@ -167,6 +169,8 @@ RecvBuffer<T> LoadBalancerBase::balance(const DynamicList<T>& values) const
         state_.destinations);
 }
 
+//- Send the split send_buffer to sources and receive everything from
+//todo 这部分是干什么的？
 template <class T>
 RecvBuffer<T> LoadBalancerBase::unbalance(const RecvBuffer<T>& values) const
 {
@@ -189,6 +193,7 @@ std::string LoadBalancerBase::vectorToString(const std::vector<T>& vec)
     return ret;
 }
 
+//按照目的地顺序发送，顺序接受
 template <class ET, class Indexable>
 RecvBuffer<ET> LoadBalancerBase::sendRecv(
     const Indexable&          send_buffer,
@@ -198,12 +203,16 @@ RecvBuffer<ET> LoadBalancerBase::sendRecv(
 
     RecvBuffer<ET> ret;
 
-    if(Pstream::parRun())
+    if(Pstream::parRun())// 判断是否并行
     {
 
-        PstreamBuffers pBufs(Pstream::commsTypes::nonBlocking);
+        PstreamBuffers pBufs(Pstream::commsTypes::nonBlocking); //非阻塞模式
 
-        for(label i = 0; i < label(destinations.size()); ++i)
+        /*
+         * 可以分多个线程/进程收发，可能会直接把缓冲区填满？
+         *
+         */
+        for(label i = 0; i < label(destinations.size()); ++i) //对每个目的地发送
         {
             UOPstream send(destinations[i], pBufs);
             send << send_buffer[i];

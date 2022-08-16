@@ -52,19 +52,21 @@ namespace Foam
 {
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
-
+/*
+ * 该类继承LoadBalancerBase，增加了一个负载平衡算法。
+ * 该算法会尝试将每个进程的负载平均分配给其他进程。
+ */
 class LoadBalancer : public LoadBalancerBase
 {
 
-
 public:
-    struct Operation
+    struct Operation //之后要执行的操作
     {
         int from, to; // ranks
         double value;
     };
 
-    LoadBalancer() = default;
+    LoadBalancer() = default; //default constructor
 
     LoadBalancer(const dictionary& dict)
         : LoadBalancerBase(), dict_(dict),

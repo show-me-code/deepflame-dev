@@ -30,6 +30,10 @@ Description
 
 \*---------------------------------------------------------------------------*/
 
+/*
+ * 创建一个描述化学负载的类，这个类包含一个rank和一个value，并且可以通过OStream和IStream进行序列化。
+ * 重构了operator<，operator>，operator==，operator!=，operator<<，operator>>。
+ */
 #ifndef ChemistryLoad_H
 #define ChemistryLoad_H
 
