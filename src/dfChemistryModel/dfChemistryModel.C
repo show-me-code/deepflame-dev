@@ -768,7 +768,7 @@ Foam::dfChemistryModel<ThermoType>::solveBuffer
 
 template <class ThermoType>
 Foam::scalar
-Foam::dfChemistryModel<ThermoType>::updateRRQ
+Foam::dfChemistryModel<ThermoType>::updateReactionRates
 (
     const RecvBuffer<ChemistrySolution>& solutions
 )
@@ -887,7 +887,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_loadBalance
     }
 
     Info<<"=== end DLB-solve === "<<endl;
-    return updateRRQ(incomingSolutions);
+    return updateReactionRates(incomingSolutions);
 }
 
 // ************************************************************************* //

@@ -162,7 +162,7 @@ public IOdictionary
         solveBuffer(RecvBuffer<ChemistryProblem>& problems);
 
         //- Update the reaction rates and heat release rates from a list of solutions
-        scalar updateRRQ(const RecvBuffer<ChemistrySolution>& solutions);
+        scalar updateReactionRates(const RecvBuffer<ChemistrySolution>& solutions);
 
         //- Create a load balancer object
         LoadBalancer createBalancer();

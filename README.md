@@ -9,7 +9,7 @@ New in v0.2.0:
 - Dynamic load balancing for chemistry solver
 
 From v0.1.0:
-- Native Cantera reader for chemical mechanisms in `.cti`, `.xml` or `.ymal` formats
+- Native Cantera reader for chemical mechanisms in `.cti`, `.xml` or `.yaml` formats
 - Full compatiblity with Cantera's `UnityLewis`, `Mix` and `Multi` transport models
 - Zero-dimensional constant pressure or constant volume reactor solver `df0DFoam`
 - Pressued-based low-Mach number reacting flow solver `dfLowMachFoam`
@@ -40,7 +40,7 @@ conda create -n libcantera
 
 conda activate libcantera
 
-conda install -c conda-forge boost libcantera-devel
+conda install -c conda-forge cantera libcantera-devel
 ```
 Note: Check your Miniconda3/envs/libcantera directory and make sure the install was successful (lib/ include/ etc. exist).
 
@@ -73,7 +73,7 @@ source $HOME/deepflame-dev/bashrc
 ```
 3. Go to an example case directory, for example:
 ```
-cd $HOME/deepflame-dev/examples/zeroD_cubicReactor/H2/cvodeSolver
+cd $HOME/deepflame-dev/examples/df0DFoam/zeroD_cubicReactor/H2/cvodeSolver
 
 ./Allrun
 ```
