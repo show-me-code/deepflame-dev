@@ -656,6 +656,7 @@ void Foam::dfChemistryModel<ThermoType>::solveSingle
     const scalar pi = problem.pi;
     const scalar rhoi = problem.rhoi;
     const scalarList yPre_ = problem.Y;
+    scalar Qdoti_ = 0;
 
     CanteraGas_->setState_TPY(Ti, pi, yPre_.begin());
 
@@ -672,10 +673,12 @@ void Foam::dfChemistryModel<ThermoType>::solveSingle
     for (size_t i=0; i<CanteraGas_->nSpecies(); i++)
     {
         solution.RRi[i] = (yTemp_[i] - yPre_[i]) / problem.deltaT * rhoi;
+        Qdoti_ -= hc_[i]*solution.RRi[i];
     }
 
     // Timer ends
     solution.cpuTime = time.timeIncrement();
+    solution.Qdoti = Qdoti_;
 
     solution.cellid = problem.cellid;
 }
@@ -781,6 +784,7 @@ Foam::dfChemistryModel<ThermoType>::updateReactionRates
             {
                 this->RR_[j][solution.cellid] = solution.RRi[j];
             }
+            this->Qdot_[solution.cellid] = solution.Qdoti;
 
             cpuTimes_[solution.cellid] = solution.cpuTime;
         }

@@ -135,15 +135,49 @@ public IOdictionary
         //- Disallow default bitwise assignment
         void operator=(const dfChemistryModel&);
 
-        // override for Cantera
+        //- override for Cantera
         template<class DeltaTType>
         scalar solve(const DeltaTType& deltaT);
 
         template<class DeltaTType>
         scalar canteraSolve(const DeltaTType& deltaT);
 
+        //- Solve the reaction system with Deep Neural Networks
         template<class DeltaTType>
         scalar torchSolve(const DeltaTType& deltaT);
+
+        //- Solve a single ChemistryProblem and put the solution to ChemistrySolution
+        void solveSingle(ChemistryProblem& problem, ChemistrySolution& solution);
+
+        //- Get the list of problems to be solved
+        template<class DeltaTType>
+        DynamicList<ChemistryProblem> getProblems(const DeltaTType& deltaT);
+
+        //- Solve a list of chemistry problems and return a list of solutions
+        DynamicList<ChemistrySolution>
+        solveList(UList<ChemistryProblem>& problems);
+
+        //- Solve the problem buffer coming from the balancer
+        RecvBuffer<ChemistrySolution>
+        solveBuffer(RecvBuffer<ChemistryProblem>& problems);
+
+        //- Update the reaction rates and heat release rates from a list of solutions
+        scalar updateReactionRates(const RecvBuffer<ChemistrySolution>& solutions);
+
+        //- Create a load balancer object
+        LoadBalancer createBalancer();
+
+        //- Solve the reaction system with DLB algorithm
+        template<class DeltaTType>
+        scalar solve_loadBalance(const DeltaTType& deltaT);
+
+        //- Output logFiles
+        Foam::autoPtr<Foam::OFstream> logFile(const word& name) const
+        {
+            mkDir(mesh_.time().path() / "loadBal" / this->group());
+            return autoPtr<OFstream>(new OFstream(
+                mesh_.time().path() / "loadBal" / this->group() / name));
+        }
 
 public:
 
@@ -193,34 +227,6 @@ public:
         // update T, psi, mu, alpha, rhoD, hai (if needed)
         void correctThermo();
 
-        void solveSingle(ChemistryProblem& problem, ChemistrySolution& solution);
-
-        template<class DeltaTType>
-        DynamicList<ChemistryProblem> getProblems(const DeltaTType& deltaT);
-
-        //- Solve a list of chemistry problems and return a list of solutions
-        DynamicList<ChemistrySolution>
-        solveList(UList<ChemistryProblem>& problems);
-
-        //- Solve the problem buffer coming from the balancer
-        RecvBuffer<ChemistrySolution>
-        solveBuffer(RecvBuffer<ChemistryProblem>& problems);
-
-        //- Update the reaction rates from a list of solutions
-        scalar updateReactionRates(const RecvBuffer<ChemistrySolution>& solutions);
-
-        //- Create a load balancer object
-        LoadBalancer createBalancer();
-
-        template<class DeltaTType>
-        scalar solve_loadBalance(const DeltaTType& deltaT);
-
-        Foam::autoPtr<Foam::OFstream> logFile(const word& name) const
-        {
-            mkDir(mesh_.time().path() / "loadBal" / this->group());
-            return autoPtr<OFstream>(new OFstream(
-                mesh_.time().path() / "loadBal" / this->group() / name));
-        }
 };
 
 
