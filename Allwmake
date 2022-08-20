@@ -11,6 +11,7 @@ wmake src/CanteraMixture
 wmake src/thermophysicalModels/SLGThermo
 wmake src/dfChemistryModel
 wmake src/TurbulenceModels/compressible
+wmake src/TurbulenceModels/turbulenceModels
 wmake src/regionModels/surfaceFilmModels
 src/lagrangian/Allwmake $targetType $*
 
