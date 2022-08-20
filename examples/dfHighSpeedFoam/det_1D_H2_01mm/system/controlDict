@@ -14,7 +14,6 @@ FoamFile
     object      controlDict;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
-libs ("libfieldFunctionObjects.so");
 
 application     dfHighSpeedFoam;
 
@@ -57,7 +56,7 @@ functions
     minMax
     {
       type          fieldMinMax;
-      libs          ("libfieldFunctionObjects.so");
+      libs          ("libdfFieldFunctionObjects.so");
       writeControl  timeStep; //writeTime;
       fields        (p);
     }
