@@ -43,10 +43,7 @@ Description
             filter   simple;
             Csg      1.5;
         }
-    \endverbatim
-
-    Implemented for OpenFOAM version 7, by Zhi X. Chen,
-    Cambridge University Enigneering Department, zc252@cam.ac.uk
+    \endverbatim    
 
 SourceFiles
     Sigma.C
