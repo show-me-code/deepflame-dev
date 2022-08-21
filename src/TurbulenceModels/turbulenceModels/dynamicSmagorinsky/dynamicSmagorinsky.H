@@ -24,19 +24,8 @@ License
 Class
     Foam::LESModels::dynamicSmagorinsky
 
-Group
-    grpLESTurbulence
-
 Description
     Dynamic SGS model with local averaging, based on Germano and Lilly works.
-    
-    An older version of this code had been developed for version 2.3.1 and older by Alberto Passalacqua.
-    
-    The current version has been developed for version 4.1, Ehsan Asgari, e.asgari@aut.ac.ir
-
-    The makeTurbulentFluidThermoModels.C file has been updated for OpenFOAM version 6, Eric Daymo, eadaymo@tonkomo.com 
-
-    Updated and validated for OpenFOAM version 7, James C. Massey, jcm97@cam.ac.uk, University of Cambridge
 
     The default model coefficients are
     \verbatim
