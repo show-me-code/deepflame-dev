@@ -6,10 +6,12 @@ cd ${0%/*} || exit 1    # Run from this directory
 
 wmake src/thermophysicalModels/thermophysicalProperties
 wmake src/thermophysicalModels/basic
+wmake src/functionObjects/field
 wmake src/CanteraMixture
 wmake src/thermophysicalModels/SLGThermo
 wmake src/dfChemistryModel
 wmake src/TurbulenceModels/compressible
+wmake src/TurbulenceModels/turbulenceModels
 wmake src/regionModels/surfaceFilmModels
 src/lagrangian/Allwmake $targetType $*
 
