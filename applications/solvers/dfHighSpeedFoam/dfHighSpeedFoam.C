@@ -60,6 +60,7 @@ int main(int argc, char *argv[])
     double time_monitor_flow;
     double time_monitor_chem;
     double time_monitor_Y;
+    double time_monitor_AMR;
     clock_t start, end;
 
     turbulence->validate();
@@ -69,6 +70,7 @@ int main(int argc, char *argv[])
     #include "readFluxScheme.H"
 
     dimensionedScalar v_zero("v_zero", dimVolume/dimTime, 0.0);
+    dimensionedScalar refCri("refCri", dimensionSet(1, -4, 0, 0, 0), 0.0);
 
     // Courant numbers used to adjust the time-step
     scalar CoNum = 0.0;
@@ -80,13 +82,28 @@ int main(int argc, char *argv[])
     {
         #include "readTimeControls.H"
 
+        //used for AMR
+        refCri = max(mag(fvc::grad(rho)));
+        tmp<volScalarField> tmagGradrho = mag(fvc::grad(rho));
+        volScalarField normalisedGradrho
+        (
+            "normalisedGradrho",
+            tmagGradrho()/refCri
+        );
+        normalisedGradrho.writeOpt() = IOobject::AUTO_WRITE;
+        tmagGradrho.clear();
+
         if (!LTS)
         {
             #include "setDeltaT.H"
             runTime++;
 
             // Do any mesh changes
+            start = std::clock();
             mesh.update();
+            end = std::clock();
+            time_monitor_AMR += double(end - start) / double(CLOCKS_PER_SEC);
+            
         }
 
         // --- Directed interpolation of primitive fields onto faces
@@ -225,6 +242,7 @@ int main(int argc, char *argv[])
         Info<< "MonitorTime_chem = " << time_monitor_chem << " s" << nl << endl;
         Info<< "MonitorTime_Y = " << time_monitor_Y << " s" << nl << endl;
         Info<< "MonitorTime_flow = " << time_monitor_flow << " s" << nl << endl;
+        Info<< "MonitorTime_AMR = " << time_monitor_AMR << " s" << nl << endl;
 
         Info<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
             << "  ClockTime = " << runTime.elapsedClockTime() << " s"
