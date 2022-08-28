@@ -15,14 +15,14 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-dynamicFvMesh   dynamicRefineFvMeshNew;
+dynamicFvMesh   dfDynamicRefineFvMesh;
 
 multiCritRefinementControls
 {
     enableMultiCritRefinementControl  false;
 }
 
-dynamicRefineFvMeshNewCoeffs
+dfDynamicRefineFvMeshCoeffs
 {
     // How often to refine
     refineInterval  1; 

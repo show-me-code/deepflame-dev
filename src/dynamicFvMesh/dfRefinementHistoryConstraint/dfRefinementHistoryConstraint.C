@@ -23,10 +23,10 @@ License
 
 \*---------------------------------------------------------------------------*/
 
-#include "refinementHistoryNewConstraint.H"
+#include "dfRefinementHistoryConstraint.H"
 #include "addToRunTimeSelectionTable.H"
 #include "syncTools.H"
-#include "refinementHistoryNew.H"
+#include "dfRefinementHistory.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -34,12 +34,12 @@ namespace Foam
 {
 namespace decompositionConstraints
 {
-    defineTypeName(refinementHistoryNewConstraint);
+    defineTypeName(dfRefinementHistoryConstraint);
 
     addToRunTimeSelectionTable
     (
         decompositionConstraint,
-        refinementHistoryNewConstraint,
+        dfRefinementHistoryConstraint,
         dictionary
     );
 }
@@ -48,7 +48,7 @@ namespace decompositionConstraints
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-Foam::decompositionConstraints::refinementHistoryNewConstraint::refinementHistoryNewConstraint
+Foam::decompositionConstraints::dfRefinementHistoryConstraint::dfRefinementHistoryConstraint
 (
     const dictionary& dict,
     const word& modelType
@@ -64,7 +64,7 @@ Foam::decompositionConstraints::refinementHistoryNewConstraint::refinementHistor
 }
 
 
-Foam::decompositionConstraints::refinementHistoryNewConstraint::refinementHistoryNewConstraint()
+Foam::decompositionConstraints::dfRefinementHistoryConstraint::dfRefinementHistoryConstraint()
 :
     decompositionConstraint(dictionary(), typeName)
 {
@@ -78,7 +78,7 @@ Foam::decompositionConstraints::refinementHistoryNewConstraint::refinementHistor
 
 // * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * * //
 
-void Foam::decompositionConstraints::refinementHistoryNewConstraint::add
+void Foam::decompositionConstraints::dfRefinementHistoryConstraint::add
 (
     const polyMesh& mesh,
     boolList& blockedFace,
@@ -88,27 +88,27 @@ void Foam::decompositionConstraints::refinementHistoryNewConstraint::add
 ) const
 {
     // The refinement history type
-    typedef ::Foam::refinementHistoryNew HistoryType;
-    // typedef Foam::decompositionConstraints::refinementHistoryNew HistoryType;
+    typedef ::Foam::dfRefinementHistory HistoryType;
+    // typedef Foam::decompositionConstraints::dfRefinementHistory HistoryType;
 
     // Local storage if read from file
     autoPtr<const HistoryType> readFromFile;
 
     const HistoryType* historyPtr = nullptr;
 
-    if (mesh.foundObject<HistoryType>("refinementHistoryNew"))
+    if (mesh.foundObject<HistoryType>("dfRefinementHistory"))
     {
         if (decompositionConstraint::debug)
         {
-            Info<< type() << " : found refinementHistoryNew" << endl;
+            Info<< type() << " : found dfRefinementHistory" << endl;
         }
-        historyPtr = &mesh.lookupObject<HistoryType>("refinementHistoryNew");
+        historyPtr = &mesh.lookupObject<HistoryType>("dfRefinementHistory");
     }
     else
     {
         if (decompositionConstraint::debug)
         {
-            Info<< type() << " : reading refinementHistoryNew from time "
+            Info<< type() << " : reading dfRefinementHistory from time "
                 << mesh.facesInstance() << endl;
         }
 
@@ -118,7 +118,7 @@ void Foam::decompositionConstraints::refinementHistoryNewConstraint::add
             (
                 IOobject
                 (
-                    "refinementHistoryNew",
+                    "dfRefinementHistory",
                     mesh.facesInstance(),
                     polyMesh::meshSubDir,
                     mesh,
@@ -142,7 +142,7 @@ void Foam::decompositionConstraints::refinementHistoryNewConstraint::add
 
     if (history.active())
     {
-        // refinementHistoryNew itself implements decompositionConstraint
+        // dfRefinementHistory itself implements decompositionConstraint
         history.add
         (
             blockedFace,
@@ -154,7 +154,7 @@ void Foam::decompositionConstraints::refinementHistoryNewConstraint::add
 }
 
 
-void Foam::decompositionConstraints::refinementHistoryNewConstraint::apply
+void Foam::decompositionConstraints::dfRefinementHistoryConstraint::apply
 (
     const polyMesh& mesh,
     const boolList& blockedFace,
@@ -165,16 +165,16 @@ void Foam::decompositionConstraints::refinementHistoryNewConstraint::apply
 ) const
 {
     // The refinement history type
-    typedef ::Foam::refinementHistoryNew HistoryType;
+    typedef ::Foam::dfRefinementHistory HistoryType;
 
     // Local storage if read from file
     autoPtr<const HistoryType> readFromFile;
 
     const HistoryType* historyPtr = nullptr;
 
-    if(mesh.foundObject<HistoryType>("refinementHistoryNew"))
+    if(mesh.foundObject<HistoryType>("dfRefinementHistory"))
     {
-        historyPtr = &mesh.lookupObject<HistoryType>("refinementHistoryNew");
+        historyPtr = &mesh.lookupObject<HistoryType>("dfRefinementHistory");
     }
     else
     {
@@ -184,7 +184,7 @@ void Foam::decompositionConstraints::refinementHistoryNewConstraint::apply
             (
                 IOobject
                 (
-                    "refinementHistoryNew",
+                    "dfRefinementHistory",
                     mesh.facesInstance(),
                     polyMesh::meshSubDir,
                     mesh,
@@ -208,7 +208,7 @@ void Foam::decompositionConstraints::refinementHistoryNewConstraint::apply
 
     if (history.active())
     {
-        // refinementHistoryNew itself implements decompositionConstraint
+        // dfRefinementHistory itself implements decompositionConstraint
         history.apply
         (
             blockedFace,

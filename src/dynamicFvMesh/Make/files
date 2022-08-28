@@ -1,6 +1,6 @@
-dynamicRefineFvMeshNew/multiCritRefinement.C
-dynamicRefineFvMeshNew/dynamicRefineFvMeshNew.C
+dfDynamicRefineFvMesh/multiCritRefinement.C
+dfDynamicRefineFvMesh/dfDynamicRefineFvMesh.C
 
-refinementHistoryNewConstraint/refinementHistoryNewConstraint.C
+dfRefinementHistoryConstraint/dfRefinementHistoryConstraint.C
 
-LIB = $(FOAM_USER_LIBBIN)/libnewdynamicFvMesh
+LIB = $(FOAM_USER_LIBBIN)/libdfDynamicFvMesh

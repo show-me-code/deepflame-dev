@@ -31,7 +31,7 @@ License
 #include "mapDistributePolyMesh.H"
 #include "polyMesh.H"
 #include "syncTools.H"
-#include "refinementHistoryNew.H"
+#include "dfRefinementHistory.H"
 #include "fvMesh.H"
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
@@ -73,13 +73,13 @@ Foam::hexRefData::hexRefData(const IOobject& io)
     }
     {
         IOobject rio(io);
-        rio.rename("refinementHistoryNew");
+        rio.rename("dfRefinementHistory");
         // bool haveFile = returnReduce(rio.headerOk(), orOp<bool>());
         bool haveFile = returnReduce(rio.typeHeaderOk<labelIOList>(), orOp<bool>());
         if (haveFile)
         {
             Info<< "Reading hexRef data : " << rio.name() << endl;
-            refHistoryPtr_.reset(new refinementHistoryNew(rio));
+            refHistoryPtr_.reset(new dfRefinementHistory(rio));
         }
     }
 }
@@ -212,7 +212,7 @@ Foam::hexRefData::hexRefData
         IOobject rio(io);
         rio.rename(procDatas[0].refHistoryPtr_().name());
 
-        UPtrList<const refinementHistoryNew> procRefs(procDatas.size());
+        UPtrList<const dfRefinementHistory> procRefs(procDatas.size());
         forAll(procDatas, i)
         {
             procRefs.set(i, &procDatas[i].refHistoryPtr_());
@@ -220,7 +220,7 @@ Foam::hexRefData::hexRefData
 
         refHistoryPtr_.reset
         (
-            new refinementHistoryNew
+            new dfRefinementHistory
             (
                 rio,
                 cellMaps,
@@ -290,9 +290,9 @@ void Foam::hexRefData::sync(const IOobject& io)
     if (hasHistory && !refHistoryPtr_.valid())
     {
         IOobject rio(io);
-        rio.rename("refinementHistoryNew");
+        rio.rename("dfRefinementHistory");
         rio.readOpt() = IOobject::NO_READ;
-        refHistoryPtr_.reset(new refinementHistoryNew(rio, mesh.nCells(), true));
+        refHistoryPtr_.reset(new dfRefinementHistory(rio, mesh.nCells(), true));
     }
 }
 

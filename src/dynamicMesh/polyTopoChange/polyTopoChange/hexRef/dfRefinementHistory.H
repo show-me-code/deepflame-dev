@@ -22,7 +22,7 @@ License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
 Class
-    Foam::refinementHistoryNew
+    Foam::dfRefinementHistory
 
 Description
     All refinement history. Used in unrefinement.
@@ -64,12 +64,12 @@ Description
 
 
 SourceFiles
-    refinementHistoryNew.C
+    dfRefinementHistory.C
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef refinementHistoryNew_H
-#define refinementHistoryNew_H
+#ifndef dfRefinementHistory_H
+#define dfRefinementHistory_H
 
 #include "DynamicList.H"
 #include "labelList.H"
@@ -91,17 +91,17 @@ class mapDistributePolyMesh;
 
 // Forward declaration of friend functions and operators
 
-class refinementHistoryNew;
+class dfRefinementHistory;
 
-Istream& operator>>(Istream&, refinementHistoryNew&);
-Ostream& operator<<(Ostream&, const refinementHistoryNew&);
+Istream& operator>>(Istream&, dfRefinementHistory&);
+Ostream& operator<<(Ostream&, const dfRefinementHistory&);
 
 
 /*---------------------------------------------------------------------------*\
-                           Class refinementHistoryNew Declaration
+                           Class dfRefinementHistory Declaration
 \*---------------------------------------------------------------------------*/
 
-class refinementHistoryNew
+class dfRefinementHistory
 :
     public regIOobject
 {
@@ -212,17 +212,17 @@ private:
 public:
 
     // Declare name of the class and its debug switch
-    TypeName("refinementHistoryNew");
+    TypeName("dfRefinementHistory");
 
 
     // Constructors
 
         //- Construct (read) given an IOobject. If global number of visible
         //  cells > 0 becomes active
-        refinementHistoryNew(const IOobject&);
+        dfRefinementHistory(const IOobject&);
 
         //- Construct (read) or construct from components
-        refinementHistoryNew
+        dfRefinementHistory
         (
             const IOobject&,
             const List<splitCell8>& splitCells,
@@ -233,11 +233,11 @@ public:
         //- Construct (read) or construct from initial number of cells
         //  (all visible). If global number of visible
         //  cells > 0 becomes active
-        refinementHistoryNew(const IOobject&, const label nCells);
+        dfRefinementHistory(const IOobject&, const label nCells);
 
         //- Construct (read) or construct from initial number of cells
         //  (all visible) and active flag
-        refinementHistoryNew
+        dfRefinementHistory
         (
             const IOobject&,
             const label nCells,
@@ -245,20 +245,20 @@ public:
         );
 
         //- Construct as copy
-        refinementHistoryNew(const IOobject&, const refinementHistoryNew&);
+        dfRefinementHistory(const IOobject&, const dfRefinementHistory&);
 
         //- Construct from multiple refinement histories. If global number of
         //  visible cells > 0 becomes active
-        refinementHistoryNew
+        dfRefinementHistory
         (
             const IOobject&,
             const UPtrList<const labelList>& cellMaps,
-            const UPtrList<const refinementHistoryNew>&
+            const UPtrList<const dfRefinementHistory>&
         );
 
         //- Construct from Istream. If global number of
         //  visible cells > 0 becomes active
-        refinementHistoryNew(const IOobject&, Istream&);
+        dfRefinementHistory(const IOobject&, Istream&);
 
 
     // Member Functions
@@ -324,7 +324,7 @@ public:
         );
 
         //- Low level clone
-        autoPtr<refinementHistoryNew> clone
+        autoPtr<dfRefinementHistory> clone
         (
             const IOobject& io,
             const labelList& decomposition,
@@ -335,7 +335,7 @@ public:
         ) const;
 
         //- Create clone from subset
-        autoPtr<refinementHistoryNew> clone
+        autoPtr<dfRefinementHistory> clone
         (
             const IOobject& io,
             const labelList& cellMap
@@ -405,14 +405,14 @@ public:
 
         //- Istream operator. Note: does not do a reduction - does not set
         //  active_ flag
-        friend Istream& operator>>(Istream&, refinementHistoryNew&);
+        friend Istream& operator>>(Istream&, dfRefinementHistory&);
 
-        friend Ostream& operator<<(Ostream&, const refinementHistoryNew&);
+        friend Ostream& operator<<(Ostream&, const dfRefinementHistory&);
 };
 
 
-Istream& operator>>(Istream&, refinementHistoryNew::splitCell8&);
-Ostream& operator<<(Ostream&, const refinementHistoryNew::splitCell8&);
+Istream& operator>>(Istream&, dfRefinementHistory::splitCell8&);
+Ostream& operator<<(Ostream&, const dfRefinementHistory::splitCell8&);
 
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

@@ -23,7 +23,7 @@ License
 
 \*---------------------------------------------------------------------------*/
 
-#include "refinementHistoryNew.H"
+#include "dfRefinementHistory.H"
 #include "mapPolyMesh.H"
 #include "mapDistributePolyMesh.H"
 #include "polyMesh.H"
@@ -33,13 +33,13 @@ License
 
 namespace Foam
 {
-    defineTypeNameAndDebug(refinementHistoryNew, 0);
+    defineTypeNameAndDebug(dfRefinementHistory, 0);
 }
 
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
-void Foam::refinementHistoryNew::writeEntry
+void Foam::dfRefinementHistory::writeEntry
 (
     const List<splitCell8>& splitCells,
     const splitCell8& split
@@ -71,7 +71,7 @@ void Foam::refinementHistoryNew::writeEntry
 }
 
 
-void Foam::refinementHistoryNew::writeDebug
+void Foam::dfRefinementHistory::writeDebug
 (
     const labelList& visibleCells,
     const List<splitCell8>& splitCells
@@ -105,27 +105,27 @@ void Foam::refinementHistoryNew::writeDebug
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-Foam::refinementHistoryNew::splitCell8::splitCell8()
+Foam::dfRefinementHistory::splitCell8::splitCell8()
 :
     parent_(-1),
     addedCellsPtr_(nullptr)
 {}
 
 
-Foam::refinementHistoryNew::splitCell8::splitCell8(const label parent)
+Foam::dfRefinementHistory::splitCell8::splitCell8(const label parent)
 :
     parent_(parent),
     addedCellsPtr_(nullptr)
 {}
 
 
-Foam::refinementHistoryNew::splitCell8::splitCell8(Istream& is)
+Foam::dfRefinementHistory::splitCell8::splitCell8(Istream& is)
 {
     is >> *this;
 }
 
 
-Foam::refinementHistoryNew::splitCell8::splitCell8(const splitCell8& sc)
+Foam::dfRefinementHistory::splitCell8::splitCell8(const splitCell8& sc)
 :
     parent_(sc.parent_),
     addedCellsPtr_
@@ -139,7 +139,7 @@ Foam::refinementHistoryNew::splitCell8::splitCell8(const splitCell8& sc)
 
 // * * * * * * * * * * * * * * Member Operators  * * * * * * * * * * * * * * //
 
-void Foam::refinementHistoryNew::splitCell8::operator=(const splitCell8& s)
+void Foam::dfRefinementHistory::splitCell8::operator=(const splitCell8& s)
 {
     //- Assignment operator since autoPtr otherwise 'steals' storage.
 
@@ -162,7 +162,7 @@ void Foam::refinementHistoryNew::splitCell8::operator=(const splitCell8& s)
 }
 
 
-bool Foam::refinementHistoryNew::splitCell8::operator==(const splitCell8& s) const
+bool Foam::dfRefinementHistory::splitCell8::operator==(const splitCell8& s) const
 {
     if (addedCellsPtr_.valid() != s.addedCellsPtr_.valid())
     {
@@ -183,7 +183,7 @@ bool Foam::refinementHistoryNew::splitCell8::operator==(const splitCell8& s) con
 }
 
 
-bool Foam::refinementHistoryNew::splitCell8::operator!=(const splitCell8& s) const
+bool Foam::dfRefinementHistory::splitCell8::operator!=(const splitCell8& s) const
 {
     return !operator==(s);
 }
@@ -191,7 +191,7 @@ bool Foam::refinementHistoryNew::splitCell8::operator!=(const splitCell8& s) con
 
 // * * * * * * * * * * * * * * Friend Operators  * * * * * * * * * * * * * * //
 
-Foam::Istream& Foam::operator>>(Istream& is, refinementHistoryNew::splitCell8& sc)
+Foam::Istream& Foam::operator>>(Istream& is, dfRefinementHistory::splitCell8& sc)
 {
     labelList addedCells;
 
@@ -213,7 +213,7 @@ Foam::Istream& Foam::operator>>(Istream& is, refinementHistoryNew::splitCell8& s
 Foam::Ostream& Foam::operator<<
 (
     Ostream& os,
-    const refinementHistoryNew::splitCell8& sc
+    const dfRefinementHistory::splitCell8& sc
 )
 {
     // Output as labelList so we can have 0 sized lists. Alternative is to
@@ -236,7 +236,7 @@ Foam::Ostream& Foam::operator<<
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
-void Foam::refinementHistoryNew::checkIndices() const
+void Foam::dfRefinementHistory::checkIndices() const
 {
     // Check indices.
     forAll(visibleCells_, i)
@@ -254,7 +254,7 @@ void Foam::refinementHistoryNew::checkIndices() const
 }
 
 
-Foam::label Foam::refinementHistoryNew::allocateSplitCell
+Foam::label Foam::dfRefinementHistory::allocateSplitCell
 (
     const label parent,
     const label i
@@ -298,7 +298,7 @@ Foam::label Foam::refinementHistoryNew::allocateSplitCell
 }
 
 
-void Foam::refinementHistoryNew::freeSplitCell(const label index)
+void Foam::dfRefinementHistory::freeSplitCell(const label index)
 {
     splitCell8& split = splitCells_[index];
 
@@ -335,7 +335,7 @@ void Foam::refinementHistoryNew::freeSplitCell(const label index)
 }
 
 
-void Foam::refinementHistoryNew::markSplit
+void Foam::dfRefinementHistory::markSplit
 (
     const label index,
     labelList& oldToNew,
@@ -371,7 +371,7 @@ void Foam::refinementHistoryNew::markSplit
 }
 
 
-void Foam::refinementHistoryNew::mark
+void Foam::dfRefinementHistory::mark
 (
     const label val,
     const label index,
@@ -397,7 +397,7 @@ void Foam::refinementHistoryNew::mark
 }
 
 
-Foam::label Foam::refinementHistoryNew::markCommonCells
+Foam::label Foam::dfRefinementHistory::markCommonCells
 (
     labelList& cellToCluster
 ) const
@@ -445,7 +445,7 @@ Foam::label Foam::refinementHistoryNew::markCommonCells
 }
 
 
-void Foam::refinementHistoryNew::add
+void Foam::dfRefinementHistory::add
 (
     boolList& blockedFace,
     PtrList<labelList>& specifiedProcessorFaces,
@@ -481,7 +481,7 @@ void Foam::refinementHistoryNew::add
         }
     }
 
-    if (refinementHistoryNew::debug)
+    if (dfRefinementHistory::debug)
     {
         reduce(nUnblocked, sumOp<label>());
         Info<< type() << " : unblocked " << nUnblocked << " faces" << endl;
@@ -491,7 +491,7 @@ void Foam::refinementHistoryNew::add
 }
 
 
-void Foam::refinementHistoryNew::apply
+void Foam::dfRefinementHistory::apply
 (
     const boolList& blockedFace,
     const PtrList<labelList>& specifiedProcessorFaces,
@@ -541,7 +541,7 @@ void Foam::refinementHistoryNew::apply
         }
     }
 
-    if (refinementHistoryNew::debug)
+    if (dfRefinementHistory::debug)
     {
         reduce(nChanged, sumOp<label>());
         Info<< type() << " : changed decomposition on " << nChanged
@@ -552,7 +552,7 @@ void Foam::refinementHistoryNew::apply
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-Foam::refinementHistoryNew::refinementHistoryNew(const IOobject& io)
+Foam::dfRefinementHistory::dfRefinementHistory(const IOobject& io)
 :
     regIOobject(io),
     active_(false)
@@ -578,13 +578,13 @@ Foam::refinementHistoryNew::refinementHistoryNew(const IOobject& io)
     }
 
     // When running in redistributPar + READ_IF_PRESENT it can happen
-    // that some processors do have refinementHistoryNew and some don't so
+    // that some processors do have dfRefinementHistory and some don't so
     // test for active has to be outside of above condition.
     active_ = (returnReduce(visibleCells_.size(), sumOp<label>()) > 0);
 
     if (debug)
     {
-        Pout<< "refinementHistoryNew::refinementHistoryNew :"
+        Pout<< "dfRefinementHistory::dfRefinementHistory :"
             << " constructed history from IOobject :"
             << " splitCells:" << splitCells_.size()
             << " visibleCells:" << visibleCells_.size()
@@ -594,7 +594,7 @@ Foam::refinementHistoryNew::refinementHistoryNew(const IOobject& io)
 }
 
 
-Foam::refinementHistoryNew::refinementHistoryNew
+Foam::dfRefinementHistory::dfRefinementHistory
 (
     const IOobject& io,
     const List<splitCell8>& splitCells,
@@ -633,7 +633,7 @@ Foam::refinementHistoryNew::refinementHistoryNew
 
     if (debug)
     {
-        Pout<< "refinementHistoryNew::refinementHistoryNew :"
+        Pout<< "dfRefinementHistory::dfRefinementHistory :"
             << " constructed history from IOobject or components :"
             << " splitCells:" << splitCells_.size()
             << " visibleCells:" << visibleCells_.size()
@@ -643,7 +643,7 @@ Foam::refinementHistoryNew::refinementHistoryNew
 }
 
 
-Foam::refinementHistoryNew::refinementHistoryNew
+Foam::dfRefinementHistory::dfRefinementHistory
 (
     const IOobject& io,
     const label nCells
@@ -692,7 +692,7 @@ Foam::refinementHistoryNew::refinementHistoryNew
 
     if (debug)
     {
-        Pout<< "refinementHistoryNew::refinementHistoryNew :"
+        Pout<< "dfRefinementHistory::dfRefinementHistory :"
             << " constructed history from IOobject or initial size :"
             << " splitCells:" << splitCells_.size()
             << " visibleCells:" << visibleCells_.size()
@@ -703,7 +703,7 @@ Foam::refinementHistoryNew::refinementHistoryNew
 
 
 // Construct from initial number of cells (all visible)
-Foam::refinementHistoryNew::refinementHistoryNew
+Foam::dfRefinementHistory::dfRefinementHistory
 (
     const IOobject& io,
     const label nCells,
@@ -750,7 +750,7 @@ Foam::refinementHistoryNew::refinementHistoryNew
 
     if (debug)
     {
-        Pout<< "refinementHistoryNew::refinementHistoryNew :"
+        Pout<< "dfRefinementHistory::dfRefinementHistory :"
             << " constructed history from IOobject or initial size :"
             << " splitCells:" << splitCells_.size()
             << " visibleCells:" << visibleCells_.size()
@@ -760,10 +760,10 @@ Foam::refinementHistoryNew::refinementHistoryNew
 }
 
 
-Foam::refinementHistoryNew::refinementHistoryNew
+Foam::dfRefinementHistory::dfRefinementHistory
 (
     const IOobject& io,
-    const refinementHistoryNew& rh
+    const dfRefinementHistory& rh
 )
 :
     regIOobject(io),
@@ -774,17 +774,17 @@ Foam::refinementHistoryNew::refinementHistoryNew
 {
     if (debug)
     {
-        Pout<< "refinementHistoryNew::refinementHistoryNew : constructed initial"
+        Pout<< "dfRefinementHistory::dfRefinementHistory : constructed initial"
             << " history." << endl;
     }
 }
 
 
-Foam::refinementHistoryNew::refinementHistoryNew
+Foam::dfRefinementHistory::dfRefinementHistory
 (
     const IOobject& io,
     const UPtrList<const labelList>& cellMaps,
-    const UPtrList<const refinementHistoryNew>& refs
+    const UPtrList<const dfRefinementHistory>& refs
 )
 :
     regIOobject(io),
@@ -799,8 +799,8 @@ Foam::refinementHistoryNew::refinementHistoryNew
     {
         WarningIn
         (
-            "refinementHistoryNew::refinementHistoryNew(const IOobject&"
-            ", const labelListList&, const PtrList<refinementHistoryNew>&)"
+            "dfRefinementHistory::dfRefinementHistory(const IOobject&"
+            ", const labelListList&, const PtrList<dfRefinementHistory>&)"
         )   << "read option IOobject::MUST_READ, READ_IF_PRESENT or "
             << "MUST_READ_IF_MODIFIED"
             << " suggests that a read constructor would be more appropriate."
@@ -890,7 +890,7 @@ Foam::refinementHistoryNew::refinementHistoryNew
 
     if (debug)
     {
-        Pout<< "refinementHistoryNew::refinementHistoryNew :"
+        Pout<< "dfRefinementHistory::dfRefinementHistory :"
             << " constructed history from multiple refinementHistories :"
             << " splitCells:" << splitCells_.size()
             << " visibleCells:" << visibleCells_.size()
@@ -899,7 +899,7 @@ Foam::refinementHistoryNew::refinementHistoryNew
 }
 
 
-Foam::refinementHistoryNew::refinementHistoryNew(const IOobject& io, Istream& is)
+Foam::dfRefinementHistory::dfRefinementHistory(const IOobject& io, Istream& is)
 :
     regIOobject(io),
     splitCells_(is),
@@ -913,7 +913,7 @@ Foam::refinementHistoryNew::refinementHistoryNew(const IOobject& io, Istream& is
 
     if (debug)
     {
-        Pout<< "refinementHistoryNew::refinementHistoryNew :"
+        Pout<< "dfRefinementHistory::dfRefinementHistory :"
             << " constructed history from Istream"
             << " splitCells:" << splitCells_.size()
             << " visibleCells:" << visibleCells_.size()
@@ -924,7 +924,7 @@ Foam::refinementHistoryNew::refinementHistoryNew(const IOobject& io, Istream& is
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
-Foam::autoPtr<Foam::refinementHistoryNew> Foam::refinementHistoryNew::clone
+Foam::autoPtr<Foam::dfRefinementHistory> Foam::dfRefinementHistory::clone
 (
     const IOobject& io,
     // Per visible cell the processor it is going to
@@ -1032,9 +1032,9 @@ Foam::autoPtr<Foam::refinementHistoryNew> Foam::refinementHistoryNew::clone
         }
     }
 
-    return autoPtr<refinementHistoryNew>
+    return autoPtr<dfRefinementHistory>
     (
-        new refinementHistoryNew
+        new dfRefinementHistory
         (
             io,
             newSplitCells,
@@ -1045,7 +1045,7 @@ Foam::autoPtr<Foam::refinementHistoryNew> Foam::refinementHistoryNew::clone
 }
 
 
-Foam::autoPtr<Foam::refinementHistoryNew> Foam::refinementHistoryNew::clone
+Foam::autoPtr<Foam::dfRefinementHistory> Foam::dfRefinementHistory::clone
 (
     const IOobject& io,
     const labelList& cellMap
@@ -1096,9 +1096,9 @@ Foam::autoPtr<Foam::refinementHistoryNew> Foam::refinementHistoryNew::clone
     }
     else
     {
-        return autoPtr<refinementHistoryNew>
+        return autoPtr<dfRefinementHistory>
         (
-            new refinementHistoryNew
+            new dfRefinementHistory
             (
                 io,
                 DynamicList<splitCell8>(0),
@@ -1110,13 +1110,13 @@ Foam::autoPtr<Foam::refinementHistoryNew> Foam::refinementHistoryNew::clone
 }
 
 
-void Foam::refinementHistoryNew::resize(const label size)
+void Foam::dfRefinementHistory::resize(const label size)
 {
     label oldSize = visibleCells_.size();
 
     if (debug)
     {
-        Pout<< "refinementHistoryNew::resize from " << oldSize << " to " << size
+        Pout<< "dfRefinementHistory::resize from " << oldSize << " to " << size
             << " cells" << endl;
     }
 
@@ -1130,7 +1130,7 @@ void Foam::refinementHistoryNew::resize(const label size)
 }
 
 
-void Foam::refinementHistoryNew::updateMesh(const mapPolyMesh& map)
+void Foam::dfRefinementHistory::updateMesh(const mapPolyMesh& map)
 {
     if (active())
     {
@@ -1164,7 +1164,7 @@ void Foam::refinementHistoryNew::updateMesh(const mapPolyMesh& map)
 
         if (debug)
         {
-            Pout<< "refinementHistoryNew::updateMesh : from "
+            Pout<< "dfRefinementHistory::updateMesh : from "
                 << visibleCells_.size()
                 << " to " << newVisibleCells.size()
                 << " cells" << endl;
@@ -1175,7 +1175,7 @@ void Foam::refinementHistoryNew::updateMesh(const mapPolyMesh& map)
 }
 
 
-void Foam::refinementHistoryNew::subset
+void Foam::dfRefinementHistory::subset
 (
     const labelList& pointMap,
     const labelList& faceMap,
@@ -1204,7 +1204,7 @@ void Foam::refinementHistoryNew::subset
 
         if (debug)
         {
-            Pout<< "refinementHistoryNew::updateMesh : from "
+            Pout<< "dfRefinementHistory::updateMesh : from "
                 << visibleCells_.size()
                 << " to " << newVisibleCells.size()
                 << " cells" << endl;
@@ -1215,7 +1215,7 @@ void Foam::refinementHistoryNew::subset
 }
 
 
-void Foam::refinementHistoryNew::countProc
+void Foam::dfRefinementHistory::countProc
 (
     const label index,
     const label newProcNo,
@@ -1261,7 +1261,7 @@ void Foam::refinementHistoryNew::countProc
 }
 
 
-void Foam::refinementHistoryNew::distribute(const mapDistributePolyMesh& map)
+void Foam::dfRefinementHistory::distribute(const mapDistributePolyMesh& map)
 {
     if (!active())
     {
@@ -1331,10 +1331,10 @@ void Foam::refinementHistoryNew::distribute(const mapDistributePolyMesh& map)
         }
     }
 
-    //Pout<< "refinementHistoryNew::distribute :"
+    //Pout<< "dfRefinementHistory::distribute :"
     //    << " splitCellProc:" << splitCellProc << endl;
     //
-    //Pout<< "refinementHistoryNew::distribute :"
+    //Pout<< "dfRefinementHistory::distribute :"
     //    << " splitCellNum:" << splitCellNum << endl;
 
     const polyMesh& mesh = dynamic_cast<const polyMesh&>(db());
@@ -1514,11 +1514,11 @@ void Foam::refinementHistoryNew::distribute(const mapDistributePolyMesh& map)
 }
 
 
-void Foam::refinementHistoryNew::compact()
+void Foam::dfRefinementHistory::compact()
 {
     if (debug)
     {
-        Pout<< "refinementHistoryNew::compact() Entering with:"
+        Pout<< "dfRefinementHistory::compact() Entering with:"
             << " freeSplitCells_:" << freeSplitCells_.size()
             << " splitCells_:" << splitCells_.size()
             << " visibleCells_:" << visibleCells_.size()
@@ -1633,7 +1633,7 @@ void Foam::refinementHistoryNew::compact()
 
     if (debug)
     {
-        Pout<< "refinementHistoryNew::compact : compacted splitCells from "
+        Pout<< "dfRefinementHistory::compact : compacted splitCells from "
             << splitCells_.size() << " to " << newSplitCells.size() << endl;
     }
 
@@ -1643,7 +1643,7 @@ void Foam::refinementHistoryNew::compact()
 
     if (debug)
     {
-        Pout<< "refinementHistoryNew::compact() NOW:"
+        Pout<< "dfRefinementHistory::compact() NOW:"
             << " freeSplitCells_:" << freeSplitCells_.size()
             << " splitCells_:" << splitCells_.size()
             << " newSplitCells:" << newSplitCells.size()
@@ -1670,13 +1670,13 @@ void Foam::refinementHistoryNew::compact()
 }
 
 
-void Foam::refinementHistoryNew::writeDebug() const
+void Foam::dfRefinementHistory::writeDebug() const
 {
     writeDebug(visibleCells_, splitCells_);
 }
 
 
-void Foam::refinementHistoryNew::storeSplit
+void Foam::dfRefinementHistory::storeSplit
 (
     const label celli,
     const labelList& addedCells
@@ -1714,7 +1714,7 @@ void Foam::refinementHistoryNew::storeSplit
 }
 
 
-void Foam::refinementHistoryNew::combineCells
+void Foam::dfRefinementHistory::combineCells
 (
     const label masterCelli,
     const labelList& combinedCells
@@ -1738,7 +1738,7 @@ void Foam::refinementHistoryNew::combineCells
 }
 
 
-bool Foam::refinementHistoryNew::read()
+bool Foam::dfRefinementHistory::read()
 {
     bool ok = readData(readStream(typeName));
     close();
@@ -1749,14 +1749,14 @@ bool Foam::refinementHistoryNew::read()
 }
 
 
-bool Foam::refinementHistoryNew::readData(Istream& is)
+bool Foam::dfRefinementHistory::readData(Istream& is)
 {
     is >> *this;
     return !is.bad();
 }
 
 
-bool Foam::refinementHistoryNew::writeData(Ostream& os) const
+bool Foam::dfRefinementHistory::writeData(Ostream& os) const
 {
     os << *this;
 
@@ -1766,7 +1766,7 @@ bool Foam::refinementHistoryNew::writeData(Ostream& os) const
 
 // * * * * * * * * * * * * * * * Friend Operators  * * * * * * * * * * * * * //
 
-Foam::Istream& Foam::operator>>(Istream& is, refinementHistoryNew& rh)
+Foam::Istream& Foam::operator>>(Istream& is, dfRefinementHistory& rh)
 {
     rh.freeSplitCells_.clearStorage();
 
@@ -1779,9 +1779,9 @@ Foam::Istream& Foam::operator>>(Istream& is, refinementHistoryNew& rh)
 }
 
 
-Foam::Ostream& Foam::operator<<(Ostream& os, const refinementHistoryNew& rh)
+Foam::Ostream& Foam::operator<<(Ostream& os, const dfRefinementHistory& rh)
 {
-    const_cast<refinementHistoryNew&>(rh).compact();
+    const_cast<dfRefinementHistory&>(rh).compact();
 
     return os   << "// splitCells" << nl
                 << rh.splitCells_ << nl

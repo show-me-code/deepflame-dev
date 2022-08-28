@@ -1464,7 +1464,7 @@ Foam::hexRef::hexRef(const polyMesh& mesh, const bool readHistory)
     (
         IOobject
         (
-            "refinementHistoryNew",
+            "dfRefinementHistory",
             mesh_.facesInstance(),
             polyMesh::meshSubDir,
             mesh_,
@@ -1551,7 +1551,7 @@ Foam::hexRef::hexRef
     const polyMesh& mesh,
     const labelList& cellLevel,
     const labelList& pointLevel,
-    const refinementHistoryNew& history,
+    const dfRefinementHistory& history,
     const scalar level0Edge
 )
 :
@@ -1604,7 +1604,7 @@ Foam::hexRef::hexRef
     (
         IOobject
         (
-            "refinementHistoryNew",
+            "dfRefinementHistory",
             mesh_.facesInstance(),
             polyMesh::meshSubDir,
             mesh_,
@@ -1712,14 +1712,14 @@ Foam::hexRef::hexRef
     (
         IOobject
         (
-            "refinementHistoryNew",
+            "dfRefinementHistory",
             mesh_.facesInstance(),
             polyMesh::meshSubDir,
             mesh_,
             IOobject::NO_READ,
             IOobject::NO_WRITE
         ),
-        List<refinementHistoryNew::splitCell8>(0),
+        List<dfRefinementHistory::splitCell8>(0),
         labelList(0),
         false
     ),

@@ -22,7 +22,7 @@ License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
 Class
-    Foam::dynamicRefineFvMesh
+    Foam::dfDynamicRefineFvMesh
 
 Description
     A fvMesh with built-in multi-criteria refinement.
@@ -89,8 +89,8 @@ Authors:
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef dynamicRefineFvMeshNew_H
-#define dynamicRefineFvMeshNew_H
+#ifndef dfDynamicRefineFvMesh_H
+#define dfDynamicRefineFvMesh_H
 
 #include "dynamicFvMesh.H"
 #include "hexRef.H"
@@ -105,10 +105,10 @@ namespace Foam
 {
 
 /*---------------------------------------------------------------------------*\
-                     Class dynamicRefineFvMeshNew Declaration
+                     Class dfDynamicRefineFvMesh Declaration
 \*---------------------------------------------------------------------------*/
 
-class dynamicRefineFvMeshNew
+class dfDynamicRefineFvMesh
 :
     public dynamicFvMesh
 {
@@ -230,25 +230,25 @@ protected:
 private:
 
         //- Disallow default bitwise copy construct
-        dynamicRefineFvMeshNew(const dynamicRefineFvMeshNew&);
+        dfDynamicRefineFvMesh(const dfDynamicRefineFvMesh&);
 
         //- Disallow default bitwise assignment
-        void operator=(const dynamicRefineFvMeshNew&);
+        void operator=(const dfDynamicRefineFvMesh&);
 
 public:
 
     //- Runtime type information
-    TypeName("dynamicRefineFvMeshNew");
+    TypeName("dfDynamicRefineFvMesh");
 
 
     // Constructors
 
         //- Construct from IOobject
-        explicit dynamicRefineFvMeshNew(const IOobject& io);
+        explicit dfDynamicRefineFvMesh(const IOobject& io);
 
 
     //- Destructor
-    virtual ~dynamicRefineFvMeshNew();
+    virtual ~dfDynamicRefineFvMesh();
 
 
     // Member Functions

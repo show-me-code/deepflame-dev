@@ -22,25 +22,25 @@ License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
 Class
-    Foam::decompositionConstraints::refinementHistoryNew
+    Foam::decompositionConstraints::dfRefinementHistoryConstraint
 
 Description
     Constraint to keep all cells originating from refining the same cell
-    onto the same processor. Reads polyMesh/refinementHistoryNew.
+    onto the same processor. Reads polyMesh/dfRefinementHistory.
 
     \heading Dictionary parameters
     \table
         Property    | Description                       | Required  | Default
-        type        | refinementHistoryNew                 | yes   |
+        type        | dfRefinementHistory                 | yes   |
     \endtable
 
 SourceFiles
-    refinementHistoryNewConstraint.C
+    dfRefinementHistoryConstraint.C
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef refinementHistoryNewConstraint_H
-#define refinementHistoryNewConstraint_H
+#ifndef dfRefinementHistoryConstraint_H
+#define dfRefinementHistoryConstraint_H
 
 #include "decompositionConstraint.H"
 
@@ -52,30 +52,30 @@ namespace decompositionConstraints
 {
 
 /*---------------------------------------------------------------------------*\
-                      Class refinementHistoryNewConstraint Declaration
+                      Class dfRefinementHistoryConstraint Declaration
 \*---------------------------------------------------------------------------*/
 
-class refinementHistoryNewConstraint
+class dfRefinementHistoryConstraint
 :
     public decompositionConstraint
 {
 public:
 
     //- Runtime type information
-    TypeName("refinementHistoryNew");
+    TypeName("dfRefinementHistory");
 
 
     // Constructors
 
         //- Construct with constraint dictionary
-        explicit refinementHistoryNewConstraint(const dictionary& dict,const word& type);
+        explicit dfRefinementHistoryConstraint(const dictionary& dict,const word& type);
 
         //- Construct from components
-        refinementHistoryNewConstraint();
+        dfRefinementHistoryConstraint();
 
 
     //- Destructor
-    virtual ~refinementHistoryNewConstraint() = default;
+    virtual ~dfRefinementHistoryConstraint() = default;
 
 
     // Member Functions

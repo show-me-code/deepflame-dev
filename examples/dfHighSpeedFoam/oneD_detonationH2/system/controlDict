@@ -15,7 +15,7 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 libs (
-      "libnewdynamicFvMesh.so"
+      "libdfDynamicFvMesh.so"
       );
 
 application     dfHighSpeedFoam;

@@ -48,7 +48,7 @@ namespace Foam
 // Forward declaration of classes
 class mapPolyMesh;
 class mapDistributePolyMesh;
-class refinementHistoryNew;
+class dfRefinementHistory;
 class fvMesh;
 
 /*---------------------------------------------------------------------------*\
@@ -68,7 +68,7 @@ private:
 
         autoPtr<uniformDimensionedScalarField> level0EdgePtr_;
 
-        autoPtr<refinementHistoryNew> refHistoryPtr_;
+        autoPtr<dfRefinementHistory> refHistoryPtr_;
 
 
     // Private Member Functions
