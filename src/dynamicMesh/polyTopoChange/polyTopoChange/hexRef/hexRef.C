@@ -1468,9 +1468,18 @@ Foam::hexRef::hexRef(const polyMesh& mesh, const bool readHistory)
             mesh_.facesInstance(),
             polyMesh::meshSubDir,
             mesh_,
-            IOobject::NO_READ,
+            IOobject::READ_IF_PRESENT,
             IOobject::NO_WRITE
         ),
+        // IOobject
+        // (
+        //     "refinementHistory",
+        //     mesh_.facesInstance(),
+        //     polyMesh::meshSubDir,
+        //     mesh_,
+        //     IOobject::NO_READ,
+        //     IOobject::NO_WRITE
+        // ),
         // All cells visible if not read or readHistory = false
         (readHistory ? mesh_.nCells() : 0)
     ),
@@ -1645,7 +1654,7 @@ Foam::hexRef::hexRef
 }
 
 
-// Construct from components
+// Construct from components IOobject::READ_IF_PRESENT,
 Foam::hexRef::hexRef
 (
     const polyMesh& mesh,
@@ -3598,16 +3607,16 @@ const Foam::cellShapeList& Foam::hexRef::cellShapes() const
 
 
 // Write refinement to polyMesh directory.
-bool Foam::hexRef::write() const
+bool Foam::hexRef::write(const bool write) const
 {
     bool writeOk =
-        cellLevel_.write()
-     && pointLevel_.write()
-     && level0Edge_.write();
+        cellLevel_.write(write)
+     && pointLevel_.write(write)
+     && level0Edge_.write(write);
 
     if (history_.active())
     {
-        writeOk = writeOk && history_.write();
+        writeOk = writeOk && history_.write(write);
     }
 
     return writeOk;

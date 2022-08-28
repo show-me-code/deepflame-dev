@@ -1804,7 +1804,8 @@ bool Foam::dynamicRefineFvMeshNew::writeObject
 (
     IOstream::streamFormat fmt,
     IOstream::versionNumber ver,
-    IOstream::compressionType cmp
+    IOstream::compressionType cmp,
+    const bool write
 ) const
 {
     // Force refinement data to go to the current time directory.
@@ -1812,8 +1813,8 @@ bool Foam::dynamicRefineFvMeshNew::writeObject
 
     bool writeOk =
     (
-        dynamicFvMesh::writeObject(fmt, ver, cmp)
-     && meshCutter_->write()
+        dynamicFvMesh::writeObject(fmt, ver, cmp, write)
+     && meshCutter_->write(write)
     );
 
     if (dumpLevel_)
@@ -1830,7 +1831,8 @@ bool Foam::dynamicRefineFvMeshNew::writeObject
                 false
             ),
             *this,
-            dimensionedScalar("level", dimless, 0)
+            // dimensionedScalar("level", dimless, 0) IOobject::READ_IF_PRESENT,
+            dimensionedScalar(dimless, 0)
         );
 
         const labelList& cellLevel = meshCutter_->cellLevel();
