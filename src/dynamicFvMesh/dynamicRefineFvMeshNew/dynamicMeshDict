@@ -14,7 +14,7 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-dynamicFvMesh      dynamicRefineFvMesh;
+dynamicFvMesh      dynamicRefineFvMeshNew;
 // dynamicFvMesh    staticFvMesh;
 
 multiCritRefinementControls
@@ -97,7 +97,7 @@ multiCritRefinementControls
 }
 
 // Refinement
-dynamicRefineFvMeshCoeffs
+dynamicRefineFvMeshNewCoeffs
 {
     // Refine every refineInterval timesteps
     refineInterval 3;
