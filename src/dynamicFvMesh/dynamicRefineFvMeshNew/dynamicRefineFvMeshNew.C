@@ -1831,7 +1831,7 @@ bool Foam::dynamicRefineFvMeshNew::writeObject
                 false
             ),
             *this,
-            // dimensionedScalar("level", dimless, 0) IOobject::READ_IF_PRESENT,
+            // dimensionedScalar("level", dimless, 0)
             dimensionedScalar(dimless, 0)
         );
 

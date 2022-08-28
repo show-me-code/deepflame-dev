@@ -1654,7 +1654,7 @@ Foam::hexRef::hexRef
 }
 
 
-// Construct from components IOobject::READ_IF_PRESENT,
+// Construct from components
 Foam::hexRef::hexRef
 (
     const polyMesh& mesh,
