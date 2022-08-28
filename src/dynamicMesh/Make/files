@@ -2,7 +2,7 @@ hexRef = polyTopoChange/polyTopoChange/hexRef
 
 $(hexRef)/hexRef.C
 $(hexRef)/hexRefData.C
-$(hexRef)/refinementHistory.C
+$(hexRef)/refinementHistoryNew.C
 $(hexRef)/hexRefNew.C
 
 $(hexRef)/hexRef8/hexRef8.C

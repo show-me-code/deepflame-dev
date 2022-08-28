@@ -31,12 +31,12 @@ License
 #include "mapDistributePolyMesh.H"
 #include "polyMesh.H"
 #include "syncTools.H"
-#include "refinementHistory.H"
+#include "refinementHistoryNew.H"
 #include "fvMesh.H"
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-Foam::hexRef8Data::hexRef8Data(const IOobject& io)
+Foam::hexRefData::hexRefData(const IOobject& io)
 {
     {
         IOobject rio(io);
@@ -73,22 +73,22 @@ Foam::hexRef8Data::hexRef8Data(const IOobject& io)
     }
     {
         IOobject rio(io);
-        rio.rename("refinementHistory");
+        rio.rename("refinementHistoryNew");
         // bool haveFile = returnReduce(rio.headerOk(), orOp<bool>());
         bool haveFile = returnReduce(rio.typeHeaderOk<labelIOList>(), orOp<bool>());
         if (haveFile)
         {
             Info<< "Reading hexRef data : " << rio.name() << endl;
-            refHistoryPtr_.reset(new refinementHistory(rio));
+            refHistoryPtr_.reset(new refinementHistoryNew(rio));
         }
     }
 }
 
 
-Foam::hexRef8Data::hexRef8Data
+Foam::hexRefData::hexRefData
 (
     const IOobject& io,
-    const hexRef8Data& data,
+    const hexRefData& data,
     const labelList& cellMap,
     const labelList& pointMap
 )
@@ -141,12 +141,12 @@ Foam::hexRef8Data::hexRef8Data
 }
 
 
-Foam::hexRef8Data::hexRef8Data
+Foam::hexRefData::hexRefData
 (
     const IOobject& io,
     const UPtrList<const labelList>& cellMaps,
     const UPtrList<const labelList>& pointMaps,
-    const UPtrList<const hexRef8Data>& procDatas
+    const UPtrList<const hexRefData>& procDatas
 )
 {
     const polyMesh& mesh = dynamic_cast<const polyMesh&>(io.db());
@@ -212,7 +212,7 @@ Foam::hexRef8Data::hexRef8Data
         IOobject rio(io);
         rio.rename(procDatas[0].refHistoryPtr_().name());
 
-        UPtrList<const refinementHistory> procRefs(procDatas.size());
+        UPtrList<const refinementHistoryNew> procRefs(procDatas.size());
         forAll(procDatas, i)
         {
             procRefs.set(i, &procDatas[i].refHistoryPtr_());
@@ -220,7 +220,7 @@ Foam::hexRef8Data::hexRef8Data
 
         refHistoryPtr_.reset
         (
-            new refinementHistory
+            new refinementHistoryNew
             (
                 rio,
                 cellMaps,
@@ -233,13 +233,13 @@ Foam::hexRef8Data::hexRef8Data
 
 // * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //
 
-Foam::hexRef8Data::~hexRef8Data()
+Foam::hexRefData::~hexRefData()
 {}
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
-void Foam::hexRef8Data::sync(const IOobject& io)
+void Foam::hexRefData::sync(const IOobject& io)
 {
     const polyMesh& mesh = dynamic_cast<const polyMesh&>(io.db());
 
@@ -290,14 +290,14 @@ void Foam::hexRef8Data::sync(const IOobject& io)
     if (hasHistory && !refHistoryPtr_.valid())
     {
         IOobject rio(io);
-        rio.rename("refinementHistory");
+        rio.rename("refinementHistoryNew");
         rio.readOpt() = IOobject::NO_READ;
-        refHistoryPtr_.reset(new refinementHistory(rio, mesh.nCells(), true));
+        refHistoryPtr_.reset(new refinementHistoryNew(rio, mesh.nCells(), true));
     }
 }
 
 
-void Foam::hexRef8Data::distribute(const mapDistributePolyMesh& map)
+void Foam::hexRefData::distribute(const mapDistributePolyMesh& map)
 {
     if (cellLevelPtr_.valid())
     {
@@ -317,7 +317,7 @@ void Foam::hexRef8Data::distribute(const mapDistributePolyMesh& map)
 }
 
 
-bool Foam::hexRef8Data::write() const
+bool Foam::hexRefData::write() const
 {
     bool ok = true;
     if (cellLevelPtr_.valid())

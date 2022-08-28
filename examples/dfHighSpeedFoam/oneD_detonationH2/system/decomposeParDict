@@ -21,11 +21,11 @@ method          scotch;
 
 constraints
 {
-    refinementHistory
+    refinementHistoryNew
     {
         //- Decompose cells such that all cell originating from single cell
         //  end up on same processor
-        type    refinementHistory;
+        type    refinementHistoryNew;
     }
 }
 

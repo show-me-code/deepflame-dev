@@ -1783,7 +1783,7 @@ bool Foam::dynamicRefineFvMeshNew::update()
         {
             // Compact refinement history occassionally (how often?).
             // Unrefinement causes holes in the refinementHistory.
-            const_cast<refinementHistory&>(meshCutter()->history()).compact();
+            const_cast<refinementHistoryNew&>(meshCutter()->history()).compact();
         }
         nRefinementIterations_++;
     }
