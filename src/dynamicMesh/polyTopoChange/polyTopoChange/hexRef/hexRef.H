@@ -51,7 +51,7 @@ Authors
 #include "DynamicList.H"
 #include "primitivePatch.H"
 #include "removeFaces.H"
-#include "refinementHistory.H"
+#include "dfRefinementHistory.H"
 #include "PackedBoolList.H"
 #include "uniformDimensionedFields.H"
 #include "cellShapeList.H"
@@ -93,7 +93,7 @@ protected:
         uniformDimensionedScalarField level0Edge_;
 
         //- Refinement history
-        refinementHistory history_;
+        dfRefinementHistory history_;
 
         //- Face remover engine
         removeFaces faceRemover_;
@@ -385,7 +385,7 @@ public:
             const polyMesh& mesh,
             const labelList& cellLevel,
             const labelList& pointLevel,
-            const refinementHistory& history,
+            const dfRefinementHistory& history,
             const scalar level0Edge
         ),
         (mesh, cellLevel, pointLevel, history, level0Edge)
@@ -420,7 +420,7 @@ public:
             const polyMesh& mesh,
             const labelList& cellLevel,
             const labelList& pointLevel,
-            const refinementHistory& history,
+            const dfRefinementHistory& history,
             const scalar level0Edge = -GREAT
         );
 
@@ -446,7 +446,7 @@ public:
             const polyMesh& mesh,
             const labelList& cellLevel,
             const labelList& pointLevel,
-            const refinementHistory& history,
+            const dfRefinementHistory& history,
             const scalar level0Edge = -GREAT
         );
 
@@ -480,7 +480,7 @@ public:
                 return pointLevel_;
             }
 
-            const refinementHistory& history() const
+            const dfRefinementHistory& history() const
             {
                 return history_;
             }
@@ -649,7 +649,7 @@ public:
             void setInstance(const fileName& inst);
 
             //- Force writing refinement+history to polyMesh directory.
-            bool write() const;
+            bool write(const bool write = true) const;
 
 };
 

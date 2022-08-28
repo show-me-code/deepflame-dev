@@ -1464,13 +1464,22 @@ Foam::hexRef::hexRef(const polyMesh& mesh, const bool readHistory)
     (
         IOobject
         (
-            "refinementHistory",
+            "dfRefinementHistory",
             mesh_.facesInstance(),
             polyMesh::meshSubDir,
             mesh_,
-            IOobject::NO_READ,
+            IOobject::READ_IF_PRESENT,
             IOobject::NO_WRITE
         ),
+        // IOobject
+        // (
+        //     "refinementHistory",
+        //     mesh_.facesInstance(),
+        //     polyMesh::meshSubDir,
+        //     mesh_,
+        //     IOobject::NO_READ,
+        //     IOobject::NO_WRITE
+        // ),
         // All cells visible if not read or readHistory = false
         (readHistory ? mesh_.nCells() : 0)
     ),
@@ -1542,7 +1551,7 @@ Foam::hexRef::hexRef
     const polyMesh& mesh,
     const labelList& cellLevel,
     const labelList& pointLevel,
-    const refinementHistory& history,
+    const dfRefinementHistory& history,
     const scalar level0Edge
 )
 :
@@ -1595,7 +1604,7 @@ Foam::hexRef::hexRef
     (
         IOobject
         (
-            "refinementHistory",
+            "dfRefinementHistory",
             mesh_.facesInstance(),
             polyMesh::meshSubDir,
             mesh_,
@@ -1703,14 +1712,14 @@ Foam::hexRef::hexRef
     (
         IOobject
         (
-            "refinementHistory",
+            "dfRefinementHistory",
             mesh_.facesInstance(),
             polyMesh::meshSubDir,
             mesh_,
             IOobject::NO_READ,
             IOobject::NO_WRITE
         ),
-        List<refinementHistory::splitCell8>(0),
+        List<dfRefinementHistory::splitCell8>(0),
         labelList(0),
         false
     ),
@@ -3598,16 +3607,16 @@ const Foam::cellShapeList& Foam::hexRef::cellShapes() const
 
 
 // Write refinement to polyMesh directory.
-bool Foam::hexRef::write() const
+bool Foam::hexRef::write(const bool write) const
 {
     bool writeOk =
-        cellLevel_.write()
-     && pointLevel_.write()
-     && level0Edge_.write();
+        cellLevel_.write(write)
+     && pointLevel_.write(write)
+     && level0Edge_.write(write);
 
     if (history_.active())
     {
-        writeOk = writeOk && history_.write();
+        writeOk = writeOk && history_.write(write);
     }
 
     return writeOk;

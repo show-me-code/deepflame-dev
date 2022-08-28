@@ -738,7 +738,7 @@ Foam::hexRef4Axi::hexRef4Axi
     const polyMesh& mesh,
     const labelList& cellLevel,
     const labelList& pointLevel,
-    const refinementHistory& history,
+    const dfRefinementHistory& history,
     const scalar level0Edge
 )
 :

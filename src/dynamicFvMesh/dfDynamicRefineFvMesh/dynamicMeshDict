@@ -14,7 +14,7 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-dynamicFvMesh      dynamicRefineFvMesh;
+dynamicFvMesh      dynamicRefineFvMeshNew;
 // dynamicFvMesh    staticFvMesh;
 
 multiCritRefinementControls
@@ -97,7 +97,7 @@ multiCritRefinementControls
 }
 
 // Refinement
-dynamicRefineFvMeshCoeffs
+dynamicRefineFvMeshNewCoeffs
 {
     // Refine every refineInterval timesteps
     refineInterval 3;
@@ -140,6 +140,9 @@ dynamicRefineFvMeshCoeffs
     // be interpolated and inner-producted with the face area vector.
     correctFluxes ((phi U));
 
+    // Write the refinement level as a volScalarField
+    dumpLevel       true;
+    
     // List of non-flux surface<Type>Fields to be mapped
     // only for new internal faces (AMR refine)
     mapSurfaceFields

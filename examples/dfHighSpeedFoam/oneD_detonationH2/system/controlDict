@@ -15,8 +15,7 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 libs (
-      "libfieldFunctionObjects.so"
-      "libnewdynamicFvMesh.so"
+      "libdfDynamicFvMesh.so"
       );
 
 application     dfHighSpeedFoam;
@@ -60,7 +59,7 @@ functions
     minMax
     {
       type          fieldMinMax;
-      libs          ("libfieldFunctionObjects.so");
+      libs          ("libdfFieldFunctionObjects.so");
       writeControl  writeTime; //timeStep;
       fields        (p);
     }

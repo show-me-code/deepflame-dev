@@ -45,7 +45,7 @@ bool Foam::multiCritRefinement::readMultiCritRefinementDict()
         )
     );
 
-    nBufferLayers_ = readLabel(dynamicMeshDict.subDict("dynamicRefineFvMeshNewCoeffs").lookup("nBufferLayers"));
+    nBufferLayers_ = readLabel(dynamicMeshDict.subDict("dfDynamicRefineFvMeshCoeffs").lookup("nBufferLayers"));
 
     if( dynamicMeshDict.isDict("multiCritRefinementControls") )
     {
@@ -317,7 +317,7 @@ void Foam::multiCritRefinement::updateRefinementField()
                 IOobject::NO_WRITE,
                 false
             )
-        ).subDict("dynamicRefineFvMeshNewCoeffs")
+        ).subDict("dfDynamicRefineFvMeshCoeffs")
     );
     scalar globalMaxRefLevel = readScalar(refineDict.lookup("maxRefinement"));
 
