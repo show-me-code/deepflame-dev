@@ -11,56 +11,30 @@ FoamFile
     format      ascii;
     class       dictionary;
     location    "system";
-    object      controlDict;
+    object      setFieldsDict;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-application     dfHighSpeedFoam;
+defaultFieldValues
+(
+    volVectorFieldValue U (0 0 0)
+    volScalarFieldValue T 378.656
+    volScalarFieldValue p 7173
+);
 
-startFrom       startTime;
-
-startTime       0;
-
-stopAt          endTime;
-
-endTime         2.4e-4;
-
-deltaT          1e-09;
-
-writeControl    adjustableRunTime;
-
-writeInterval   5e-6;
-
-cycleWrite      0;
-
-writeFormat     ascii;
-
-writePrecision  8;
-
-writeCompression on;
-
-timeFormat      general;
-
-timePrecision   6;
-
-runTimeModifiable true;
-
-adjustTimeStep  yes;
-
-maxCo           0.02;
-
-maxDeltaT       1;
-
-functions
-{
-    minMax
+regions
+(
+    boxToCell
     {
-      type          fieldMinMax;
-      libs          ("libdfFieldFunctionObjects.so");
-      writeControl  timeStep; //writeTime;
-      fields        (p);
+        box (0.06 -0.1 -0.1) (0.12 0.1 0.1);
+        fieldValues
+        (
+            volVectorFieldValue U (-487.34 0 0)
+            volScalarFieldValue T 748.472
+            volScalarFieldValue p 35594
+        );
     }
-}
+);
 
 
 // ************************************************************************* //
