@@ -6,10 +6,10 @@ DeepFlame is a computational fluid dynamics suite for single or multiphase, lami
 
 ## Features
 New in v0.3.0:
-- Multi-dimensions adaptive mesh refinement
-- LES turbulent models
+- 1/2/3D adaptive mesh refinement
+- Add Sigma/dynSmag LES turbulence models
 - Add functionObjects/field library
-- New case for dfHighSpeedFoam
+- New example reactiveShockTube for dfHighSpeedFoam
 
 New in v0.2.0:
 - Dynamic load balancing for chemistry solver
