@@ -5,6 +5,12 @@ DeepFlame is a computational fluid dynamics suite for single or multiphase, lami
 [OpenFOAM-7](https://openfoam.org/version/7), [Cantera C++ lib 2.6.0](https://anaconda.org/conda-forge/libcantera-devel), [Torch C++ lib 1.11.0](https://pytorch.org/)
 
 ## Features
+New in v0.3.0:
+- Multi-dimensions adaptive mesh refinement
+- LES turbulent models
+- Add functionObjects/field library
+- New case for dfHighSpeedFoam
+
 New in v0.2.0:
 - Dynamic load balancing for chemistry solver
 
