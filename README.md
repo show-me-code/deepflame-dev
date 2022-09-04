@@ -46,7 +46,7 @@ conda create -n libcantera
 
 conda activate libcantera
 
-conda install -c conda-forge cantera libcantera-devel
+conda install -c cantera libcantera-devel
 ```
 Note: Check your Miniconda3/envs/libcantera directory and make sure the install was successful (lib/ include/ etc. exist).
 
