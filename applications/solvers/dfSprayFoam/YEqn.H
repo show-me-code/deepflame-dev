@@ -10,8 +10,7 @@ tmp<fv::convectionScheme<scalar>> mvConvection
 );
 
 {
-    //combustion->correct();
-    chemistry.solve(mesh.time().deltaTValue());
+    combustion->correct();
     volScalarField Yt(0.0*Y[0]);
 
     forAll(Y, i)
@@ -27,7 +26,7 @@ tmp<fv::convectionScheme<scalar>> mvConvection
               - fvm::laplacian(turbulence->muEff(), Yi)
              ==
                 parcels.SYi(i, Yi)
-              + chemistry.RR(i)
+              + combustion->R(Yi)
               //+ fvOptions(rho, Yi)
             );
 

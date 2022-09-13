@@ -45,6 +45,8 @@ Description
 #include "localEulerDdtScheme.H"
 #include "fvcSmooth.H"
 #include "PstreamGlobals.H"
+#include "basicThermo.H"
+#include "CombustionModel.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -120,7 +122,7 @@ int main(int argc, char *argv[])
 
             #include "YEqn.H"//added by zhangyan 20220226
             #include "EEqn.H"
-            chemistry.correctThermo();
+            chemistry->correctThermo();
             Info<< "min/max(T) = " << min(T).value() << ", " << max(T).value() << endl;
 
             // --- Pressure corrector loop
