@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
     double time_monitor_chem=0;
     double time_monitor_Y=0;
     double time_monitor_E=0;
-    double time_monitor_corrThermo=0
+    double time_monitor_corrThermo=0;
     clock_t start, end;
 
     turbulence->validate();
