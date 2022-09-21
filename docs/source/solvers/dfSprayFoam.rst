@@ -7,3 +7,29 @@ This case simulates combustion inside a constant volume chamber based on an expe
 
 
 
+.. list-table:: Title
+   :widths: 25 25 50
+   :header-rows: 1
+
+   * - Chamber size (xyz)
+     - 0.02×0.1×0.02m^3
+   * - Initial gas temperature
+     - 800K
+   * - Row 2, column 1
+     - Row 2, column 2
+   * - Row 2, column 1
+     - Row 2, column 2
+   * - Row 2, column 1
+     - Row 2, column 2
+   * - Row 2, column 1
+     - Row 2, column 2
+   * - Row 2, column 1
+     - Row 2, column 2
+   * - Row 2, column 1
+     - Row 2, column 2
+   * - Row 2, column 1
+     - Row 2, column 2
+   * - Row 2, column 1
+     - Row 2, column 2
+   * - Row 2, column 1
+     - Row 2, column 2
