@@ -8,28 +8,29 @@ This case simulates combustion inside a constant volume chamber based on an expe
 
 
 .. list-table:: Title
-   :widths: 25 25 
+   :widths: 40 40 
    :header-rows: 0
 
    * - Chamber size (xyz)
      - 0.02×0.1×0.02m^3
-   * - Initial gas temperature
+   * - Initial Gas Temperature
      - 800K
-   * - Row 2, column 1
-     - Row 2, column 2
-   * - Row 2, column 1
-     - Row 2, column 2
-   * - Row 2, column 1
-     - Row 2, column 2
-   * - Row 2, column 1
-     - Row 2, column 2
-   * - Row 2, column 1
-     - Row 2, column 2
-   * - Row 2, column 1
-     - Row 2, column 2
-   * - Row 2, column 1
-     - Row 2, column 2
-   * - Row 2, column 1
-     - Row 2, column 2
-   * - Row 2, column 1
-     - Row 2, column 2
+   * - Initial Gas Pressure
+     - 5MPa
+   * - Initial Gas Composition (mass fraction)
+     - 23.4% O2, 76.6% N2
+   * - Fuel
+     - n-heptane
+   * - Fuel Temperature at the Nozzle
+     - 320K
+   * - Fuel Injection Duration
+     - 1.25ms
+   * - Total Injection Mass
+     - 6mg
+
+
+
+
+Configuration Different from OpenFOAM Case
+
+Cantera is used instead of the built-in modules of OpenFOAM to solve the chemistry reactions. Therefore, a chemical mechanism file in YAML format is required in the case directory and the full name of the mechanism file ("xxx.yaml") should be the entry after the keyword CanteraMechanismFile in constant/CanteraTorchProperties. Non-reacting simulation can be conducted by switching the entry after the keyword chemistry from on to off in constant/CanteraTorchProperties.
