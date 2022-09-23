@@ -1,2 +1,4 @@
 Contributors
 ============
+
+.. git-shortlog-authors::
