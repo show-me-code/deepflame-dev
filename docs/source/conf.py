@@ -6,7 +6,6 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 from datetime import date
-
 project = 'DeepFlame'
 copyright = '2021-%d, DeepModeling' % date.today().year
 author = 'DeepModeling'
