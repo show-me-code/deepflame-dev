@@ -9,7 +9,7 @@ This case simulates combustion inside a constant volume chamber based on an expe
 
 
 
-.. list-table:: Operating Conditions in Brief:
+.. list-table:: Operating Conditions in Brief
    :widths: 40 40 
    :header-rows: 0
 
