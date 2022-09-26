@@ -25,6 +25,8 @@ License
 
 #include "dfChemistryModel.H"
 #include "UniformField.H"
+#include "clockTime.H"
+#include "runtime_assert.H"
 
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
@@ -56,6 +58,7 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
     Y_(mixture_.Y()),
     rhoD_(mixture_.nSpecies()),
     hai_(mixture_.nSpecies()),
+    hc_(mixture_.nSpecies()),
     yTemp_(mixture_.nSpecies()),
     dTemp_(mixture_.nSpecies()),
     hrtTemp_(mixture_.nSpecies()),
@@ -80,7 +83,21 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
         mesh_,
         dimensionedScalar(dimEnergy/dimVolume/dimTime, 0)
     ),
-    torchSwitch_(lookupOrDefault("torch", false))
+    torchSwitch_(lookupOrDefault("torch", false)),
+    balancer_(createBalancer()),
+    cpuTimes_
+    (
+        IOobject
+        (
+            "cellCpuTimes",
+            mesh_.time().timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        mesh_,
+        scalar(0.0)
+    )
 {
     if(torchSwitch_)
     {
@@ -159,10 +176,26 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
             )
         );
     }
+    if(balancer_.log())
+    {
+        cpuSolveFile_ = logFile("cpu_solve.out");
+        cpuSolveFile_() << "                  time" << tab
+                        << "           getProblems" << tab
+                        << "           updateState" << tab
+                        << "               balance" << tab
+                        << "           solveBuffer" << tab
+                        << "             unbalance" << tab
+                        << "               rank ID" << endl;
+    }
 
     Info<<"--- I am here in Cantera-construct ---"<<endl;
     Info<<"relTol_ === "<<relTol_<<endl;
     Info<<"absTol_ === "<<absTol_<<endl;
+
+    forAll(hc_, i)
+    {
+        hc_[i] = CanteraGas_->Hf298SS(i)/CanteraGas_->molecularWeight(i);
+    }
 }
 
 
@@ -191,7 +224,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve
     }
     else
     {
-        result = canteraSolve(deltaT);
+        result = solve_loadBalance(deltaT);
     }
     return result;
 }
@@ -251,7 +284,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::canteraSolve
         scalar pi = p_[cellI];
         try
         {
-            for (size_t i=0; i<CanteraGas_->nSpecies(); i++)
+            for (size_t i=0; i<CanteraGas_->nSpecies(); ++i)
             {
                 yTemp_[i] = Y_[i][cellI];
             }
@@ -271,7 +304,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::canteraSolve
 
             CanteraGas_->getConcentrations(cTemp_.begin()); // value --> cTemp_
 
-            for (size_t i=0; i<CanteraGas_->nSpecies(); i++)
+            for (size_t i=0; i<CanteraGas_->nSpecies(); ++i)
             {
                 RR_[i][cellI] = (cTemp_[i] - c0[i])*CanteraGas_->molecularWeight(i)/deltaT[cellI];
             }
@@ -279,8 +312,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::canteraSolve
 
             forAll(Y_, i)
             {
-                const scalar hc = CanteraGas_->Hf298SS(i)/CanteraGas_->molecularWeight(i); // J/kg
-                Qdot_[cellI] -= hc*RR_[i][cellI];
+                Qdot_[cellI] -= hc_[i]*RR_[i][cellI];
             }
         }
         catch(Cantera::CanteraError& err)
@@ -353,7 +385,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::torchSolve
     }
     torch::jit::script::Module torchModel_ = torch::jit::load(torchModelName_, device);
 
-    std::vector<size_t> torch_cell;
+    std::vector<label> torch_cell;
     label torch_cellname= 0;
 
     // obtain the number of DNN cells
@@ -381,12 +413,12 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::torchSolve
             std::vector<double> inputs_;
             inputs_.push_back((Ti - Xmu_[0])/Xstd_[0]);
             inputs_.push_back((pi / 101325 - Xmu_[1])/Xstd_[1]);
-            for (size_t i=0; i<CanteraGas_->nSpecies(); i++)
+            for (size_t i=0; i<CanteraGas_->nSpecies(); ++i)
             {
                 yPre_[i] = Y_[i][cellI];
                 yBCT_[i] = (pow(yPre_[i],lambda) - 1) / lambda; // function BCT
             }
-            for (size_t i=0; i<CanteraGas_->nSpecies(); i++)
+            for (size_t i=0; i<CanteraGas_->nSpecies(); ++i)
             {
                 inputs_.push_back((yBCT_[i] - Xmu_[i+2]) / Xstd_[i+2]);
             }
@@ -397,7 +429,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::torchSolve
         else
         {
             Qdot_[cellI] = 0.0;
-            for (size_t i=0; i<CanteraGas_->nSpecies(); i++)
+            for (size_t i=0; i<CanteraGas_->nSpecies(); ++i)
             {
                 yPre_[i] = Y_[i][cellI];
             }
@@ -413,11 +445,10 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::torchSolve
 
             CanteraGas_->getMassFractions(yTemp_.begin());
 
-            for (size_t i=0; i<CanteraGas_->nSpecies(); i++)
+            for (size_t i=0; i<CanteraGas_->nSpecies(); ++i)
             {
                 RR_[i][cellI] = (yTemp_[i] - yPre_[i])*rhoi/deltaT[cellI];
-                const scalar hc = CanteraGas_->Hf298SS(i)/CanteraGas_->molecularWeight(i); // J/kg
-                Qdot_[cellI] -= hc*RR_[i][cellI];
+                Qdot_[cellI] -= hc_[i]*RR_[i][cellI];
             }
         }
     }
@@ -430,24 +461,23 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::torchSolve
     {
         // update y
         scalar Yt = 0;
-        for (size_t i=0; i<CanteraGas_->nSpecies(); i++)
+        for (size_t i=0; i<CanteraGas_->nSpecies(); ++i)
         {
             yPre_[i] = Y_[i][torch_cell[cellI]];
             yTemp_[i] = Y_[i][torch_cell[cellI]];
             yBCT_[i] = (pow(yPre_[i],lambda) - 1) / lambda; // function BCT
         }
-        for (size_t i=0; i<(CanteraGas_->nSpecies()); i++)//
+        for (size_t i=0; i<(CanteraGas_->nSpecies()); ++i)//
         {
             u_[i+2] = outputs[cellI][i+2].item().to<double>()*Ystd_[i+2]+Ymu_[i+2];
             yTemp_[i] = pow((yBCT_[i] + u_[i+2]*deltaT[cellI])*lambda+1,1/lambda);
             Yt += yTemp_[i];
         }
-        for (size_t i=0; i<CanteraGas_->nSpecies(); i++)
+        for (size_t i=0; i<CanteraGas_->nSpecies(); ++i)
         {
             yTemp_[i] = yTemp_[i] / Yt;
             RR_[i][torch_cell[cellI]] = (yTemp_[i] - Y_[i][torch_cell[cellI]])*rho_[torch_cell[cellI]]/deltaT[cellI];
-            const scalar hc = CanteraGas_->Hf298SS(i)/CanteraGas_->molecularWeight(i); // J/kg
-            Qdot_[torch_cell[cellI]] -= hc*RR_[i][torch_cell[cellI]];
+            Qdot_[torch_cell[cellI]] -= hc_[i]*RR_[i][torch_cell[cellI]];
         }
     }
 
@@ -608,6 +638,256 @@ void Foam::dfChemistryModel<ThermoType>::correctThermo()
             }
         }
     }
+}
+
+template<class ThermoType>
+void Foam::dfChemistryModel<ThermoType>::solveSingle
+(
+    ChemistryProblem& problem, ChemistrySolution& solution
+)
+{
+
+    // Timer begins
+    clockTime time;
+    time.timeIncrement();
+
+    Cantera::Reactor react;
+    const scalar Ti = problem.Ti;
+    const scalar pi = problem.pi;
+    const scalar rhoi = problem.rhoi;
+    const scalarList yPre_ = problem.Y;
+    scalar Qdoti_ = 0;
+
+    CanteraGas_->setState_TPY(Ti, pi, yPre_.begin());
+
+    react.insert(mixture_.CanteraSolution());
+    react.setEnergy(0); // keep T const before and after sim.advance. this will give you a little improvement
+    Cantera::ReactorNet sim;
+    sim.addReactor(react);
+    setNumerics(sim);
+
+    sim.advance(problem.deltaT);
+
+    CanteraGas_->getMassFractions(yTemp_.begin());
+
+    for (size_t i=0; i<CanteraGas_->nSpecies(); i++)
+    {
+        solution.RRi[i] = (yTemp_[i] - yPre_[i]) / problem.deltaT * rhoi;
+        Qdoti_ -= hc_[i]*solution.RRi[i];
+    }
+
+    // Timer ends
+    solution.cpuTime = time.timeIncrement();
+    solution.Qdoti = Qdoti_;
+
+    solution.cellid = problem.cellid;
+}
+
+
+
+template <class ThermoType>
+template<class DeltaTType>
+Foam::DynamicList<Foam::ChemistryProblem>
+Foam::dfChemistryModel<ThermoType>::getProblems
+(
+    const DeltaTType& deltaT
+)
+{
+    const scalarField& T = T_;
+    const scalarField& p = p_;
+    const scalarField& rho = rho_;
+
+
+    DynamicList<ChemistryProblem> solved_problems(p.size(), ChemistryProblem(mixture_.nSpecies()));
+
+    forAll(T, celli)
+    {
+        {
+            for(label i = 0; i < mixture_.nSpecies(); i++)
+            {
+                yTemp_[i] = Y_[i][celli];
+            }
+
+            CanteraGas_->setState_TPY(T[celli], p[celli], yTemp_.begin());
+            CanteraGas_->getConcentrations(cTemp_.begin());
+
+            ChemistryProblem problem;
+            problem.Y = yTemp_;
+            problem.Ti = T[celli];
+            problem.pi = p[celli];
+            problem.rhoi = rho_[celli];
+            problem.deltaT = deltaT[celli];
+            problem.cpuTime = cpuTimes_[celli];
+            problem.cellid = celli;
+
+            solved_problems[celli] = problem;
+        }
+
+    }
+
+    return solved_problems;
+}
+
+
+template <class ThermoType>
+Foam::DynamicList<Foam::ChemistrySolution>
+Foam::dfChemistryModel<ThermoType>::solveList
+(
+    UList<ChemistryProblem>& problems
+)
+{
+    DynamicList<ChemistrySolution> solutions(
+        problems.size(), ChemistrySolution(mixture_.nSpecies()));
+
+    for(label i = 0; i < problems.size(); ++i)
+    {
+        solveSingle(problems[i], solutions[i]);
+    }
+    return solutions;
+}
+
+
+template <class ThermoType>
+Foam::RecvBuffer<Foam::ChemistrySolution>
+Foam::dfChemistryModel<ThermoType>::solveBuffer
+(
+    RecvBuffer<ChemistryProblem>& problems
+)
+{
+    // allocate the solutions buffer
+    RecvBuffer<ChemistrySolution> solutions;
+
+    for(auto& p : problems)
+    {
+        solutions.append(solveList(p));
+    }
+    return solutions;
+}
+
+
+
+template <class ThermoType>
+Foam::scalar
+Foam::dfChemistryModel<ThermoType>::updateReactionRates
+(
+    const RecvBuffer<ChemistrySolution>& solutions
+)
+{
+    scalar deltaTMin = great;
+
+    for(const auto& array : solutions)
+    {
+        for(const auto& solution : array)
+        {
+
+            for(label j = 0; j < mixture_.nSpecies(); j++)
+            {
+                this->RR_[j][solution.cellid] = solution.RRi[j];
+            }
+            this->Qdot_[solution.cellid] = solution.Qdoti;
+
+            cpuTimes_[solution.cellid] = solution.cpuTime;
+        }
+    }
+
+    return deltaTMin;
+}
+
+
+
+template <class ThermoType>
+Foam::LoadBalancer
+Foam::dfChemistryModel<ThermoType>::createBalancer()
+{
+    const IOdictionary chemistryDict_tmp
+        (
+            IOobject
+            (
+                "CanteraTorchProperties",
+                thermo_.db().time().constant(),
+                thermo_.db(),
+                IOobject::MUST_READ,
+                IOobject::NO_WRITE,
+                false
+            )
+        );
+
+    return LoadBalancer(chemistryDict_tmp);
+}
+
+
+
+template <class ThermoType>
+template <class DeltaTType>
+Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_loadBalance
+(
+    const DeltaTType& deltaT
+)
+{
+    Info<<"=== begin DLB-solve === "<<endl;
+    // CPU time analysis
+    clockTime timer;
+    scalar t_getProblems(0);
+    scalar t_updateState(0);
+    scalar t_balance(0);
+    scalar t_solveBuffer(0);
+    scalar t_unbalance(0);
+
+    if(!this->chemistry_)
+    {
+        return great;
+    }
+
+    timer.timeIncrement();
+    DynamicList<ChemistryProblem> allProblems = getProblems(deltaT);
+    t_getProblems = timer.timeIncrement();
+
+    RecvBuffer<ChemistrySolution> incomingSolutions;
+
+    if(balancer_.active())
+    {
+        timer.timeIncrement();
+        balancer_.updateState(allProblems);
+        t_updateState = timer.timeIncrement();
+
+        timer.timeIncrement();
+        auto guestProblems = balancer_.balance(allProblems);
+        auto ownProblems = balancer_.getRemaining(allProblems);
+        t_balance = timer.timeIncrement();
+
+        timer.timeIncrement();
+        auto ownSolutions = solveList(ownProblems);
+        auto guestSolutions = solveBuffer(guestProblems);
+        t_solveBuffer = timer.timeIncrement();
+
+        timer.timeIncrement();
+        incomingSolutions = balancer_.unbalance(guestSolutions);
+        incomingSolutions.append(ownSolutions);
+        t_unbalance = timer.timeIncrement();
+    }
+    else
+    {
+        timer.timeIncrement();
+        incomingSolutions.append(solveList(allProblems));
+        t_solveBuffer = timer.timeIncrement();
+    }
+
+    if(balancer_.log())
+    {
+        balancer_.printState();
+        cpuSolveFile_() << setw(22)
+                        << this->time().timeOutputValue()<<tab
+                        << setw(22) << t_getProblems<<tab
+                        << setw(22) << t_updateState<<tab
+                        << setw(22) << t_balance<<tab
+                        << setw(22) << t_solveBuffer<<tab
+                        << setw(22) << t_unbalance<<tab
+                        << setw(22) << Pstream::myProcNo()
+                        << endl;
+    }
+
+    Info<<"=== end DLB-solve === "<<endl;
+    return updateReactionRates(incomingSolutions);
 }
 
 // ************************************************************************* //

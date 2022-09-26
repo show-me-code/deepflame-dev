@@ -7,9 +7,11 @@
       + fvc::ddt(rho, K) + fvc::div(phi, K)
       - dpdt
       - fvm::laplacian(turbulence->alphaEff(), he)
+      + diffAlphaD
      ==
         rho*(U&g)
       + parcels.Sh(he)
+      + fvc::div(hDiffCorrFlux)
       //+ radiation->Sh(thermo, he)
       //+ fvOptions(rho, he)
     );

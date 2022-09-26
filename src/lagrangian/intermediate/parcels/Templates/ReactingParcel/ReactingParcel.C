@@ -123,6 +123,7 @@ void Foam::ReactingParcel<ParcelType>::calcPhaseChange
         // Average molecular weight of carrier mix - assumes perfect gas
         const scalar Wc = td.rhoc()*RR*td.Tc()/td.pc();
 
+        composition.carrier().calcCp(Tsdash, td.pc());
         forAll(dMassPC, i)
         {
             const label cid = composition.localToCarrierId(idPhase, i);
@@ -260,6 +261,7 @@ void Foam::ReactingParcel<ParcelType>::cellValueSourceCorrection
     td.Uc() = (td.Uc()*massCell + cloud.UTrans()[this->cell()])/massCellNew;
 
     scalar CpEff = 0.0;
+    cloud.composition().carrier().calcCp(td.Tc(), td.pc());
     forAll(cloud.rhoTrans(), i)
     {
         scalar Y = cloud.rhoTrans(i)[this->cell()]/addedMass;
@@ -348,6 +350,8 @@ void Foam::ReactingParcel<ParcelType>::correctSurfaceValues
     scalar sumYiSqrtW = 0;
     scalar sumYiCbrtW = 0;
 
+    thermo.carrier().calcMu(T, td.pc());
+    thermo.carrier().calcCp(T, td.pc());
     forAll(Ys, i)
     {
         const scalar W = thermo.carrier().Wi(i);
@@ -355,8 +359,6 @@ void Foam::ReactingParcel<ParcelType>::correctSurfaceValues
         const scalar cbrtW = cbrt(W);
 
         rhos += Xs[i]*W;
-        thermo.carrier().calcMu(T, td.pc());
-        thermo.carrier().calcCp(T, td.pc());
         mus += Ys[i]*sqrtW*thermo.carrier().mu(i, td.pc(), T);
         kappas += Ys[i]*cbrtW*thermo.carrier().kappa(i, td.pc(), T);
         Cps += Xs[i]*thermo.carrier().Cp(i, td.pc(), T);
@@ -502,6 +504,7 @@ void Foam::ReactingParcel<ParcelType>::calc
             scalar dm = np0*mass0;
 
             // Absorb parcel into carrier phase
+            composition.carrier().calcH(T0, td.pc());
             forAll(Y_, i)
             {
                 scalar dmi = dm*Y_[i];
@@ -563,6 +566,7 @@ void Foam::ReactingParcel<ParcelType>::calc
     if (cloud.solution().coupled())
     {
         // Transfer mass lost to carrier mass, momentum and enthalpy sources
+        composition.carrier().calcH(T0, td.pc());
         forAll(dMass, i)
         {
             scalar dm = np0*dMass[i];
