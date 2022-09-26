@@ -45,6 +45,8 @@ Description
 #include "localEulerDdtScheme.H"
 #include "fvcSmooth.H"
 #include "PstreamGlobals.H"
+#include "basicThermo.H"
+#include "CombustionModel.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -128,7 +130,7 @@ int main(int argc, char *argv[])
             time_monitor_E += double(end - start) / double(CLOCKS_PER_SEC);
 
             start = std::clock();
-            chemistry.correctThermo();
+            chemistry->correctThermo();
             end = std::clock();
             time_monitor_corrThermo += double(end - start) / double(CLOCKS_PER_SEC);
 
