@@ -10,8 +10,7 @@ tmp<fv::convectionScheme<scalar>> mvConvection
 );
 
 {
-    //chemistry.solve(mesh.time().deltaTValue());
-    combustion->correct();
+    chemistry.solve(mesh.time().deltaTValue());
 
     volScalarField Yt(0.0*Y[0]);
 
@@ -25,8 +24,7 @@ tmp<fv::convectionScheme<scalar>> mvConvection
             (
                 fvm::ddt(rho, Yi)
              ==
-                //chemistry.RR(i)
-                combustion->R(Yi)
+                chemistry.RR(i)
               //+ fvOptions(rho, Yi)
             );
 

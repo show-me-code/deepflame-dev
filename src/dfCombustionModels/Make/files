@@ -9,6 +9,8 @@ EDC/EDCs.C
 
 laminar/laminars.C
 
+noCombustion/noCombustions.C
+
 /*
 FSD/reactionRateFlameAreaModels/consumptionSpeed/consumptionSpeed.C
 FSD/reactionRateFlameAreaModels/reactionRateFlameArea/reactionRateFlameArea.C
@@ -19,7 +21,7 @@ FSD/FSDs.C
 
 zoneCombustion/zoneCombustions.C
 
-noCombustion/noCombustions.C
+
 
 functionObjects/Qdot/Qdot.C
 

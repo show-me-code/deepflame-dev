@@ -47,7 +47,13 @@ SourceFiles
 #include "hashedWordList.H"
 #include "psiThermo.H"
 #include "physicoChemicalConstants.H" // for R
-
+#include "ChemistryProblem.H"
+#include "ChemistrySolution.H"
+#include "RecvBuffer.H"
+#include "SendBuffer.H"
+#include "LoadBalancer.H"
+#include "OFstream.H"
+#include "IOmanip.H"
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
@@ -81,6 +87,8 @@ public IOdictionary
     PtrList<volScalarField> rhoD_;
     // species absolute enthalpy, [J/kg]
     PtrList<volScalarField> hai_;
+    // species chemistry enthalpy, [J/kg]
+    scalarList hc_;
     // temp mass fraction
     mutable scalarList yTemp_;
     // temp mass diffusion coefficients
@@ -88,7 +96,7 @@ public IOdictionary
     // temp H/RT
     mutable scalarList hrtTemp_; // absolute_enthalpy/RT
     // temp molar concentration
-    mutable scalarField cTemp_;
+    mutable scalarList cTemp_;
     // mass change rate, [kg/m^3/s]
     PtrList<volScalarField::Internal> RR_;
     hashedWordList species_;
@@ -110,6 +118,12 @@ public IOdictionary
     scalar Tact_;
     scalar Qdotact_;
 
+    // Load balancing object
+    LoadBalancer balancer_;
+    // Field containing chemistry CPU time information
+    volScalarField cpuTimes_;
+    // A file to output the balancing stats
+    autoPtr<OFstream>        cpuSolveFile_;
 
     // Private Member Functions
 
@@ -121,15 +135,49 @@ public IOdictionary
         //- Disallow default bitwise assignment
         void operator=(const dfChemistryModel&);
 
-        // override for Cantera
+        //- override for Cantera
         template<class DeltaTType>
         scalar solve(const DeltaTType& deltaT);
 
         template<class DeltaTType>
         scalar canteraSolve(const DeltaTType& deltaT);
 
+        //- Solve the reaction system with Deep Neural Networks
         template<class DeltaTType>
         scalar torchSolve(const DeltaTType& deltaT);
+
+        //- Solve a single ChemistryProblem and put the solution to ChemistrySolution
+        void solveSingle(ChemistryProblem& problem, ChemistrySolution& solution);
+
+        //- Get the list of problems to be solved
+        template<class DeltaTType>
+        DynamicList<ChemistryProblem> getProblems(const DeltaTType& deltaT);
+
+        //- Solve a list of chemistry problems and return a list of solutions
+        DynamicList<ChemistrySolution>
+        solveList(UList<ChemistryProblem>& problems);
+
+        //- Solve the problem buffer coming from the balancer
+        RecvBuffer<ChemistrySolution>
+        solveBuffer(RecvBuffer<ChemistryProblem>& problems);
+
+        //- Update the reaction rates and heat release rates from a list of solutions
+        scalar updateReactionRates(const RecvBuffer<ChemistrySolution>& solutions);
+
+        //- Create a load balancer object
+        LoadBalancer createBalancer();
+
+        //- Solve the reaction system with DLB algorithm
+        template<class DeltaTType>
+        scalar solve_loadBalance(const DeltaTType& deltaT);
+
+        //- Output logFiles
+        Foam::autoPtr<Foam::OFstream> logFile(const word& name) const
+        {
+            mkDir(mesh_.time().path() / "loadBal" / this->group());
+            return autoPtr<OFstream>(new OFstream(
+                mesh_.time().path() / "loadBal" / this->group() / name));
+        }
 
 public:
 
