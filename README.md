@@ -9,16 +9,16 @@ New in v0.4.0 (2022/09/26):
 - Adapt combustion library from OpenFOAM into DeepFlame
 - laminar; EDC; PaSR combustion models
 
-New in v0.3.0:
+New in v0.3.0 (2022/08/29):
 - 1/2/3D adaptive mesh refinement
 - Add Sigma/dynSmag LES turbulence models
 - Add functionObjects/field library
 - New example reactiveShockTube for dfHighSpeedFoam
 
-New in v0.2.0:
+New in v0.2.0 (2022/07/25):
 - Dynamic load balancing for chemistry solver
 
-From v0.1.0:
+From v0.1.0 (2022/06/15):
 - Native Cantera reader for chemical mechanisms in `.cti`, `.xml` or `.yaml` formats
 - Full compatiblity with Cantera's `UnityLewis`, `Mix` and `Multi` transport models
 - Zero-dimensional constant pressure or constant volume reactor solver `df0DFoam`
