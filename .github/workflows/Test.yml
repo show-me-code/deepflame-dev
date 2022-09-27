@@ -4,8 +4,7 @@ on:
   pull_request:
 jobs:
   validation:
-    runs-on: self-hosted
-    if: github.repository_owner == 'deepmodeling'      
+    runs-on: Ubuntu-latest    
     container: 
       image: ubuntu:20.04
     steps:
