@@ -1,11 +1,9 @@
 name: Test Allrun
 on: 
   push:
-    branches: [ "master" ]
   pull_request:
-    branches: [ "master" ]
 jobs:
-  build_test:
+  validation:
     runs-on: self-hosted
     if: github.repository_owner == 'deepmodeling'      
     container: 
@@ -43,7 +41,7 @@ jobs:
 
      - name: clone
        run: |
-        git clone https://github.com/deepmodeling/deepflame-dev.git
+        git clone https://github.com/JX278/deepflame-dev.git
         cd deepflame-dev
  
 
