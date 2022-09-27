@@ -15,7 +15,7 @@ jobs:
         DEBIAN_FRONTEND: noninteractive
        run: |
         apt-get update 
-        apt-get install -y --no-install-recommends sudo wget unzip git software-properties-common make cmake g++ mpich openmpi-bin libopenmpi-dev libscalapack-mpi-dev 
+        apt-get install -y sudo wget unzip git software-properties-common make cmake g++ mpich openmpi-bin libopenmpi-dev libscalapack-mpi-dev 
  
        
      - name: openfoam7
@@ -26,7 +26,6 @@ jobs:
         sudo add-apt-repository http://dl.openfoam.org/ubuntu
         sudo apt-get update
         export DEBIAN_FRONTEND=noninteractive
-        apt install -y --no-install-recommends  
         apt-get -y install openfoam7 
      
        
