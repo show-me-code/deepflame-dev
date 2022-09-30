@@ -14,7 +14,11 @@ FetchContent_MakeAvailable(googletest)
 
 file(COPY ./df0DFoam/zeroD_cubicReactor/H2/cvodeSolver/postProcessing/probes/0/T DESTINATION 0DH2)
 file(COPY ./df0DFoam/zeroD_cubicReactor/CH4/cvodeSolver/postProcessing/probes/0/T DESTINATION 0DCH4)
-file(COPY ./dfLowMachFoam/twoD_reactingTGV/H2/cvodeSolver/postProcessing/sample/0.0005/data_T.xy DESTINATION 2DTGV)
+file(COPY ./dfLowMachFoam/twoD_reactingTGV/H2/cvodeSolver/postProcessing/sample/0.0005/data_T.xy DESTINATION 2DTGV/5)
+file(COPY ./dfLowMachFoam/twoD_reactingTGV/H2/cvodeSolver/postProcessing/sample/0.0004/data_T.xy DESTINATION 2DTGV/4)
+file(COPY ./dfLowMachFoam/twoD_reactingTGV/H2/cvodeSolver/postProcessing/sample/0.0003/data_T.xy DESTINATION 2DTGV/3)
+file(COPY ./dfLowMachFoam/twoD_reactingTGV/H2/cvodeSolver/postProcessing/sample/0.0002/data_T.xy DESTINATION 2DTGV/2)
+file(COPY ./dfLowMachFoam/twoD_reactingTGV/H2/cvodeSolver/postProcessing/sample/0.0001/data_T.xy DESTINATION 2DTGV/1)
 
 
 enable_testing()

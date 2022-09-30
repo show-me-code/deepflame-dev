@@ -10,14 +10,18 @@ float readmidTH2();
 float readmaxTH2();
 float readmidTCH4();
 float readmaxTCH4();
-float readTGV();
+float readTGV(int k, string file);
 
 
 float H2maxT = readmaxTH2();
 float H2midT = readmidTH2();
 float CH4maxT = readmaxTCH4();
 float CH4midT = readmidTCH4();
-float TGVmin  = readTGV();
+float TGV500  = readTGV(806,"2DTGV/5/data_T.xy");
+float TGV100 = readTGV(1098,"2DTGV/1/data_T.xy");
+float TGV200 = readTGV(1016,"2DTGV/2/data_T.xy");
+float TGV300 = readTGV(1048,"2DTGV/3/data_T.xy");
+float TGV400 = readTGV(1048,"2DTGV/4/data_T.xy");
 
 
 TEST(corrtest,df0DFoam_H2){
@@ -31,7 +35,11 @@ TEST(corrtest,df0DFoam_CH4){
 }
 
 TEST(corrtest,dfLowMachFoam_TGV){
-    EXPECT_FLOAT_EQ(TGVmin,1533.31);   // compare the maximum temperature of CH4 case 
+    EXPECT_FLOAT_EQ(TGV500,1533.31);   // compare the maximum temperature along y direction in 2D TGV after 500 time steps
+    EXPECT_FLOAT_EQ(TGV400,1303.71);   //  ..........400 time steps
+    EXPECT_FLOAT_EQ(TGV300,880.402);
+    EXPECT_FLOAT_EQ(TGV200,546.348);
+    EXPECT_FLOAT_EQ(TGV100,364.29);
 }
 
 
@@ -134,13 +142,13 @@ float readmidTCH4(){
 }
 
 
-float readTGV(){
+float readTGV(int k, string file){
     
     float a;
     float b;
     int i = 0;
     
-    string inFileName = "2DTGV/data_T.xy";
+    string inFileName = file;
     ifstream inFile;
     inFile.open(inFileName.c_str());
 
@@ -148,7 +156,7 @@ float readTGV(){
     {
         while (inFile >> a){
             i ++ ;
-            if (i == 806){  // minimum temperature
+            if (i == k){  // minimum temperature
                 b = a;
             }
         }
@@ -160,3 +168,5 @@ float readTGV(){
 
     return b;
 }
+
+
