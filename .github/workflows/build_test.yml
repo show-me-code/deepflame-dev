@@ -2,10 +2,9 @@ name: building test for each PR
 on: 
   push:
   pull_request:
-  
 jobs:
   build_test:
-    runs-on: ubuntu-latest      
+    runs-on: ubuntu-latest 
     container: 
       image: ubuntu:20.04
     steps:
@@ -17,11 +16,7 @@ jobs:
        run: |
         apt install -y --no-install-recommends 
         apt-get update 
-        apt-get install -y sudo
-        apt-get install -y wget
-        apt-get install -y unzip
-        apt-get install -y git
-        apt-get install -y software-properties-common
+        apt-get install -y sudo wget unzip git software-properties-common make cmake g++ 
  
        
      - name: openfoam7
