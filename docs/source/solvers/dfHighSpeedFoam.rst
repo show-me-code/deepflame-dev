@@ -31,7 +31,7 @@ The case simulates supersonic inlet flow hitting the wall and then reflected to 
 
 
 **Output** 
-.. figure:: /images/1D_air_detonation.png
+.. image:: /docs/images/1D_air_detonation.png
   :align: location of caption
   :scale: 50 %
 
