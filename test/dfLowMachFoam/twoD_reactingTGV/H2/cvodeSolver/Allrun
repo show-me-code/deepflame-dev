@@ -10,5 +10,5 @@ runApplication blockMesh
 runApplication decomposePar
 runApplication mpirun -np 2 $application -parallel
 
-runApplication reconstructPar -time 5e-4
-runApplication postProcess -func sample -time 5e-4
+runApplication reconstructPar 
+runApplication postProcess -func sample
