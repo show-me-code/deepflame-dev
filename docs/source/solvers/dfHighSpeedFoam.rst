@@ -32,8 +32,7 @@ The case simulates supersonic inlet flow hitting the wall and then reflected to 
 
 **Output** 
 .. image:: /docs/images/1D_air_detonation.png
- :align: location of caption
- :width: 400
+
 
    Result of one-dimensional reactive shock tube
 
