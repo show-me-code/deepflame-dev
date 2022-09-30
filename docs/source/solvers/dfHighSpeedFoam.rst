@@ -33,7 +33,7 @@ The case simulates supersonic inlet flow hitting the wall and then reflected to 
 **Output** 
 
 
-.. image:: /docs/images/1D_air_detonation.png
+.. image:: 1D_air_detonation.png
 
 
    Result of one-dimensional reactive shock tube
@@ -72,7 +72,7 @@ Detonation propagation contains a complex interaction of the leading shock wave 
 **Output** 
 
 
-.. figure:: /images/1D_air_detonation.png
+.. figure:: 1D_air_detonation.png
 
    Result of one-dimensional H2/air detonation
 
