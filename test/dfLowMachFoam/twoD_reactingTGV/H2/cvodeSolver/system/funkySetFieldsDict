@@ -20,7 +20,7 @@ expressions
 TGV_U  
     {
      field U; 
-     expression "vector(4*sin(pos().x/0.001)*cos(pos().y/0.001),-4*cos(pos().x/0.001)*sin(pos().y/0.001),0)"; 
+     expression "vector(-4*sin(pos().x/0.001)*cos(pos().y/0.001),4*cos(pos().x/0.001)*sin(pos().y/0.001),0)"; 
      keepPatches 1; 
     }
  );

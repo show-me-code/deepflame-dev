@@ -31,7 +31,7 @@ TEST(corrtest,df0DFoam_CH4){
 }
 
 TEST(corrtest,dfLowMachFoam_TGV){
-    EXPECT_FLOAT_EQ(TGVmin,371.7);   // compare the maximum temperature of CH4 case 
+    EXPECT_FLOAT_EQ(TGVmin,1533.31);   // compare the maximum temperature of CH4 case 
 }
 
 
@@ -148,7 +148,7 @@ float readTGV(){
     {
         while (inFile >> a){
             i ++ ;
-            if (i == 1050 ){  // minimum temperature
+            if (i == 806){  // minimum temperature
                 b = a;
             }
         }
