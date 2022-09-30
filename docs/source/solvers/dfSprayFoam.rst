@@ -1,6 +1,8 @@
 dfSprayFoam
 =================
 
+aachenBomb
+------------------
 
 **Problem Description**
 
@@ -32,8 +34,7 @@ This case simulates combustion inside a constant volume chamber based on an expe
 
 
 
---------------------------------------------
-Configurations Different from OpenFOAM Case
---------------------------------------------
+**Configurations Different from OpenFOAM Case**
+
 
 Cantera is used instead of the built-in modules of OpenFOAM to solve the chemical reactions. Therefore, a chemical mechanism file in YAML format is required in the case directory, and the full name of the mechanism file ("xxx. YAML") should be the entry after the keyword **CanteraMechanismFile** in *constant/CanteraTorchProperties*. Non-reacting simulation can be conducted by switching the entry after the keyword **chemistry** from **on** to **off** in *constant/CanteraTorchProperties*.

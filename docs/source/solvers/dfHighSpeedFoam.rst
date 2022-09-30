@@ -18,14 +18,11 @@ The case simulates supersonic inlet flow hitting the wall and then reflected to 
    * - Chamber size (x)
      - 0.12m
    * - Initial Gas Density
-     - 0.072 kg/m^3 (x<=0.06 m)
-       0.18075 kg/m^3 (x>0.06 m) 
+     - 0.072 kg/m^3 (x<=0.06 m), 0.18075 kg/m^3 (x>0.06 m) 
    * - Initial Gas Pressure
-     - 7173 Pa (x<=0.06 m)
-       35594 Pa (x>0.06 m)
+     - 7173 Pa (x<=0.06 m), 35594 Pa (x>0.06 m)
    * - Initial Gas Velocity
-     - 0 m/s (x<=0.06 m)
-       -487.34 m/s (x>0.06 m)
+     - 0 m/s (x<=0.06 m), -487.34 m/s (x>0.06 m)
    * - Ideal Gas Composition (mole fraction)
      - H2/O2/Ar = 2/1/7 
 
@@ -56,11 +53,9 @@ Detonation propagation contains a complex interaction of the leading shock wave 
    * - Chamber size (x)
      - 0.5m
    * - Initial Gas Pressure
-     - 90 atm (hot spot)
-       1 atm (other area)
+     - 90 atm (hot spot), 1 atm (other area)
    * - Initial Gas Temperature
-     - 2000 K (hot spot)
-       300 K  (other area)
+     - 2000 K (hot spot), 300 K  (other area)
    * - Ideal Gas Composition (mole fraction)
      - H2/O2/N2 = 2/1/3.76
        (homogeneous stoichiometric mixture)
