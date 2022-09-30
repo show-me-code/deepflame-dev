@@ -31,6 +31,8 @@ The case simulates supersonic inlet flow hitting the wall and then reflected to 
 
 
 **Output** 
+
+
 .. image:: /docs/images/1D_air_detonation.png
 
 
@@ -42,6 +44,8 @@ One-Dimensional H2/Air Detonation
 --------------------------------------------
 
 **Problem Description**
+
+
 Detonation propagation contains a complex interaction of the leading shock wave and auto-igniting reaction, showing the coupling of shock wave and chemical reaction. This case aims to validate the accuracy of this solver in capturing this process and the propagation speed.
 
 
@@ -66,6 +70,8 @@ Detonation propagation contains a complex interaction of the leading shock wave 
 
 
 **Output** 
+
+
 .. figure:: /images/1D_air_detonation.png
 
    Result of one-dimensional H2/air detonation
