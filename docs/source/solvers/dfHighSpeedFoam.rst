@@ -67,8 +67,6 @@ Detonation propagation contains a complex interaction of the leading shock wave 
 
 **Output** 
 .. figure:: /images/1D_air_detonation.png
-   :align: location of caption
-   :scale: 50 %
 
    Result of one-dimensional H2/air detonation
 
