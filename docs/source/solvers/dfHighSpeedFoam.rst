@@ -32,7 +32,6 @@ The case simulates supersonic inlet flow hitting the wall and then reflected to 
 
 **Output** 
 .. figure:: /images/1D_air_detonation.png
-   :alt: alt text goes here
    :align: location of caption
    :scale: 50 %
 
@@ -69,7 +68,6 @@ Detonation propagation contains a complex interaction of the leading shock wave 
 
 **Output** 
 .. figure:: /images/1D_air_detonation.png
-   :alt: alt text goes here
    :align: location of caption
    :scale: 50 %
 
