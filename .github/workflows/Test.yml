@@ -2,10 +2,10 @@ name: Test Allrun
 on: 
   push:
     branches:
-      - master
+     - master
   pull_request:
     branches:
-      - master
+     - master
 jobs:
   validation:
     runs-on: Ubuntu-latest    
