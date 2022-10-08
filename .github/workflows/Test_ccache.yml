@@ -22,8 +22,7 @@ jobs:
         apt-get install -y sudo wget unzip git software-properties-common make cmake g++ mpich openmpi-bin libopenmpi-dev libscalapack-mpi-dev 
 
 
-
-     - name: openfoam7, libtorch,clone,libcantera
+     - name: install dependencies
        env:
         DEBIAN_FRONTEND: noninteractive
        run: |
@@ -43,6 +42,12 @@ jobs:
         conda create -n libcantera
         conda activate libcantera
         conda install -c cantera libcantera-devel
+
+    - name: Download ccache
+      id: ccache
+      run: |
+       wget https://github.com/ccache/ccache/releases/download/v4.6.3/ccache-4.6.3-linux-x86_64.tar.xz 
+       unzip ccache-4.6.3-linux-x86_64.tar.xz
      
 
      - name: build
