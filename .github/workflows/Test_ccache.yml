@@ -43,11 +43,11 @@ jobs:
         conda activate libcantera
         conda install -c cantera libcantera-devel
 
-    - name: Download ccache
-      id: ccache
-      run: |
-       wget https://github.com/ccache/ccache/releases/download/v4.6.3/ccache-4.6.3-linux-x86_64.tar.xz 
-       unzip ccache-4.6.3-linux-x86_64.tar.xz
+     - name: Download ccache
+       id: ccache
+       run: |
+        wget https://github.com/ccache/ccache/releases/download/v4.6.3/ccache-4.6.3-linux-x86_64.tar.xz 
+        unzip ccache-4.6.3-linux-x86_64.tar.xz
      
 
      - name: build
