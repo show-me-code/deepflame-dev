@@ -11,7 +11,8 @@ float readmaxTH2();
 float readmidTCH4();
 float readmaxTCH4();
 float readTGV(int k, string file);
-
+float readHighSpeed();
+float v = readHighSpeed();
 
 float H2maxT = readmaxTH2();
 float H2midT = readmidTH2();
@@ -40,6 +41,10 @@ TEST(corrtest,dfLowMachFoam_TGV){
     EXPECT_FLOAT_EQ(TGV300,880.402);
     EXPECT_FLOAT_EQ(TGV200,546.348);
     EXPECT_FLOAT_EQ(TGV100,364.29);
+}
+
+TEST(corrtest,dfHighSpeedFoam){
+    EXPECT_FLOAT_EQ(v,1993.38);
 }
 
 
@@ -170,3 +175,47 @@ float readTGV(int k, string file){
 }
 
 
+float readHighSpeed(){
+    float xsum=0,x2sum=0,ysum=0,xysum=0;
+    float t;
+    char dummy;
+    char p;
+    float minp;
+    float minloc;
+    int processor;
+    float max;
+    float maxloc;
+    float maxloc_x;
+    int processor2;
+    float slope;
+    int i = 0;
+    float slope2;
+
+    string inFileName = "1Ddetonation/fieldMinMax.dat" ;
+    ifstream inFile;
+    inFile.open(inFileName.c_str());
+
+    if (inFile.is_open())  
+    {
+        inFile.ignore(162);
+        while(inFile >> t >> p >> minp >> dummy >> minloc>> minloc >> minloc >> dummy >> processor >> max >> dummy >> maxloc_x >> maxloc >> maxloc >> dummy >> processor){
+            i = i +1;
+            if (i >= 30){
+                xsum = xsum+t;
+                ysum = ysum+ maxloc_x;
+                x2sum = x2sum + t * t;
+                xysum = xysum + t*maxloc_x;
+            }
+        };
+        //while (inFile >> t >> p >> minp >> minlocation >> processor >> max >> maxlocation >> processor2){
+       //} 
+        slope = (15*xysum-xsum*ysum)/(15*x2sum-xsum*xsum);
+
+    }
+    else { //Error message
+        cerr << "Can't find input file " << inFileName << endl;
+    }
+    
+    
+    return slope;
+}
