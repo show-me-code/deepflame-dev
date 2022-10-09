@@ -57,14 +57,15 @@ jobs:
         OMPI_ALLOW_RUN_AS_ROOT: 1 
         OMPI_ALLOW_RUN_AS_ROOT_CONFIRM: 1 
         OMPI_MCA_btl_vader_single_copy_mechanism: none
-       run:
-    
+       run: |
         . ~/miniconda3/etc/profile.d/conda.sh
         conda activate libcantera
         . /opt/openfoam7/etc/bashrc
-        . install.sh
+        sh install.sh
         ccache -s
-        
+
+
+
      
         
         
