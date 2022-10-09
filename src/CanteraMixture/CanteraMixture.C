@@ -57,6 +57,7 @@ Foam::CanteraMixture::CanteraMixture
     yTemp_(nSpecies()),
     HaTemp_(nSpecies()),
     CpTemp_(nSpecies()),
+    CvTemp_(nSpecies()),
     muTemp_(nSpecies())
 {
     forAll(Y_, i)
