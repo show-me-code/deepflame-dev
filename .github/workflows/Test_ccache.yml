@@ -62,7 +62,7 @@ jobs:
         . ~/miniconda3/etc/profile.d/conda.sh
         conda activate libcantera
         . /opt/openfoam7/etc/bashrc
-        sh install.sh
+        . install.sh
         ccache -s
         
      
