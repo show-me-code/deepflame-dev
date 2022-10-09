@@ -19,13 +19,8 @@ jobs:
         DEBIAN_FRONTEND: noninteractive
        run: |
         apt-get update 
-        apt-get install -y sudo wget unzip git software-properties-common make cmake g++ mpich openmpi-bin libopenmpi-dev libscalapack-mpi-dev 
+        apt-get install -y sudo wget unzip git software-properties-common make cmake g++ mpich openmpi-bin libopenmpi-dev libscalapack-mpi-dev ccache
 
-     - name: Download ccache
-       id: ccache
-       run: |
-        wget https://github.com/ccache/ccache/releases/download/v4.6.3/ccache-4.6.3-linux-x86_64.tar.xz 
-        tar -xf ccache-4.6.3-linux-x86_64.tar.xz
 
 
      - name: ccache cache files
@@ -62,8 +57,13 @@ jobs:
         OMPI_ALLOW_RUN_AS_ROOT: 1 
         OMPI_ALLOW_RUN_AS_ROOT_CONFIRM: 1 
         OMPI_MCA_btl_vader_single_copy_mechanism: none
-       run: 
-        /bin/bash -c "source ~/miniconda3/etc/profile.d/conda.sh && conda activate libcantera && source /opt/openfoam7/etc/bashrc && . install.sh"
+       run:
+        export PATH=/usr/lib/cache:$PATH 
+        . ~/miniconda3/etc/profile.d/conda.sh
+        conda activate libcantera
+        . /opt/openfoam7/etc/bashrc
+        sh install.sh
+        ccache -s
         
      
         
