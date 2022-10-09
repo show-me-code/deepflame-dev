@@ -695,8 +695,6 @@ Foam::dfChemistryModel<ThermoType>::getProblems
 {
     const scalarField& T = T_;
     const scalarField& p = p_;
-    const scalarField& rho = rho_;
-
 
     DynamicList<ChemistryProblem> solved_problems(p.size(), ChemistryProblem(mixture_.nSpecies()));
 
