@@ -1,4 +1,6 @@
 name: Case Validation
+on: 
+  push:
     branches:
      - master
   pull_request:
