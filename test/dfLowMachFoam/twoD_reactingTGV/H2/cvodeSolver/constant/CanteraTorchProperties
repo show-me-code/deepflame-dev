@@ -10,30 +10,29 @@ FoamFile
     version     2.0;
     format      ascii;
     class       dictionary;
-    location    "system";
-    object      sample;
+    location    "constant";
+    object      chemistryProperties;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-type sets;
-libs            ("libsampling.so");
 
-interpolationScheme cellPoint;
+chemistry           on;
+CanteraMechanismFile "ES80_H2-7-16.yaml";
+transportModel "Mix";//"UnityLewis";
+odeCoeffs
+{
+    "relTol"   1e-6;
+    "absTol"   1e-10;
+}
+inertSpecie        "N2";
 
-setFormat       raw;
-
-sets
-(
-    data
-    {
-        type    lineFace;
-        axis    x;
-        start   (-4.995 0 0);
-        end     (4.995 0 0);
-        nPoints 1000;
-    }
-);
-
-fields          (T mag(U) p);
-
+zeroDReactor
+{
+    //cvorcp "UV";
+}
+loadbalancing
+{
+        active  true;
+        //log   true;
+}
 // ************************************************************************* //

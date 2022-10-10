@@ -7,26 +7,32 @@
 \*---------------------------------------------------------------------------*/
 FoamFile
 {
-    version     2.0;
     format      ascii;
     class       dictionary;
     location    "system";
-    object      decomposeParDict;
+    object      sample;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-numberOfSubdomains  4;
+type sets;
+libs            ("libsampling.so");
 
-method          scotch;
+interpolationScheme cellPoint;
 
-constraints
-{
-    dfRefinementHistory
+setFormat       raw;
+
+sets
+(
+    data
     {
-        //- Decompose cells such that all cell originating from single cell
-        //  end up on same processor
-        type    dfRefinementHistory;
+        type    lineUniform;
+        axis    y;
+        start   (0.003 0 0.003);
+        end     (0.003 0.006 0.003);
+        nPoints 1000;
     }
-}
+);
+
+fields          (T);
 
 // ************************************************************************* //

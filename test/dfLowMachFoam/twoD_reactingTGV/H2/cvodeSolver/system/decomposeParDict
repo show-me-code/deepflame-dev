@@ -11,48 +11,35 @@ FoamFile
     format      ascii;
     class       dictionary;
     location    "system";
-    object      fvSchemes;
+    object      decomposeParDict;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-fluxScheme		Kurganov;
+numberOfSubdomains 2;
 
-ddtSchemes
+method          scotch;
+
+simpleCoeffs
 {
-    default                Euler;
+    n               (4 1 1);
+    delta           0.001;
 }
 
-gradSchemes
+hierarchicalCoeffs
 {
-    default                Gauss linear;
+    n               (1 1 1);
+    delta           0.001;
+    order           xyz;
 }
 
-divSchemes
+manualCoeffs
 {
-    default                none;
-    div(tauMC)             Gauss linear;
-    div(hDiffCorrFlux)     Gauss cubic;
-    div(phi,Yi_h)          Gauss vanLeer;
+    dataFile        "";
 }
 
-laplacianSchemes
-{
-    default                Gauss linear uncorrected;	
-}
+distributed     no;
 
-interpolationSchemes
-{
-    default                linear;
-    reconstruct(rho)       Minmod;
-    reconstruct(U)         MinmodV;
-    reconstruct(T)         Minmod;
-    reconstruct(Yi)        Minmod;
-}
-
-snGradSchemes
-{
-    default                uncorrected;
-}
+roots           ( );
 
 
 // ************************************************************************* //

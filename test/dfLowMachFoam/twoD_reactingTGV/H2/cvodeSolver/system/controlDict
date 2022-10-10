@@ -14,11 +14,8 @@ FoamFile
     object      controlDict;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
-libs (
-      "libdfDynamicFvMesh.so"
-      );
 
-application     dfHighSpeedFoam;
+application     dfLowMachFoam;
 
 startFrom       startTime;
 
@@ -26,19 +23,23 @@ startTime       0;
 
 stopAt          endTime;
 
-endTime         2.2e-4;
+endTime         5e-4;
 
-deltaT          1e-09;
+deltaT          1e-6;
+
+maxDeltaT       1e-04;
+
+adjustTimeStep  off;
 
 writeControl    adjustableRunTime;
 
 writeInterval   5e-6;
 
-cycleWrite      0;
+purgeWrite      0;
 
 writeFormat     ascii;
 
-writePrecision  8;
+// writePrecision    6;
 
 writeCompression on;
 
@@ -48,22 +49,12 @@ timePrecision   6;
 
 runTimeModifiable true;
 
-adjustTimeStep  yes;
 
-maxCo           0.1;
+// adjustTimeStep yes;
 
-maxDeltaT       1;
+// maxCo  0.8;
 
-functions
-{
-    minMax
-    {
-      type          fieldMinMax;
-      libs          ("libdfFieldFunctionObjects.so");
-      writeControl  writeTime; //timeStep;
-      fields        (p);
-    }
-}
+// maxDeltaT 1e-4;
 
 
 // ************************************************************************* //
