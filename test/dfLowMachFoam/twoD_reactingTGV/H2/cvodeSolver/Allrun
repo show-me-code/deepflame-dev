@@ -10,5 +10,5 @@ runApplication blockMesh
 runApplication decomposePar
 runApplication mpirun -np 8 $application -parallel
 
-runApplication reconstructPar 
-runApplication postProcess -func sample
+runApplication reconstructPar -time 1e-4,2e-4,3e-4,4e-4,5e-4
+runApplication postProcess -func sample -time 1e-4,2e-4,3e-4,4e-4,5e-4
