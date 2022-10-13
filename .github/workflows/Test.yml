@@ -2,10 +2,10 @@ name: Case Validation
 on: 
   push:
     branches:
-     - master
+     - libcantera
   pull_request:
     branches:
-     - master
+     - libcantera
 jobs:
   validation:
     runs-on: self-hosted
