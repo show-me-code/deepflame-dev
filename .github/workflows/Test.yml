@@ -2,10 +2,10 @@ name: Case Validation
 on: 
   push:
     branches:
-     - libcantera
+     - libtorch
   pull_request:
     branches:
-     - libcantera
+     - libtorch
 jobs:
   validation:
     runs-on: self-hosted
