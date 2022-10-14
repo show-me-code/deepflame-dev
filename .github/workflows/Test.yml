@@ -2,10 +2,10 @@ name: Case Validation
 on: 
   push:
     branches:
-     - master
+     - libtorch
   pull_request:
     branches:
-     - master
+     - libtorch
 jobs:
   validation:
     runs-on: self-hosted
