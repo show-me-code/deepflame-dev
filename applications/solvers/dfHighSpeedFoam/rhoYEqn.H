@@ -3,6 +3,11 @@ if (!inviscid)
     hDiffCorrFlux = Zero;
     diffAlphaD = Zero;
     sumYDiffError = Zero;
+    
+    forAll(Y, i)
+    {
+        sumYDiffError += chemistry.rhoD(i)*fvc::grad(Y[i]);
+    }
 }
 
 tmp<fv::convectionScheme<scalar>> mvConvection
@@ -44,10 +49,6 @@ tmp<fv::convectionScheme<scalar>> mvConvection
 
             if (!inviscid)
             {
-                forAll(Y, i)
-                {
-                    sumYDiffError += chemistry.rhoD(i)*fvc::grad(Y[i]);
-                }
                 const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
 
                 hDiffCorrFlux += chemistry.hai(i)*(chemistry.rhoD(i)*fvc::grad(Yi) - Yi*sumYDiffError);
