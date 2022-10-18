@@ -44,7 +44,7 @@ TEST(corrtest,dfLowMachFoam_TGV){
 }
 
 TEST(corrtest,dfHighSpeedFoam){
-    EXPECT_NEAR(v,1979.33, 19.79);    // keep the result within 1% of the theoretical value
+    EXPECT_FLOAT_EQ(v,1993.38);
 }
 
 
