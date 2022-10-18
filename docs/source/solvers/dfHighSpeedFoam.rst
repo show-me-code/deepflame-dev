@@ -16,7 +16,7 @@ The case simulates supersonic inlet flow hitting the wall and then reflected to 
    :header-rows: 0
 
    * - Chamber size (x)
-     - 0.12m
+     - 0.12 m
    * - Initial Gas Density
      - 0.072 kg/m^3 (x<=0.06 m), 0.18075 kg/m^3 (x>0.06 m) 
    * - Initial Gas Pressure
@@ -37,6 +37,14 @@ The case simulates supersonic inlet flow hitting the wall and then reflected to 
 
 
 
+**Reference**
+
+E S Oran, T R Young, J P Boris, A Cohen, Weak and strong ignition. i. Numerical simulations of shock tube experiments, Combustion and Flame 48 (1982) 135-148.
+
+R J Kee, J F Grcar, M D Smooke, J A Miller, E Meeks, Premix: A fortran program for modeling steady laminar one-dimensional premixed flames, Sandia National Laboratories.
+
+
+
 One-Dimensional H2/Air Detonation
 --------------------------------------------
 
@@ -51,7 +59,7 @@ Detonation propagation contains a complex interaction of the leading shock wave 
    :header-rows: 0
 
    * - Chamber size (x)
-     - 0.5m
+     - 0.5 m
    * - Initial Gas Pressure
      - 90 atm (hot spot), 1 atm (other area)
    * - Initial Gas Temperature
@@ -73,6 +81,56 @@ Detonation propagation contains a complex interaction of the leading shock wave 
 
 
 
-Reference
----------------
-E S Oran, T. R. Young, J. P. Boris, A. Cohen, Weak and strong ignition. i. Numerical simulations of shock tube experiments, Combustion and Flame 48 (1982) 135-148.
+**Reference**
+
+J Li, Z Zhao, A Kazakov, F L Dryer, An updated comprehensive kinetic model of hydrogen combustion, International Journal of Chemical Kinetics 36 (2004) 566-575.
+
+
+
+Two-Dimensional H2/Air Detonation
+--------------------------------------------
+
+**Problem Description**
+
+
+Detonation propagation contains a complex interaction of the leading shock wave and auto-igniting reaction, and two-dimensional detonation can further reveal the interaction of shear waves and shock waves.
+
+
+.. list-table:: Operating Conditions in Brief
+   :widths: 40 40 
+   :header-rows: 0
+
+   * - Chamber size (x)
+     - 0.2 m * 0.01 m
+   * - Initial Gas Pressure
+     - 100 atm (three hot spot), 1 atm (other area)
+   * - Initial Gas Temperature
+     - 2000 K (three hot spot), 300 K  (other area)
+   * - Ideal Gas Composition (mole fraction)
+     - H2/O2/N2 = 2/1/7
+       (homogeneous stoichiometric mixture)
+
+
+
+
+
+**Output** 
+
+
+Triple points can be seen clearly in the picture below.
+
+.. figure:: 2D_detonation_rho.png
+
+   Density field of two-dimensional H2 detonation
+
+In the picture below, during the propagation of detonation wave, we can see that the size of cells gradually became stable.
+
+.. figure:: 2D_detonation_pMax.png
+
+   History of maximum pressure during detonation propagation
+
+
+
+**Reference**
+
+C J Jachimowski, An Analytical Study of the Hydrogen-Air Reaction Mechanism with Application to Scramjet Combustion, NASA TP-2791, Feb. 1988.
