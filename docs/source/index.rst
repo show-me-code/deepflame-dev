@@ -26,6 +26,7 @@ for machine learning assisted reacting flow simulations. It is also has the scop
 
    installation/index
    quickstart/index
+   utility
    solvers/index
 
 
