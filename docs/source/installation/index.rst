@@ -39,7 +39,7 @@ Use the commands below to install and activate LibCantera.
 .. Note:: Check your Miniconda3/envs/libcantera directory and make sure the install was successful (lib/ include/ etc. exist).
 
 
-**Install Precompiled `Libtorch <https://pytorch.org/>`_**
+**Install Precompiled Libtorch**
 
 .. code-block:: bash
 
