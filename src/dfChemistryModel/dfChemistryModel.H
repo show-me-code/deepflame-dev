@@ -38,7 +38,10 @@ SourceFiles
 #ifndef dfChemistryModel_H
 #define dfChemistryModel_H
 
+#ifdef USE_LIBTORCH
 #include <torch/script.h>
+#endif
+
 #include "CanteraMixture.H"
 #include "IOdictionary.H"
 #include "Switch.H"
@@ -109,7 +112,7 @@ public IOdictionary
     // heat release rate, [J/m^3/s]
     volScalarField Qdot_;
 
-    Switch torchSwitch_;
+#ifdef USE_LIBTORCH
     word torchModelName_;
     scalarList Xmu_;
     scalarList Xstd_;
@@ -117,6 +120,7 @@ public IOdictionary
     scalarList Ystd_;
     scalar Tact_;
     scalar Qdotact_;
+#endif
 
     // Load balancing object
     LoadBalancer balancer_;
@@ -142,9 +146,11 @@ public IOdictionary
         template<class DeltaTType>
         scalar canteraSolve(const DeltaTType& deltaT);
 
+#ifdef USE_LIBTORCH
         //- Solve the reaction system with Deep Neural Networks
         template<class DeltaTType>
         scalar torchSolve(const DeltaTType& deltaT);
+#endif
 
         //- Solve a single ChemistryProblem and put the solution to ChemistrySolution
         void solveSingle(ChemistryProblem& problem, ChemistrySolution& solution);

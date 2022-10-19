@@ -1,25 +1,83 @@
 #!/bin/sh
 
-if [ -d "thirdParty/libtorch" ]; then
-    echo "libtorch exist."
-else
+if [ -z "$CONDA_PREFIX" ]; then
+    echo "You should run this script only when the conda enviorment including libcantera-devel activated."
+    return
+fi
 
-    if [ -e libtorch-cxx11-abi-shared-with-deps-1.11.0+cpu.zip ]
-    then
-        echo "libtorch.zip exist."
+print_usage() {
+    #printf "Usage: ...\n"
+    echo "Usage: . install.sh --libtorch_dir _path_to_libtorch | --libtorch_autodownload | --libtorch_no (default)"
+}
+
+# default
+LIBTORCH_NO=true
+LIBTORCH_DIR=''
+LIBTORCH_AUTO=false
+
+while test $# -gt 0; do
+    case "$1" in
+        -h|--help)
+            print_usage
+            return
+            ;;
+        --libtorch_dir)
+            shift
+            if test $# -gt 0; then
+                LIBTORCH_DIR=$1
+                LIBTORCH_NO=false
+                echo LIBTORCH_DIR = $LIBTORCH_DIR
+            else
+                print_usage
+            return
+            fi
+            shift
+            ;;
+        --libtorch_autodownload)
+            LIBTORCH_AUTO=true
+            LIBTORCH_DIR="$PWD/thirdParty/libtorch"
+            LIBTORCH_NO=false
+            shift
+            ;;
+        --libtorch_no)
+            shift
+            ;;
+        *)
+            echo "$1 is not a recognized flag!"
+            print_usage
+            return
+            ;;
+    esac
+done
+
+
+
+echo LIBTORCH_NO=$LIBTORCH_NO
+echo LIBTORCH_DIR=$LIBTORCH_DIR
+echo LIBTORCH_AUTO=$LIBTORCH_AUTO
+
+if [ $LIBTORCH_AUTO = true ]; then
+    if [ -d "thirdParty/libtorch" ]; then
+        echo "libtorch already exist."
     else
-        wget https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-1.11.0%2Bcpu.zip
+        if [ -e libtorch-cxx11-abi-shared-with-deps-1.11.0+cpu.zip ]
+        then
+            echo "libtorch.zip exist."
+        else
+            wget https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-1.11.0%2Bcpu.zip
+        fi
+        unzip libtorch-cxx11-abi-shared-with-deps-1.11.0+cpu.zip -d thirdParty
     fi
-
-    unzip libtorch-cxx11-abi-shared-with-deps-1.11.0+cpu.zip -d thirdParty
 fi
 
 
-cp bashrc.raw bashrc
+cp bashrc.in bashrc
 sed -i s#pwd#$PWD#g ./bashrc
+echo "CONDA_PREFIX is set to $CONDA_PREFIX"
 sed -i s#CONDA_PREFIX#$CONDA_PREFIX#g ./bashrc
-TORCH_DIR=$PWD/thirdParty/libtorch
-sed -i s#TORCH_DIR#$TORCH_DIR#g ./bashrc
+sed -i s#LIBTORCH_DIR#$LIBTORCH_DIR#g ./bashrc
+
+
 
 
 
