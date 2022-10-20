@@ -32,7 +32,7 @@ jobs:
         . ~/miniconda3/etc/profile.d/conda.sh
         conda create -n libcantera python=3.8
         conda activate libcantera
-        conda install -c cantera libcantera-devel
+        conda install -c conda-forge libcantera-devel
         conda install pytorch 
         conda install pybind11
         
