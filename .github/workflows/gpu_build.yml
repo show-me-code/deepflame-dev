@@ -30,10 +30,8 @@ jobs:
         wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
         sh Miniconda3-latest-Linux-x86_64.sh -b
         . ~/miniconda3/etc/profile.d/conda.sh
-        conda create --name libcantera 
+        conda create --name libcantera --channel conda-forge libcantera-devel
         conda activate libcantera
-        conda update --all
-        conda install --channel conda-forge libcantera-devel
         conda install pytorch 
         conda install pybind11
         
