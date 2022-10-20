@@ -8,8 +8,7 @@ on:
      - master
 jobs:
   gpu_build:
-    runs-on: self-hosted
-    if: github.repository_owner == 'deepmodeling'     
+    runs-on: Ubuntu-latest  
     container: 
       image: ubuntu:20.04
     steps:
@@ -36,8 +35,6 @@ jobs:
         conda install -c cantera libcantera-devel
         conda install pytorch 
         conda install pybind11
-        cd /github/home/miniconda3/envs/libcantera/lib
-        ln -s libmkl_rt.so.1 libmkl_rt.so.2
         
  
      - name: build
