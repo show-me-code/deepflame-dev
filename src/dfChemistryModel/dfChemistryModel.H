@@ -42,6 +42,13 @@ SourceFiles
 #include <torch/script.h>
 #endif
 
+#include <pybind11/embed.h>
+#include <pybind11/numpy.h>
+#include <pybind11/stl.h> //used to convert
+#include "GpuProblem.H"
+#include "GpuSolution.H"
+#include "DynamicBuffer.H"
+
 #include "CanteraMixture.H"
 #include "IOdictionary.H"
 #include "Switch.H"
@@ -122,6 +129,44 @@ public IOdictionary
     scalar Qdotact_;
 #endif
 
+    // profiling
+    double time_allsolve_;
+    double time_submaster_;
+    double time_sendProblem_;
+    double time_RecvProblem_;
+    double time_sendRecvSolution_;
+    double time_getDNNinputs_;
+    double time_DNNinference_;
+    double time_updateSolutionBuffer_;
+    double time_vec2ndarray_;
+    double time_python_;
+
+    word torchModelName1_;
+    scalarList Xmu1_;  //member function
+    scalarList Xstd1_;
+    scalarList Ymu1_;
+    scalarList Ystd1_;
+    scalar Tact1_;
+    scalar Qdotact1_;
+    
+    word torchModelName2_;
+    scalarList Xmu2_;  //member function
+    scalarList Xstd2_;
+    scalarList Ymu2_;
+    scalarList Ystd2_;
+    scalar Tact2_;
+    scalar Qdotact2_;
+    
+    word torchModelName3_;  
+    scalarList Xmu3_;  //member function
+    scalarList Xstd3_;
+    scalarList Ymu3_;
+    scalarList Ystd3_;
+    scalar Tact3_;
+    scalar Qdotact3_;
+
+    int coresPerGPU;
+
     // Load balancing object
     LoadBalancer balancer_;
     // Field containing chemistry CPU time information
@@ -151,6 +196,27 @@ public IOdictionary
         template<class DeltaTType>
         scalar torchSolve(const DeltaTType& deltaT);
 #endif
+
+        template<class DeltaTType>
+        scalar torchCUDAoneCoreSolve(const DeltaTType& deltaT);
+        
+        template<class DeltaTType>
+        scalar torchDCUSolve(const DeltaTType& deltaT);
+
+        /*=======================private methods for DCUSolve=======================*/
+        //- get a list of GPU problems to be solved
+        template<class DeltaTType>
+        DynamicList<GpuProblem> getGPUProblems(const DeltaTType& deltaT);
+
+        //- get the input for DNN inference
+        void getDNNinputs(const DynamicBuffer<GpuProblem>& problemBuffer, std::vector<label>& outputlength,
+        std::vector<std::vector<double>>& DNNinputs, std::vector<DynamicBuffer<label>>& cellIDBuffer, 
+        std::vector<std::vector<label>>& problemCounter);
+
+        //- construct the output
+        void updateSolutionBuffer(DynamicBuffer<GpuSolution>& solutionBuffer, const double* star,
+        const std::vector<label>& outputLength, const std::vector<DynamicBuffer<label>>& cellIDBuffer,
+        std::vector<std::vector<label>>& problemCounter);
 
         //- Solve a single ChemistryProblem and put the solution to ChemistrySolution
         void solveSingle(ChemistryProblem& problem, ChemistrySolution& solution);

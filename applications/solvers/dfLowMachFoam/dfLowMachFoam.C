@@ -36,6 +36,9 @@ Description
 #include "dfChemistryModel.H"
 #include "CanteraMixture.H"
 #include "hePsiThermo.H"
+#include <pybind11/embed.h>
+#include <pybind11/numpy.h>
+#include <pybind11/stl.h> //used to convert
 
 #include "fvCFD.H"
 #include "fluidThermo.H"
@@ -54,7 +57,11 @@ int main(int argc, char *argv[])
 {
     #include "postProcess.H"
 
-    #include "setRootCaseLists.H"
+    // #include "setRootCaseLists.H"
+    #include "listOptions.H"
+    #include "setRootCase2.H"
+    #include "listOutput.H"
+
     #include "createTime.H"
     #include "createMesh.H"
     #include "createDyMControls.H"
