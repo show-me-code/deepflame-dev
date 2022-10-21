@@ -107,6 +107,12 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
     Tact_ = this->subDict("torchParameters").lookupOrDefault("Tact", 700);
     Qdotact_ = this->subDict("torchParameters").lookupOrDefault("Qdotact", 1e9);
 #endif
+
+#ifdef USE_PYTORCH
+    coresPerGPU = this->subDict("torchParameters1").lookupOrDefault("coresPerGPU", 8);
+
+
+
     // time_allsolve_ = 0;
     // time_submaster_(0),
     // time_sendProblem_(0),
@@ -128,6 +134,8 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
     Qdotact3_ = this->subDict("torchParameters3").lookupOrDefault("Qdotact", 1e9);
 
     coresPerGPU = this->subDict("torchParameters1").lookupOrDefault("coresPerGPU", 8);
+
+#endif
 
     for(const auto& name : CanteraGas_->speciesNames())
     {
@@ -237,12 +245,13 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve
 )
 {
     scalar result = 0;
-// #ifdef USE_LIBTORCH
-//     result = torchSolve(deltaT);
-// #else
-//     result = solve_loadBalance(deltaT);
-// #endif
+#ifdef USE_LIBTORCH
+    result = torchSolve(deltaT);
+#elif USE_PYTORCH
     result = torchDCUSolve(deltaT);
+#else
+    result = solve_loadBalance(deltaT);
+#endif
     return result;
 }
 
