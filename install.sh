@@ -1,19 +1,15 @@
 #!/bin/sh
 
-# if [ -z "$CONDA_PREFIX" ]; then
-#     echo "You should run this script only when the conda enviorment including libcantera-devel activated."
-#     return
-# fi
+
 
 print_usage() {
-    #printf "Usage: ...\n"
-    echo "Usage: . install.sh --libtorch_dir _path_to_libtorch | --libtorch_autodownload | --libtorch_no (default)"
+    echo "Usage: . install.sh --libtorch_no (default) | --libtorch_dir _path_to_libtorch | --libtorch_autodownload | --use_pytorch | --libcantera_dir _path_to_libcantera"
 }
 
 # default
-LIBTORCH_NO=true
-LIBTORCH_DIR=''
 LIBTORCH_AUTO=false
+USE_LIBTORCH=false
+USE_PYTORCH=false
 
 while test $# -gt 0; do
     case "$1" in
@@ -25,8 +21,7 @@ while test $# -gt 0; do
             shift
             if test $# -gt 0; then
                 LIBTORCH_DIR=$1
-                LIBTORCH_NO=false
-                echo LIBTORCH_DIR = $LIBTORCH_DIR
+                USE_LIBTORCH=true
             else
                 print_usage
             return
@@ -34,25 +29,36 @@ while test $# -gt 0; do
             shift
             ;;
         --libtorch_autodownload)
+            USE_LIBTORCH=true
             LIBTORCH_AUTO=true
             LIBTORCH_DIR="$PWD/thirdParty/libtorch"
-            LIBTORCH_NO=false
             shift
             ;;
         --libtorch_no)
+            shift
+            USE_LIBTORCH=false
+            shift
+            ;;
+        --use_pytorch)
+            shift
+            USE_PYTORCH=true
             shift
             ;;
         --libcantera_dir)
             shift
             if test $# -gt 0; then
                 LIBCANTERA_DIR=$1
-                echo LIBCANTERA_DIR = $LIBCANTERA_DIR
             else
                 print_usage
             return
             fi
             shift
-            ;;            
+            ;;
+        -h|--help)
+            shift
+            print_usage
+            shift
+            ;;
         *)
             echo "$1 is not a recognized flag!"
             print_usage
@@ -63,9 +69,27 @@ done
 
 
 
-echo LIBTORCH_NO=$LIBTORCH_NO
-echo LIBTORCH_DIR=$LIBTORCH_DIR
-echo LIBTORCH_AUTO=$LIBTORCH_AUTO
+
+if [ -z "$LIBCANTERA_DIR" ] && [ -z "$CONDA_PREFIX" ]; then
+    echo "ERROR! either offer libcantera dir or ensure in the conda enviorment including libcantera-devel!"
+    return
+fi
+
+
+if [ $LIBCANTERA_DIR != $CONDA_PREFIX ]; then
+    echo "conflict libcantera dir from conda and from given args dir"
+    echo "libcantera dir from conda: " $CONDA_PREFIX
+    echo "libcantera dir from args:  " $LIBCANTERA_DIR
+    return
+fi
+
+if [ $USE_LIBTORCH = true ] && [ $USE_PYTORCH = true ]; then
+    echo "ERROR! either use libtorch or pytorch!"
+    return
+fi
+
+
+
 
 if [ $LIBTORCH_AUTO = true ]; then
     if [ -d "thirdParty/libtorch" ]; then
@@ -81,13 +105,30 @@ if [ $LIBTORCH_AUTO = true ]; then
     fi
 fi
 
+if [ $USE_PYTORCH = true ]; then
+    PYTORCH_INC=`python3 -m pybind11 --includes`
+    PYTORCH_LIB=`python3 -c "from distutils import sysconfig; \
+    import os.path as op; v = sysconfig.get_config_vars(); \
+    fpaths = [op.join(v[pv], v['LDLIBRARY']) for pv in ('LIBDIR', 'LIBPL')]; \
+    print(list(filter(op.exists, fpaths))[0])" | xargs dirname`
+fi
+
+
+echo LIBCANTERA_DIR=$LIBCANTERA_DIR
+if [ $USE_LIBTORCH = true ]; then
+    echo LIBTORCH_DIR=$LIBTORCH_DIR
+fi
+if [ $USE_PYTORCH = true ]; then
+    echo PYTORCH_INC=$PYTORCH_INC
+    echo PYTORCH_LIB=$PYTORCH_LIB
+fi
 
 cp bashrc.in bashrc
 sed -i s#pwd#$PWD#g ./bashrc
-#echo "LIBCANTERA_DIR is set to $CONDA_PREFIX"
-sed -i s#CONDA_PREFIX#$LIBCANTERA_DIR#g ./bashrc
 sed -i s#LIBTORCH_DIR#$LIBTORCH_DIR#g ./bashrc
-
+sed -i s#PYTORCH_INC#$PYTORCH_INC#g ./bashrc
+sed -i s#PYTORCH_LIB#$PYTORCH_LIB#g ./bashrc
+sed -i s#LIBCANTERA_DIR#$LIBCANTERA_DIR#g ./bashrc
 
 
 
