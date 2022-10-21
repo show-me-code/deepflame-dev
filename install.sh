@@ -1,9 +1,9 @@
 #!/bin/sh
 
-if [ -z "$CONDA_PREFIX" ]; then
-    echo "You should run this script only when the conda enviorment including libcantera-devel activated."
-    return
-fi
+# if [ -z "$CONDA_PREFIX" ]; then
+#     echo "You should run this script only when the conda enviorment including libcantera-devel activated."
+#     return
+# fi
 
 print_usage() {
     #printf "Usage: ...\n"
@@ -42,6 +42,17 @@ while test $# -gt 0; do
         --libtorch_no)
             shift
             ;;
+        --libcantera_dir)
+            shift
+            if test $# -gt 0; then
+                LIBCANTERA_DIR=$1
+                echo LIBCANTERA_DIR = $LIBCANTERA_DIR
+            else
+                print_usage
+            return
+            fi
+            shift
+            ;;            
         *)
             echo "$1 is not a recognized flag!"
             print_usage
@@ -73,8 +84,8 @@ fi
 
 cp bashrc.in bashrc
 sed -i s#pwd#$PWD#g ./bashrc
-echo "CONDA_PREFIX is set to $CONDA_PREFIX"
-sed -i s#CONDA_PREFIX#$CONDA_PREFIX#g ./bashrc
+#echo "LIBCANTERA_DIR is set to $CONDA_PREFIX"
+sed -i s#CONDA_PREFIX#$LIBCANTERA_DIR#g ./bashrc
 sed -i s#LIBTORCH_DIR#$LIBTORCH_DIR#g ./bashrc
 
 

@@ -107,6 +107,27 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
     Tact_ = this->subDict("torchParameters").lookupOrDefault("Tact", 700);
     Qdotact_ = this->subDict("torchParameters").lookupOrDefault("Qdotact", 1e9);
 #endif
+    // time_allsolve_ = 0;
+    // time_submaster_(0),
+    // time_sendProblem_(0),
+    // time_RecvProblem_(0),
+    // time_sendRecvSolution_(0),
+    // time_getDNNinputs_(0),
+    // time_DNNinference_(0),
+    // time_updateSolutionBuffer_(0),
+    // time_vec2ndarray_(0),
+    // time_python_(0),
+
+    Tact1_ = this->subDict("torchParameters1").lookupOrDefault("Tact", 700);
+    Qdotact1_ = this->subDict("torchParameters1").lookupOrDefault("Qdotact", 1e9);
+
+    Tact2_ = this->subDict("torchParameters2").lookupOrDefault("Tact", 700);
+    Qdotact2_ = this->subDict("torchParameters2").lookupOrDefault("Qdotact", 1e9);
+
+    Tact3_ = this->subDict("torchParameters3").lookupOrDefault("Tact", 700);
+    Qdotact3_ = this->subDict("torchParameters3").lookupOrDefault("Qdotact", 1e9);
+    
+    coresPerGPU = this->subDict("torchParameters1").lookupOrDefault("coresPerGPU", 8);
 
     for(const auto& name : CanteraGas_->speciesNames())
     {
@@ -216,11 +237,12 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve
 )
 {
     scalar result = 0;
-#ifdef USE_LIBTORCH
-    result = torchSolve(deltaT);
-#else
-    result = solve_loadBalance(deltaT);
-#endif
+// #ifdef USE_LIBTORCH
+//     result = torchSolve(deltaT);
+// #else
+//     result = solve_loadBalance(deltaT);
+// #endif
+    result = torchDCUSolve(deltaT);
     return result;
 }
 
@@ -914,6 +936,522 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_loadBalance
 
     Info<<"=== end DLB-solve === "<<endl;
     return updateReactionRates(incomingSolutions);
+}
+
+template <class ThermoType>
+template <class DeltaTType>
+Foam::scalar Foam::dfChemistryModel<ThermoType>::torchCUDAoneCoreSolve(
+    const DeltaTType &deltaT)
+{
+    scalar deltaTMin = great;
+
+    if (!this->chemistry_)
+    {
+        return deltaTMin;
+    }
+    std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+    Info << "=== begin torchCUDAoneCore-solve === " << endl;
+
+    // set variables
+    scalarList yPre_(mixture_.nSpecies());
+    scalarList yBCT_(mixture_.nSpecies());
+    scalarList u_(mixture_.nSpecies() + 2);
+    Cantera::Reactor react;
+    double lambda = 0.1;
+
+    std::vector<size_t> torch_cell;
+    label torch_cellname = 0;
+
+    // obtain the number of DNN cells
+    std::chrono::steady_clock::time_point start_0 = std::chrono::steady_clock::now();
+    forAll(T_, cellI)
+    {
+        if (T_[cellI] >= Tact1_)
+        {
+            torch_cell.push_back(cellI);
+        }
+    }
+
+    // generate GPU inputs and solve CVODE cells
+    std::vector<double> inputs_;
+    inputs_.reserve(torch_cell.size() * (CanteraGas_->nSpecies() + 3));
+
+    forAll(T_, cellI)
+    {
+        scalar Ti = T_[cellI];
+        scalar pi = p_[cellI];
+        scalar rhoi = rho_[cellI];
+
+        if (Ti >= Tact1_)
+        {
+            Qdot_[cellI] = 0.0;
+
+            // set inputs
+            inputs_.push_back(rhoi);
+            inputs_.push_back(Ti);
+            inputs_.push_back(pi/101325);
+            for (size_t i = 0; i < CanteraGas_->nSpecies(); i++)
+            {
+                inputs_.push_back(Y_[i][cellI]);
+            }
+        }
+        else
+        {
+            Qdot_[cellI] = 0.0;
+            for (size_t i = 0; i < CanteraGas_->nSpecies(); i++)
+            {
+                yPre_[i] = Y_[i][cellI];
+            }
+
+            CanteraGas_->setState_TPY(Ti, pi, yPre_.begin());
+            react.insert(mixture_.CanteraSolution());
+            react.setEnergy(0);
+
+            Cantera::ReactorNet sim;
+            sim.addReactor(react);
+            setNumerics(sim);
+            sim.advance(deltaT);
+
+            CanteraGas_->getMassFractions(yTemp_.begin());
+
+            for (size_t i = 0; i < CanteraGas_->nSpecies(); i++)
+            {
+                RR_[i][cellI] = (yTemp_[i] - yPre_[i]) * rhoi / deltaT;
+                Qdot_[cellI] -= hc_[i] * RR_[i][cellI];
+            }
+        }
+    }
+    std::chrono::steady_clock::time_point stop_0 = std::chrono::steady_clock::now();
+    std::chrono::duration<double> processingTime_0 = std::chrono::duration_cast<std::chrono::duration<double>>(stop_0 - start_0);
+    std::cout << "beforeCUDATime = " << processingTime_0.count() << std::endl;
+    time_getDNNinputs_ += processingTime_0.count();
+
+    // DNN
+
+    std::chrono::steady_clock::time_point start_3 = std::chrono::steady_clock::now();
+    std::chrono::steady_clock::time_point start_4 = std::chrono::steady_clock::now();
+
+    pybind11::array_t<double> vec = pybind11::cast(inputs_);
+
+    std::chrono::steady_clock::time_point stop_4 = std::chrono::steady_clock::now();
+    std::chrono::duration<double> processingTime_4 = std::chrono::duration_cast<std::chrono::duration<double>>(stop_4 - start_4);
+    std::cout << "vec2ndarrayTime = " << processingTime_4.count() << std::endl;
+    time_vec2ndarray_ += processingTime_4.count();
+
+    pybind11::module_ call_torch = pybind11::module_::import("inference_H2"); // import python file
+
+    std::chrono::steady_clock::time_point start_5 = std::chrono::steady_clock::now();
+
+    pybind11::object result = call_torch.attr("inference")(vec); // call function
+    const double* star = result.cast<pybind11::array_t<double>>().data();
+
+    std::vector<double> outputsVec(star, star + torch_cell.size() * 7);
+
+    std::chrono::steady_clock::time_point stop_5 = std::chrono::steady_clock::now();
+    std::chrono::duration<double> processingTime_5 = std::chrono::duration_cast<std::chrono::duration<double>>(stop_5 - start_5);
+    std::cout << "pythonTime = " << processingTime_5.count() << std::endl;
+    time_python_ += processingTime_5.count();
+
+    std::chrono::steady_clock::time_point stop_3 = std::chrono::steady_clock::now();
+    std::chrono::duration<double> processingTime_3 = std::chrono::duration_cast<std::chrono::duration<double>>(stop_3 - start_3);
+    std::cout << "DNNinferenceTime = " << processingTime_3.count() << std::endl;
+    time_DNNinference_ += processingTime_3.count();
+
+    std::chrono::steady_clock::time_point start_2 = std::chrono::steady_clock::now();
+    for (size_t cellI = 0; cellI < torch_cell.size(); cellI++)
+    {
+        // update y
+        for (size_t i = 0; i < CanteraGas_->nSpecies(); i++)
+        {
+            RR_[i][torch_cell[cellI]] = outputsVec[cellI * 7 + i];
+            Qdot_[cellI] -= hc_[i] * RR_[i][cellI];
+        }
+    }
+    std::chrono::steady_clock::time_point stop_2 = std::chrono::steady_clock::now();
+    std::chrono::duration<double> processingTime_2 = std::chrono::duration_cast<std::chrono::duration<double>>(stop_2 - start_2);
+    std::cout << "afterCUDATime = " << processingTime_2.count() << std::endl;
+    time_updateSolutionBuffer_ += processingTime_2.count();
+
+    Info << "=== end torch&ode-solve === " << endl;
+    std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now();
+    std::chrono::duration<double> processingTime = std::chrono::duration_cast<std::chrono::duration<double>>(stop - start);
+    std::cout << "allSolveTime = " << processingTime.count() << std::endl;
+    time_allsolve_ += processingTime.count();
+
+    return deltaTMin;
+}
+
+template <class ThermoType>
+template<class DeltaTType>
+Foam::DynamicList<Foam::GpuProblem>
+Foam::dfChemistryModel<ThermoType>::getGPUProblems
+(
+    const DeltaTType& deltaT
+)
+{
+    DynamicList<GpuProblem> problemList; //single core TODO:rename it
+
+    // get cuda problemList, for all cell
+    // each get problem
+    forAll(T_, cellI)
+    {
+        scalar Ti = T_[cellI];
+        scalar pi = p_[cellI];
+        scalar rhoi = rho_[cellI];
+
+        // set problems
+        GpuProblem problem(CanteraGas_->nSpecies());
+        problem.cellid = cellI;
+        problem.Ti = Ti;
+        problem.pi = pi/101325;
+        for (size_t i = 0; i < CanteraGas_->nSpecies(); i++)
+        {
+            problem.Y[i] = Y_[i][cellI];
+        }
+        // choose DNN module
+        if ((Qdot_[cellI] < Qdotact2_) && (T_[cellI] <= Tact2_)  && ( T_[cellI] >= Tact1_))//choose1
+        {
+            problem.DNNid = 0;
+        }
+        if(((Qdot_[cellI] <= Qdotact3_)&&(Qdot_[cellI] >= Qdotact2_) && (Tact3_ > T_[cellI])&&(T_[cellI] > Tact2_))||(Qdot_[cellI] > Qdotact3_))  //choose2
+        {
+            problem.DNNid = 1;
+        }
+        if  ((Qdot_[cellI] <= Qdotact3_) && (T_[cellI] >= Tact3_))//if(Ti >= Tact_))//choose3
+        {
+            problem.DNNid = 2;
+        }
+        problem.rhoi = rhoi;
+        problemList.append(problem);
+        Qdot_[cellI] = 0.0;
+    }
+
+    return problemList; 
+}
+
+template <class ThermoType>
+void Foam::dfChemistryModel<ThermoType>::getDNNinputs
+(
+    const Foam::DynamicBuffer<GpuProblem>& problemBuffer, 
+    std::vector<Foam::label>& outputLength,
+    std::vector<std::vector<double>>& DNNinputs, 
+    std::vector<Foam::DynamicBuffer<label>>& cellIDBuffer,
+    std::vector<std::vector<label>>& problemCounter
+)
+{
+    std::vector<label> problemCounter0;     // evaluate the number of the problems of each subslave for DNN0
+    std::vector<label> problemCounter1;     // evaluate the number of the problems of each subslave for DNN1
+    std::vector<label> problemCounter2;     // evaluate the number of the problems of each subslave for DNN2
+    std::vector<double> inputsDNN0;         // the vector constructed for inference via DNN0
+    std::vector<double> inputsDNN1;         // the vector constructed for inference via DNN1
+    std::vector<double> inputsDNN2;         // the vector constructed for inference via DNN2
+    DynamicList<label> cellIDList0;         // store the cellID of each problem in each subslave for DNN0
+    DynamicList<label> cellIDList1;         // store the cellID of each problem in each subslave for DNN1
+    DynamicList<label> cellIDList2;         // store the cellID of each problem in each subslave for DNN2
+    DynamicBuffer<label> cellIDList0Buffer; // store the cellIDList0 of each subslave
+    DynamicBuffer<label> cellIDList1Buffer; // store the cellIDList1 of each subslave
+    DynamicBuffer<label> cellIDList2Buffer; // store the cellIDList2 of each subslave
+
+    for (label i = 0; i < coresPerGPU; i++) // for all local core TODO: i may cause misleading
+    {
+        label counter0 = 0;
+        label counter1 = 0;
+        label counter2 = 0;
+        //TODO: parallel the loop
+        for (label cellI = 0; cellI < problemBuffer[i].size(); cellI++) // loop coresPerGPU*problemBuffer[i].size() times
+        {
+            switch (problemBuffer[i][cellI].DNNid) //divide by Dnn id
+            {
+            case 0:
+                inputsDNN0.push_back(problemBuffer[i][cellI].rhoi);
+                inputsDNN0.push_back(problemBuffer[i][cellI].Ti);
+                inputsDNN0.push_back(problemBuffer[i][cellI].pi);
+                for (size_t speciID = 0; speciID < CanteraGas_->nSpecies(); speciID++)
+                {
+                    inputsDNN0.push_back(problemBuffer[i][cellI].Y[speciID]);
+                }
+                counter0++;
+                cellIDList0.append(problemBuffer[i][cellI].cellid); // store cellid for further send back
+                break;
+
+            case 1:
+                inputsDNN1.push_back(problemBuffer[i][cellI].rhoi);
+                inputsDNN1.push_back(problemBuffer[i][cellI].Ti);
+                inputsDNN1.push_back(problemBuffer[i][cellI].pi);
+                for (size_t speciID = 0; speciID < CanteraGas_->nSpecies(); speciID++)
+                {
+                    inputsDNN1.push_back(problemBuffer[i][cellI].Y[speciID]);
+                }
+                counter1++;
+                cellIDList1.append(problemBuffer[i][cellI].cellid);
+                break;
+
+            case 2:
+                inputsDNN2.push_back(problemBuffer[i][cellI].rhoi);
+                inputsDNN2.push_back(problemBuffer[i][cellI].Ti);
+                inputsDNN2.push_back(problemBuffer[i][cellI].pi);
+                for (size_t speciID = 0; speciID < CanteraGas_->nSpecies(); speciID++)
+                {
+                    inputsDNN2.push_back(problemBuffer[i][cellI].Y[speciID]);
+                }
+                counter2++;
+                cellIDList2.append(problemBuffer[i][cellI].cellid);
+                break;
+            
+            default:
+                Info<<"invalid input"<<endl;
+                break;
+            }
+        }
+        problemCounter0.push_back(counter0); //count number of inputs mapped to each dnn
+        problemCounter1.push_back(counter1);
+        problemCounter2.push_back(counter2);
+        cellIDList0Buffer.append(cellIDList0);
+        cellIDList1Buffer.append(cellIDList1);
+        cellIDList2Buffer.append(cellIDList2);
+        cellIDList0.clear();
+        cellIDList1.clear();
+        cellIDList2.clear();
+    }
+
+    // get cellNumbers for each model
+    label length0 = std::accumulate(problemCounter0.begin(), problemCounter0.end(), 0);
+    label length1 = length0 + std::accumulate(problemCounter1.begin(), problemCounter1.end(), 0);
+    label length2 = length1 + std::accumulate(problemCounter2.begin(), problemCounter2.end(), 0);
+
+    // set output
+    outputLength = {length0, length1, length2};
+    DNNinputs = {inputsDNN0, inputsDNN1, inputsDNN2};
+    cellIDBuffer = {cellIDList0Buffer, cellIDList1Buffer, cellIDList2Buffer};
+    problemCounter = {problemCounter0, problemCounter1, problemCounter2};
+
+    Info<<"get inputs successfully"<<endl;
+
+    return;
+}
+
+template <class ThermoType>
+void Foam::dfChemistryModel<ThermoType>::updateSolutionBuffer
+(
+    Foam::DynamicBuffer<Foam::GpuSolution>& solutionBuffer, 
+    const double* star,
+    const std::vector<Foam::label>& outputLength,
+    const std::vector<Foam::DynamicBuffer<Foam::label>>& cellIDBuffer,
+    std::vector<std::vector<Foam::label>>& problemCounter
+)
+{
+    std::vector<double> outputsVec0(star, star+outputLength[0] * 21); //the float number is sample_length*sample_number
+    std::vector<double> outputsVec1(star+outputLength[0] * 21, star+outputLength[1] * 21);
+    std::vector<double> outputsVec2(star+outputLength[1] * 21, star+outputLength[2] * 21);
+
+    GpuSolution solution(CanteraGas_->nSpecies());
+    DynamicList<GpuSolution> solutionList; //TODO: rename
+
+    label outputCounter0 = 0;
+    label outputCounter1 = 0;
+    label outputCounter2 = 0;
+
+    for (label i = 0; i < coresPerGPU; i++) //TODO: i may cause misleading
+    {
+        for (size_t cellI = 0; cellI < problemCounter[0][i]; cellI++)
+        {
+            for (size_t speciID = 0; speciID < CanteraGas_->nSpecies(); speciID++)
+            {
+                solution.RRi[speciID] = outputsVec0[outputCounter0 * mixture_.nSpecies() + speciID];
+            }
+            solution.cellid = cellIDBuffer[0][i][cellI]; //cellid are sequential so that's fine
+            solutionList.append(solution);
+            outputCounter0++;
+        }
+        for (size_t cellI = 0; cellI < problemCounter[1][i]; cellI++)
+        {
+            for (size_t speciID = 0; speciID < CanteraGas_->nSpecies(); speciID++)
+            {
+                solution.RRi[speciID] = outputsVec1[outputCounter1 * mixture_.nSpecies() + speciID];
+            }
+            solution.cellid = cellIDBuffer[1][i][cellI];
+            solutionList.append(solution);
+            outputCounter1++;
+        }
+        for (size_t cellI = 0; cellI < problemCounter[2][i]; cellI++)
+        {
+            for (size_t speciID = 0; speciID < CanteraGas_->nSpecies(); speciID++)
+            {
+                solution.RRi[speciID] = outputsVec2[outputCounter2 * mixture_.nSpecies() + speciID];
+            }
+            solution.cellid = cellIDBuffer[2][i][cellI];
+            solutionList.append(solution);
+            outputCounter2++;
+        }
+    solutionBuffer.append(solutionList);
+    solutionList.clear();
+    }
+    return;
+}
+
+template <class ThermoType>
+template <class DeltaTType>
+Foam::scalar Foam::dfChemistryModel<ThermoType>::torchDCUSolve(
+    const DeltaTType &deltaT)
+{
+    scalar deltaTMin = great;
+    // set the cores slaved by a DCU
+    if (!this->chemistry_)
+    {
+        return deltaTMin;
+    }
+
+    std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+    Info << "=== begin torchDCUsolve === " << endl;
+
+    /*=============================gather problems=============================*/
+    DynamicList<GpuProblem> problemList = getGPUProblems(deltaT);
+
+    /*==============================send problems==============================*/
+    std::chrono::steady_clock::time_point start2 = std::chrono::steady_clock::now();
+
+    PstreamBuffers pBufs(Pstream::commsTypes::nonBlocking); 
+    if (Pstream::myProcNo() % coresPerGPU) //for slave 
+    {
+        UOPstream send((Pstream::myProcNo()/coresPerGPU)*coresPerGPU, pBufs);// sending problem to master
+        send << problemList;
+    }
+    pBufs.finishedSends();
+
+    DynamicBuffer<GpuSolution> solutionBuffer;
+
+    std::chrono::steady_clock::time_point stop2 = std::chrono::steady_clock::now();
+    std::chrono::duration<double> processingTime2 = std::chrono::duration_cast<std::chrono::duration<double>>(stop2 - start2);
+    std::cout << "sendProblemTime = " << processingTime2.count() << std::endl;
+    time_sendProblem_ += processingTime2.count();
+
+    /*=============================submaster work start=============================*/
+    if (!(Pstream::myProcNo() % coresPerGPU))
+    {
+        std::chrono::steady_clock::time_point start1 = std::chrono::steady_clock::now();
+        std::chrono::steady_clock::time_point start3 = std::chrono::steady_clock::now();
+
+        label problemSize = 0; // problemSize is defined to debug
+        DynamicBuffer<GpuProblem> problemBuffer(coresPerGPU);//each submaster init a local problemBuffer TODO:rename it
+
+        /*==============================gather problems==============================*/
+        problemBuffer[0] = problemList; //problemList of submaster get index 0
+        problemSize += problemBuffer[0].size();
+
+        for (label i = 1; i < coresPerGPU; i++)
+        {
+            UIPstream recv(i + Pstream::myProcNo(), pBufs);
+            recv >> problemBuffer[i];  //recv previous send problem and append to problemList
+            problemSize += problemBuffer[i].size();
+        }
+        Info << "problemSize = " << problemSize << endl;
+
+        std::chrono::steady_clock::time_point stop3 = std::chrono::steady_clock::now();
+        std::chrono::duration<double> processingTime3 = std::chrono::duration_cast<std::chrono::duration<double>>(stop3 - start3);
+        std::cout << "RecvProblemTime = " << processingTime3.count() << std::endl;
+        time_RecvProblem_ += processingTime3.count();
+
+        /*==============================construct DNN inputs==============================*/
+        std::vector<label> outputLength;
+        std::vector<std::vector<double>> DNNinputs;     // vectors for the inference of DNN
+        std::vector<DynamicBuffer<label>> cellIDBuffer; // Buffer contains the cell numbers
+        std::vector<std::vector<label>> problemCounter; // evaluate the number of the problems of each subslave
+
+        std::chrono::steady_clock::time_point start5 = std::chrono::steady_clock::now();
+        getDNNinputs(problemBuffer, outputLength, DNNinputs, cellIDBuffer, problemCounter);
+        std::chrono::steady_clock::time_point stop5 = std::chrono::steady_clock::now();
+        std::chrono::duration<double> processingTime5 = std::chrono::duration_cast<std::chrono::duration<double>>(stop5 - start5);
+        std::cout << "getDNNinputsTime = " << processingTime5.count() << std::endl;
+        time_getDNNinputs_ += processingTime5.count();
+
+        /*=============================inference via pybind11=============================*/
+        std::chrono::steady_clock::time_point start7 = std::chrono::steady_clock::now();
+        std::chrono::steady_clock::time_point start8 = std::chrono::steady_clock::now();
+
+        pybind11::array_t<double> vec0 = pybind11::cast(DNNinputs[0]); // cast vector to np.array
+        pybind11::array_t<double> vec1 = pybind11::cast(DNNinputs[1]);
+        pybind11::array_t<double> vec2 = pybind11::cast(DNNinputs[2]);
+
+        std::chrono::steady_clock::time_point stop8 = std::chrono::steady_clock::now();
+        std::chrono::duration<double> processingTime8 = std::chrono::duration_cast<std::chrono::duration<double>>(stop8 - start8);
+        std::cout << "vec2ndarrayTime = " << processingTime8.count() << std::endl;
+        time_vec2ndarray_ += processingTime8.count();
+
+        pybind11::module_ call_torch = pybind11::module_::import("inference2"); // import python file
+
+        std::chrono::steady_clock::time_point start9 = std::chrono::steady_clock::now();
+
+        pybind11::object result = call_torch.attr("inference")(vec0, vec1, vec2); // call python function
+        const double* star = result.cast<pybind11::array_t<double>>().data();
+
+        std::chrono::steady_clock::time_point stop9 = std::chrono::steady_clock::now();
+        std::chrono::duration<double> processingTime9 = std::chrono::duration_cast<std::chrono::duration<double>>(stop9 - start9);
+        std::cout << "pythonTime = " << processingTime9.count() << std::endl;
+        time_python_ += processingTime9.count();
+
+        std::chrono::steady_clock::time_point stop7 = std::chrono::steady_clock::now();
+        std::chrono::duration<double> processingTime7 = std::chrono::duration_cast<std::chrono::duration<double>>(stop7 - start7);
+        std::cout << "DNNinferenceTime = " << processingTime7.count() << std::endl;
+        time_DNNinference_ += processingTime7.count();
+
+        /*=============================construct solutions=============================*/
+        std::chrono::steady_clock::time_point start6 = std::chrono::steady_clock::now();
+        updateSolutionBuffer(solutionBuffer, star, outputLength, cellIDBuffer, problemCounter);
+        std::chrono::steady_clock::time_point stop6 = std::chrono::steady_clock::now();
+        std::chrono::duration<double> processingTime6 = std::chrono::duration_cast<std::chrono::duration<double>>(stop6 - start6);
+        std::cout << "updateSolutionBufferTime = " << processingTime6.count() << std::endl;
+        time_updateSolutionBuffer_ += processingTime6.count();
+
+        std::chrono::steady_clock::time_point stop1 = std::chrono::steady_clock::now();
+        std::chrono::duration<double> processingTime1 = std::chrono::duration_cast<std::chrono::duration<double>>(stop1 - start1);
+        std::cout << "submasterTime = " << processingTime1.count() << std::endl;  
+        time_submaster_ += processingTime1.count();
+    }
+
+    /*=============================send and recv solutions=============================*/
+    std::chrono::steady_clock::time_point start4 = std::chrono::steady_clock::now();
+
+    DynamicList<GpuSolution> finalList;
+    PstreamBuffers pBufs2(Pstream::commsTypes::nonBlocking);
+    if (!(Pstream::myProcNo() % coresPerGPU))
+    {
+        finalList = solutionBuffer[0];
+        for (label i = 1; i < coresPerGPU; i++)
+        {
+            UOPstream send(i + Pstream::myProcNo(), pBufs2);
+            send << solutionBuffer[i];
+        }
+    }
+    pBufs2.finishedSends();
+    if (Pstream::myProcNo() % coresPerGPU)
+    {
+        UIPstream recv((Pstream::myProcNo()/coresPerGPU)*coresPerGPU, pBufs2);
+        recv >> finalList;
+    }
+
+    std::chrono::steady_clock::time_point stop4 = std::chrono::steady_clock::now();
+    std::chrono::duration<double> processingTime4 = std::chrono::duration_cast<std::chrono::duration<double>>(stop4 - start4);
+    std::cout << "SendRecvSolutionTime = " << processingTime4.count() << std::endl;
+    time_sendRecvSolution_ += processingTime4.count();
+
+    /*=============================update RR fields=============================*/
+    for (size_t cellI = 0; cellI < finalList.size(); cellI++)
+    {
+        for (size_t speciID = 0; speciID < CanteraGas_->nSpecies(); speciID++)
+        {
+            RR_[speciID][finalList[cellI].cellid] = finalList[cellI].RRi[speciID];
+            Qdot_[finalList[cellI].cellid] -= hc_[speciID] * RR_[speciID][finalList[cellI].cellid];
+        }
+    }
+
+    Info << "=== end torch&ode-CUDAsolve === " << endl;
+
+    std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now();
+    std::chrono::duration<double> processingTime = std::chrono::duration_cast<std::chrono::duration<double>>(stop - start);
+    std::cout << "allSolveTime = " << processingTime.count() << std::endl;
+    time_allsolve_ += processingTime.count();
+
+    return deltaTMin;
 }
 
 // ************************************************************************* //
