@@ -124,11 +124,11 @@ if [ $USE_PYTORCH = true ]; then
 fi
 
 cp bashrc.in bashrc
-sed -i s#pwd#$PWD#g ./bashrc
-sed -i s#LIBTORCH_DIR#$LIBTORCH_DIR#g ./bashrc
-sed -i s#PYTORCH_INC#$PYTORCH_INC#g ./bashrc
-sed -i s#PYTORCH_LIB#$PYTORCH_LIB#g ./bashrc
-sed -i s#LIBCANTERA_DIR#$LIBCANTERA_DIR#g ./bashrc
+sed -i "s#pwd#$PWD#g" ./bashrc
+sed -i "s#LIBTORCH_DIR#$LIBTORCH_DIR#g" ./bashrc
+sed -i "s#PYTORCH_INC#$PYTORCH_INC#g" ./bashrc
+sed -i "s#PYTORCH_LIB#$PYTORCH_LIB#g" ./bashrc
+sed -i "s#LIBCANTERA_DIR#$LIBCANTERA_DIR#g" ./bashrc
 
 
 
