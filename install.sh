@@ -69,19 +69,26 @@ done
 
 
 
-
+# if LIBCANTERA_DIR and CONDA_PREFIX empty
 if [ -z "$LIBCANTERA_DIR" ] && [ -z "$CONDA_PREFIX" ]; then
     echo "ERROR! either offer libcantera dir or ensure in the conda enviorment including libcantera-devel!"
     return
 fi
 
-
-if [ $LIBCANTERA_DIR != $CONDA_PREFIX ]; then
-    echo "conflict libcantera dir from conda and from given args dir"
-    echo "libcantera dir from conda: " $CONDA_PREFIX
-    echo "libcantera dir from args:  " $LIBCANTERA_DIR
-    return
+# if LIBCANTERA_DIR empty and CONDA_PREFIX not empty
+if [ -z "$LIBCANTERA_DIR" ] && [ ! -z "$CONDA_PREFIX" ]; then
+    LIBCANTERA_DIR=$CONDA_PREFIX
 fi
+
+# if LIBCANTERA_DIR not empty and CONDA_PREFIX not empty
+# --libcantera_dir _path_to_libcantera has a higher priority than the path from conda enviornment
+if [ ! -z "$LIBCANTERA_DIR" ] && [ ! -z "$CONDA_PREFIX" ]; then
+    echo "duplicate libcantera dir from args and from conda!"
+    echo "from args: "$LIBCANTERA_DIR
+    echo "from args: "$CONDA_PREFIX
+    echo "we are going to use the dir from args: "$LIBCANTERA_DIR
+fi
+
 
 if [ $USE_LIBTORCH = true ] && [ $USE_PYTORCH = true ]; then
     echo "ERROR! either use libtorch or pytorch!"
@@ -107,13 +114,17 @@ fi
 
 if [ $USE_PYTORCH = true ]; then
     PYTORCH_INC=`python3 -m pybind11 --includes`
+    if [ -z "$PYTORCH_INC" ]; then
+        #echo "No module named pybind11 in your python enviornment!"
+        return
+    fi
     PYTORCH_LIB=`python3 -c "from distutils import sysconfig; \
     import os.path as op; v = sysconfig.get_config_vars(); \
     fpaths = [op.join(v[pv], v['LDLIBRARY']) for pv in ('LIBDIR', 'LIBPL')]; \
     print(list(filter(op.exists, fpaths))[0])" | xargs dirname`
 fi
 
-
+echo "setup for deepflame bashrc:"
 echo LIBCANTERA_DIR=$LIBCANTERA_DIR
 if [ $USE_LIBTORCH = true ]; then
     echo LIBTORCH_DIR=$LIBTORCH_DIR
@@ -153,3 +164,15 @@ fi
 
 source ./bashrc
 ./Allwmake -j
+
+
+
+if [ $USE_LIBTORCH = true ]; then
+    echo "deepflame (linked with libcantera and libtorch) compiled successfully! Enjoy!"
+    return
+fi
+if [ $USE_PYTORCH = true ]; then
+    echo "deepflame (linked with libcantera and pytorch) compiled successfully! Enjoy!"
+    return
+fi
+echo "deepflame (linked with libcantera) compiled successfully! Enjoy!"
