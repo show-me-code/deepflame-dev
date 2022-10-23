@@ -169,7 +169,10 @@ source ./bashrc
 
 if [ $USE_LIBTORCH = true ]; then
     echo "deepflame (linked with libcantera and libtorch) compiled successfully! Enjoy!"
+    return
 fi
 if [ $USE_PYTORCH = true ]; then
     echo "deepflame (linked with libcantera and pytorch) compiled successfully! Enjoy!"
+    return
 fi
+echo "deepflame (linked with libcantera) compiled successfully! Enjoy!"
