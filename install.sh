@@ -128,10 +128,13 @@ echo "setup for deepflame bashrc:"
 echo LIBCANTERA_DIR=$LIBCANTERA_DIR
 if [ $USE_LIBTORCH = true ]; then
     echo LIBTORCH_DIR=$LIBTORCH_DIR
+    echo PYTORCH_INC=""
+    echo PYTORCH_LIB=""
 fi
 if [ $USE_PYTORCH = true ]; then
     echo PYTORCH_INC=$PYTORCH_INC
     echo PYTORCH_LIB=$PYTORCH_LIB
+    echo LIBTORCH_DIR=""
 fi
 
 cp bashrc.in bashrc
