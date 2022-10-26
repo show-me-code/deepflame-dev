@@ -5,11 +5,11 @@ DeepFlame uses *yaml* reaction mechanisms, which are compatible with Cantera. Th
 
 .. code-block:: bash
 
-    conda create --name ct-env --channel cantera cantera ipython matplotlib jupyter
+    conda create --name ct-env --channel conda-forge cantera 
     conda activate ct-env
     ck2yaml --input=chem.inp --thermo=therm.dat --transport=tran.dat
 
-.. Note:: If there is an **ImportError** regarding *libmkl_rt.so.2*, go to your ct-env folder to check the existence of *libmkl_rt.so.2* and *libmkl_rt.so.1*, and then link *libmkl_rt.so.2* with *libmkl_rt.so.1*.
+.. Note:: Users will need to create a new conda environment other than the one used for DeepFlame's dependencies, and the channel needs to be ``conda-forge``. Otherwise, there might be an error regarding shared library, ``libmkl_rt.so.2``.
 
 More detailed instruction of converting mechanisms can be found on `Cantera official website <https://cantera.org/tutorials/ck2yaml-tutorial.html>`_. 
 
