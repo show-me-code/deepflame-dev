@@ -1,4 +1,4 @@
-name: build with different compile options
+name: build with torch
 on: 
   push:
     branches:

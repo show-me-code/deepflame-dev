@@ -1,4 +1,4 @@
-Reachtion Mechanism Convertion
+Reaction Mechanism Convertion
 =================================
 DeepFlame uses *yaml* reaction mechanisms, which are compatible with Cantera. The following command lines can be used to convert *chemkin* mechanisms into *yaml* format. 
 
