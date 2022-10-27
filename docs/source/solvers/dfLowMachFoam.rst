@@ -29,6 +29,8 @@ The case simulates the steady-state 1D freely-propagating flame. The results are
 
 
 .. figure:: 1D_planar_flame.png
+   :width: 500
+   :align: center
 
 
    Numerical setup of one-dimensional premixed flame and the detailed flame structure obtained by our solver 
@@ -59,13 +61,15 @@ This case simulates the evolution of a 2D non-premixed planar jet flame to valid
 **Output** 
 
 .. figure:: 2D_triple_flame.png
+   :width: 500
+   :align: center
 
    Simulation results of the two-dimensional jet flame. 
 
 The initial condition and the evolution of the jet flame are presented in this figure. 
 
 Three-Dimensional reactive Taylor-Green Vortex
---------------------------------------------
+---------------------------------------------------
 
 3D reactive Taylor-Green Vortex (TGV) which is a newly established benchmark case for reacting flow DNS codes is simulated here to evaluate the computational performance of our solver. 
 
@@ -74,10 +78,14 @@ Three-Dimensional reactive Taylor-Green Vortex
 The initial and the developed TGV are displayed in the figures below. 
 
 .. figure:: 3D_TGV_initial.png
+   :width: 500
+   :align: center
 
    Initial contours and profiles of vorticity magnitude, temperature, and species mass fraction for the reactive TGV
 
 .. figure:: 3D_TGV_0.5ms.png
+   :width: 500
+   :align: center
 
    Contours and profiles of temperature and species mass fraction at t = 0.5 ms
 
