@@ -29,7 +29,8 @@ This case simulates the zero-dimensional autoignition under constant-pressure or
 
 
 .. figure:: 0D_autoignition.png
-   :width: 60
+   :width: 500
+   :align: center
 
 
    Results of zero-dimensional constant-pressure autoignition 
