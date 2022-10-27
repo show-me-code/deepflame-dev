@@ -1,4 +1,4 @@
-name: build with different compile options
+name: Build and Validation
 on: 
   push:
     branches:
