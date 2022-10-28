@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------*\
   =========                 |
-   \\      /  F ield        | DLBFoam: Dynamic Load Balancing 
+  \\      /  F ield         | DLBFoam: Dynamic Load Balancing 
    \\    /   O peration     | for fast reactive simulations
     \\  /    A nd           | 
      \\/     M anipulation  | 2020, Aalto University, Finland 
