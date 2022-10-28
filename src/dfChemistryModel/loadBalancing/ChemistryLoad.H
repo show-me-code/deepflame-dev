@@ -1,4 +1,5 @@
 /*---------------------------------------------------------------------------*\
+  =========                 |
   \\      /  F ield         | DLBFoam: Dynamic Load Balancing 
    \\    /   O peration     | for fast reactive simulations
     \\  /    A nd           | 
