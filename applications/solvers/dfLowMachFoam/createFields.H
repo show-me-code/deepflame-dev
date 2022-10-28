@@ -132,3 +132,16 @@ volVectorField sumYDiffError
     mesh,
     dimensionedVector("sumYDiffError", dimDynamicViscosity/dimLength, Zero)
 );
+
+IOdictionary CanteraTorchProperties
+(
+    IOobject
+    (
+        "CanteraTorchProperties",
+        runTime.constant(),
+        mesh,
+        IOobject::MUST_READ,
+        IOobject::NO_WRITE
+    )
+);
+const Switch splitting = CanteraTorchProperties.lookupOrDefault("splittingStrategy", false);

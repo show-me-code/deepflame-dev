@@ -81,6 +81,7 @@ int main(int argc, char *argv[])
     double time_monitor_Y=0;
     double time_monitor_E=0;
     double time_monitor_corrThermo=0;
+    label timeIndex = 0;
     clock_t start, end;
 
     turbulence->validate();
@@ -97,6 +98,8 @@ int main(int argc, char *argv[])
 
     while (runTime.run())
     {
+        timeIndex ++;
+        
         #include "readDyMControls.H"
 
         if (LTS)
@@ -116,6 +119,10 @@ int main(int argc, char *argv[])
         // --- Pressure-velocity PIMPLE corrector loop
         while (pimple.loop())
         {
+            if (splitting) 
+            {
+                #include "YEqn_RR.H"
+            }
             if (pimple.firstPimpleIter() || moveMeshOuterCorrectors)
             {
                 // Store momentum to set rhoUf for introduced faces.
