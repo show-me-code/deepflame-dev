@@ -20,13 +20,16 @@ forAll(Y, i)
 const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
 
 {
-    start = std::clock();
-    combustion->correct();
-    label flag_mpi_init;
-    MPI_Initialized(&flag_mpi_init);
-    if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
-    end = std::clock();
-    time_monitor_chem += double(end - start) / double(CLOCKS_PER_SEC);
+    if (!splitting)
+    {
+        start = std::clock();
+        combustion->correct();
+        label flag_mpi_init;
+        MPI_Initialized(&flag_mpi_init);
+        if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
+        end = std::clock();
+        time_monitor_chem += double(end - start) / double(CLOCKS_PER_SEC);
+    }
 
     volScalarField Yt(0.0*Y[0]);
 
@@ -44,10 +47,13 @@ const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
             (
                 fvm::ddt(rho, Yi)
               + mvConvection->fvmDiv(phi, Yi)
-              - fvm::laplacian(DEff(), Yi)
               + mvConvection->fvmDiv(phiUc, Yi)
              ==
-                combustion->R(Yi)
+                (
+                    splitting
+                ?   fvm::laplacian(DEff(), Yi)
+                :  (fvm::laplacian(DEff(), Yi) + combustion->R(Yi))
+                )
             );
 
             YiEqn.relax();
