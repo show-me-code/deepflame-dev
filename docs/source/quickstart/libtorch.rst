@@ -1,4 +1,4 @@
-Libtorch Solver
+Libtorch Integrator
 ===================
 
 To get a quick start with DeepFlame, there are several examples for each solver stored in the following directory that can be run.
