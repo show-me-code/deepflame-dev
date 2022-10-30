@@ -73,6 +73,7 @@ for deep learning assisted reacting flow simulations. It is also has the scope t
    
    contributors
    citation
+   gpl
 
 .. _contributing:
 
