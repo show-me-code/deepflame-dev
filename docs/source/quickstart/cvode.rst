@@ -1,4 +1,4 @@
-CVODE Solver
+CVODE Intergrator
 ===================
 
 Follow the steps below to run an example of CVODE. Examples are stored in the directory: 

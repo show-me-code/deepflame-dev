@@ -34,7 +34,7 @@ Description
 #include "CanteraMixture.H"
 #include "hePsiThermo.H"
 
-#ifdef USE_LIBTORCH
+#ifdef USE_PYTORCH
 #include <pybind11/embed.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h> //used to convert
@@ -55,7 +55,7 @@ Description
 
 int main(int argc, char *argv[])
 {
-#ifdef USE_LIBTORCH
+#ifdef USE_PYTORCH
     pybind11::scoped_interpreter guard{};//start python interpreter
 #endif
     #define NO_CONTROL
