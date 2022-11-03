@@ -77,7 +77,7 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
             "Qdot",
             mesh_.time().timeName(),
             mesh_,
-            IOobject::NO_READ,
+            IOobject::READ_IF_PRESENT,
             IOobject::AUTO_WRITE
         ),
         mesh_,
@@ -1031,7 +1031,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::torchCUDAoneCoreSolve(
     std::cout << "vec2ndarrayTime = " << processingTime_4.count() << std::endl;
     time_vec2ndarray_ += processingTime_4.count();
 
-    pybind11::module_ call_torch = pybind11::module_::import("inference_H2"); // import python file
+    pybind11::module_ call_torch = pybind11::module_::import("inference"); // import python file
 
     std::chrono::steady_clock::time_point start_5 = std::chrono::steady_clock::now();
 
@@ -1092,6 +1092,17 @@ Foam::dfChemistryModel<ThermoType>::getGPUProblems
         scalar pi = p_[cellI];
         scalar rhoi = rho_[cellI];
 
+        // if T < 1000, set RR=0
+        if (T_[cellI] < Tact1_)
+        {
+            Qdot_[cellI] = 0;
+            for (size_t i = 0; i < CanteraGas_->nSpecies(); i++)
+            {
+                RR_[i][cellI] = 0.0;
+            }
+            continue;
+        }
+
         // set problems
         GpuProblem problem(CanteraGas_->nSpecies());
         problem.cellid = cellI;
@@ -1101,22 +1112,28 @@ Foam::dfChemistryModel<ThermoType>::getGPUProblems
         {
             problem.Y[i] = Y_[i][cellI];
         }
-        // choose DNN module
-        if ((Qdot_[cellI] < Qdotact2_) && (T_[cellI] <= Tact2_)  && ( T_[cellI] >= Tact1_))//choose1
-        {
-            problem.DNNid = 0;
-        }
-        if(((Qdot_[cellI] <= Qdotact3_)&&(Qdot_[cellI] >= Qdotact2_) && (Tact3_ > T_[cellI])&&(T_[cellI] > Tact2_))||(Qdot_[cellI] > Qdotact3_))  //choose2
-        {
-            problem.DNNid = 1;
-        }
-        if  ((Qdot_[cellI] <= Qdotact3_) && (T_[cellI] >= Tact3_))//if(Ti >= Tact_))//choose3
-        {
-            problem.DNNid = 2;
-        }
         problem.rhoi = rhoi;
-        problemList.append(problem);
-        Qdot_[cellI] = 0.0;
+
+        // choose DNN module
+        if ((Qdot_[cellI] < Qdotact2_) && (T_[cellI] < Tact2_) && ( T_[cellI] >= Tact1_))//choose1
+        {
+            problem.DNNid = 0; 
+            problemList.append(problem);
+            continue;
+        }
+        if(((Qdot_[cellI] >= Qdotact2_) && (T_[cellI] < Tact2_)&&(T_[cellI] >= Tact1_))||((Qdot_[cellI] > Qdotact3_) && T_[cellI] > Tact2_))  //choose2
+        {
+            problem.DNNid = 1; 
+            problemList.append(problem);
+            continue;
+        }
+        if  ((Qdot_[cellI] < Qdotact3_) && (T_[cellI] >= Tact2_) && (Qdot_[cellI]!=0)) //choose3
+        {
+            problem.DNNid = 2; 
+            problemList.append(problem);
+            continue;
+        }
+    
     }
 
     return problemList;
@@ -1217,6 +1234,10 @@ void Foam::dfChemistryModel<ThermoType>::getDNNinputs
     DNNinputs = {inputsDNN0, inputsDNN1, inputsDNN2};
     cellIDBuffer = {cellIDList0Buffer, cellIDList1Buffer, cellIDList2Buffer};
     problemCounter = {problemCounter0, problemCounter1, problemCounter2};
+
+    std::cout << "inputsDNN0 = " << inputsDNN0.size();
+    std::cout << "inputsDNN1 = " << inputsDNN1.size();
+    std::cout << "inputsDNN2 = " << inputsDNN2.size();
 
     Info<<"get inputs successfully"<<endl;
 
@@ -1370,7 +1391,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::torchDCUSolve(
         std::cout << "vec2ndarrayTime = " << processingTime8.count() << std::endl;
         time_vec2ndarray_ += processingTime8.count();
 
-        pybind11::module_ call_torch = pybind11::module_::import("inference2"); // import python file
+        pybind11::module_ call_torch = pybind11::module_::import("inference"); // import python file
 
         std::chrono::steady_clock::time_point start9 = std::chrono::steady_clock::now();
 
@@ -1430,6 +1451,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::torchDCUSolve(
     /*=============================update RR fields=============================*/
     for (size_t cellI = 0; cellI < finalList.size(); cellI++)
     {
+        Qdot_[finalList[cellI].cellid] = 0;
         for (size_t speciID = 0; speciID < CanteraGas_->nSpecies(); speciID++)
         {
             RR_[speciID][finalList[cellI].cellid] = finalList[cellI].RRi[speciID];
