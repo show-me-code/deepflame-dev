@@ -1031,7 +1031,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::torchCUDAoneCoreSolve(
     std::cout << "vec2ndarrayTime = " << processingTime_4.count() << std::endl;
     time_vec2ndarray_ += processingTime_4.count();
 
-    pybind11::module_ call_torch = pybind11::module_::import("inference2"); // import python file
+    pybind11::module_ call_torch = pybind11::module_::import("inference"); // import python file
 
     std::chrono::steady_clock::time_point start_5 = std::chrono::steady_clock::now();
 
@@ -1391,7 +1391,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::torchDCUSolve(
         std::cout << "vec2ndarrayTime = " << processingTime8.count() << std::endl;
         time_vec2ndarray_ += processingTime8.count();
 
-        pybind11::module_ call_torch = pybind11::module_::import("inference2"); // import python file
+        pybind11::module_ call_torch = pybind11::module_::import("inference"); // import python file
 
         std::chrono::steady_clock::time_point start9 = std::chrono::steady_clock::now();
 
