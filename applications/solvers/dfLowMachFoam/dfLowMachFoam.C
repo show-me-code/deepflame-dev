@@ -192,6 +192,7 @@ int main(int argc, char *argv[])
 
         Info<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
             << "  ClockTime = " << runTime.elapsedClockTime() << " s"
+        #ifdef USE_PYTORCH
             << "    allsolveTime = " << chemistry->time_allsolve() << " s"
             << "    submasterTime = " << chemistry->time_submaster() << " s" << nl
             << "    sendProblemTime = " << chemistry->time_sendProblem() << " s"
@@ -202,6 +203,7 @@ int main(int argc, char *argv[])
             << "    updateSolutionBufferTime = " << chemistry->time_updateSolutionBuffer() << " s" << nl
             << "    vec2ndarrayTime = " << chemistry->time_vec2ndarray() << " s"
             << "    pythonTime = " << chemistry->time_python() << " s"
+        #endif
             << nl << endl;
     }
 
