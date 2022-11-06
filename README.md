@@ -143,12 +143,12 @@ cd $HOME/deepflame-dev/examples/df0DFoam/zeroD_cubicReactor/H2/cvodeSolver
 
 
 
-## Citing DeepFlame
+## Citation
 **If you use DeepFlame for a publication, please use the citation:**
 
 Runze Mao, Minqi Lin, Yan Zhang, Tianhan Zhang, Zhi-Qin John Xu, Zhi X. Chen. DeepFlame: A deep learning empowered open-source platform for reacting flow simulations (2022). [doi:10.48550/arXiv.2210.07094](https://doi.org/10.48550/arXiv.2210.07094)
 
-**If you have used the DNN model provided from us, please use the citation:**
+**If you have used your own code with the DNN model provided from us, please use the citation:**
 
 Tianhan Zhang, Yuxiao Yi, Yifan Xu, Zhi X. Chen, Yaoyu Zhang, Weinan E, Zhi-Qin John Xu. A multi-scale sampling method for accurate and robust deep neural network to predict combustion chemical kinetics. Combust. Flame 245:112319 (2022). [doi:10.1016/j.combustflame.2022.112319](https://doi.org/doi:10.1016/j.combustflame.2022.112319)
 
