@@ -188,6 +188,7 @@ void Foam::LiquidEvaporationBoil<CloudType>::calculate
 
     this->owner().thermo().carrier().calcH(Ts, ps);
     this->owner().thermo().carrier().calcCp(Ts, ps);
+    this->owner().thermo().carrier().calcMu(Ts, ps);
     forAll(this->owner().thermo().carrier().Y(), i)
     {
         const scalar Yc = this->owner().thermo().carrier().Y()[i][celli];
