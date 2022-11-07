@@ -40,6 +40,10 @@ SourceFiles
 
 #ifdef USE_LIBTORCH
 #include <torch/script.h>
+#include "DNNInferencer.H"
+#include "GpuProblem.H"
+#include "GpuSolution.H"
+#include "DynamicBuffer.H"
 #endif
 
 #ifdef USE_PYTORCH
@@ -125,13 +129,39 @@ public IOdictionary
 
 #ifdef USE_LIBTORCH
     Switch torchSwitch_;
+    DNNInferencer DNNInferencer_;
+    int coresPerGPU;
+    int GPUsPerNode;
+
     word torchModelName_;
     scalarList Xmu_;
     scalarList Xstd_;
     scalarList Ymu_;
     scalarList Ystd_;
-    scalar Tact_;
     scalar Qdotact_;
+    scalar Tact_;
+
+    word torchModelName1_;
+    scalar Tact1_;
+    scalar Qdotact1_;
+    
+    word torchModelName2_;
+    scalar Tact2_;
+    scalar Qdotact2_;
+    
+    word torchModelName3_;  
+    scalar Tact3_;
+    scalar Qdotact3_;
+
+    // profiling
+    double time_allsolve_;
+    double time_submaster_;
+    double time_sendProblem_;
+    double time_RecvProblem_;
+    double time_sendRecvSolution_;
+    double time_getDNNinputs_;
+    double time_DNNinference_;
+    double time_updateSolutionBuffer_;
 #endif
 
 #ifdef USE_PYTORCH
@@ -182,19 +212,42 @@ public IOdictionary
         scalar canteraSolve(const DeltaTType& deltaT);
 
 #ifdef USE_LIBTORCH
-        //- Solve the reaction system with Deep Neural Networks
+        //- DNN solver
         template<class DeltaTType>
-        scalar torchSolve(const DeltaTType& deltaT);
+        scalar solve_DNN(const DeltaTType& deltaT);
+
+        //- DNN solver that support the use of GPU (single card & single CPU core)
+        template<class DeltaTType>
+        scalar solve_DNN_GPU_oneCore(const DeltaTType& deltaT);  // TODO: rename it
+
+        //- DNN solver that support the use of GPU (multi-cards)
+        template<class DeltaTType>
+        scalar solve_DNN_GPU(const DeltaTType& deltaT);
+
+        /*============= private methods in solve_CVODE =============*/
+        //- get a list of GPU problems to be solved
+        template<class DeltaTType>
+        DynamicList<GpuProblem> getGPUProblems(const DeltaTType& deltaT);
+
+        //- get the input for DNN inference
+        void getDNNinputs(const DynamicBuffer<GpuProblem>& problemBuffer, std::vector<label>& outputlength,
+        std::vector<std::vector<double>>& DNNinputs, std::vector<DynamicBuffer<label>>& cellIDBuffer, 
+        std::vector<std::vector<label>>& problemCounter);
+
+        //- construct the output
+        void updateSolutionBuffer(DynamicBuffer<GpuSolution>& solutionBuffer, const std::vector<std::vector<double>>& results,
+        const std::vector<label>& outputLength, const std::vector<DynamicBuffer<label>>& cellIDBuffer,
+        std::vector<std::vector<label>>& problemCounter);
 #endif
 
 #ifdef USE_PYTORCH
         template<class DeltaTType>
-        scalar torchCUDAoneCoreSolve(const DeltaTType& deltaT);
+        scalar solve_DNN_GPU_oneCore(const DeltaTType& deltaT);
 
         template<class DeltaTType>
-        scalar torchDCUSolve(const DeltaTType& deltaT);
+        scalar solve_DNN_GPU(const DeltaTType& deltaT);
 
-        /*=======================private methods for DCUSolve=======================*/
+        /*=======================private methods for solve_DNN_GPU=======================*/
         //- get a list of GPU problems to be solved
         template<class DeltaTType>
         DynamicList<GpuProblem> getGPUProblems(const DeltaTType& deltaT);

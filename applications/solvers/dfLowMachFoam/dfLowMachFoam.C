@@ -43,6 +43,10 @@ Description
 #include <pybind11/stl.h> //used to convert
 #endif
 
+#ifdef USE_LIBTORCH
+#include <torch/script.h>
+#include "DNNInferencer.H"
+#endif 
 
 #include "fvCFD.H"
 #include "fluidThermo.H"
