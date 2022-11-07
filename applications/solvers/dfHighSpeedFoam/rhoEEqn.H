@@ -19,7 +19,7 @@ e = rhoE/rho - 0.5*magSqr(U);
 e.correctBoundaryConditions();
 
 ha = e + p/rho;
-chemistry.correctThermo(); // before this, we must update ha = e + p/rho
+chemistry->correctThermo(); // before this, we must update ha = e + p/rho
 
 rhoE.boundaryFieldRef() == rho.boundaryField()*(e.boundaryField() + 0.5*magSqr(U.boundaryField()));
 
@@ -38,7 +38,7 @@ if (!inviscid)
     eEqn.solve("e");
 
     ha = e + p/rho;
-    chemistry.correctThermo();
+    chemistry->correctThermo();
     rhoE = rho*(e + 0.5*magSqr(U));
 }
 

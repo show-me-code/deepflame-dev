@@ -17,6 +17,7 @@ EXE_INC = -std=c++14 \
     -I$(LIB_SRC)/meshTools/lnInclude \
     -I$(DF_SRC)/CanteraMixture/lnInclude \
     -I$(DF_SRC)/dfChemistryModel/lnInclude \
+    -I$(DF_SRC)/dfCombustionModels/lnInclude \
     -I$(CANTERA_ROOT)/include \
     $(if $(LIBTORCH_ROOT),-I$(LIBTORCH_ROOT)/include,) \
     $(if $(LIBTORCH_ROOT),-I$(LIBTORCH_ROOT)/include/torch/csrc/api/include,) \
@@ -34,6 +35,7 @@ EXE_LIBS = \
     -ldfCompressibleTurbulenceModels \
     -lCanteraMixture \
     -ldfChemistryModel \
+    -ldfCombustionModels  \
     $(CANTERA_ROOT)/lib/libcantera.so \
     $(if $(LIBTORCH_ROOT),$(LIBTORCH_ROOT)/lib/libtorch.so,) \
     $(if $(LIBTORCH_ROOT),$(LIBTORCH_ROOT)/lib/libc10.so,) \
