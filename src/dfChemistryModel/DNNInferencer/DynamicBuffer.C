@@ -1,14 +1,12 @@
 /*---------------------------------------------------------------------------*\
   =========                 |
-  \\      /  F ield         | DLBFoam: Dynamic Load Balancing 
-   \\    /   O peration     | for fast reactive simulations
-    \\  /    A nd           | 
-     \\/     M anipulation  | 2020, Aalto University, Finland
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     |
+    \\  /    A nd           | Copyright (C) 2011-2018 OpenFOAM Foundation
+     \\/     M anipulation  |
 -------------------------------------------------------------------------------
 License
-    This file is part of DLBFoam library, derived from OpenFOAM.
-
-    https://github.com/blttkgl/DLBFoam
+    This file is part of OpenFOAM.
 
     OpenFOAM is free software: you can redistribute it and/or modify it
     under the terms of the GNU General Public License as published by
@@ -22,27 +20,9 @@ License
 
     You should have received a copy of the GNU General Public License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
-
-Class
-    Foam::DynamicBuffer
-
-Description
-    Currently just a typedef to DynamicList<DynamicList>. Could possibly be made
-    constant size at some point to avoid allocations during runtime.
-
+    
 \*---------------------------------------------------------------------------*/
-
-#ifndef DynamicBuffer_H
-#define DynamicBuffer_H
-
-#include "DynamicList.H"
-
-namespace Foam
-{
-
-template <class T>
-using DynamicBuffer = DynamicList<DynamicList<T>>;
+#include "DynamicBuffer.H"
+namespace Foam{
 
 }
-
-#endif

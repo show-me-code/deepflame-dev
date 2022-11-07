@@ -35,6 +35,11 @@ Description
 #include <pybind11/stl.h> //used to convert
 #endif 
 
+#ifdef USE_LIBTORCH
+#include <torch/script.h>
+#include "DNNInferencer.H"
+#endif 
+
 #include "fvCFD.H"
 #include "dynamicFvMesh.H"
 #include "fluidThermo.H"
@@ -56,7 +61,7 @@ int main(int argc, char *argv[])
 
     #include "postProcess.H"
 
-     // #include "setRootCaseLists.H"
+    // #include "setRootCaseLists.H"
     #include "listOptions.H"
     #include "setRootCase2.H"
     #include "listOutput.H"

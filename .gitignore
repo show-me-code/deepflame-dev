@@ -37,6 +37,7 @@ linux*Icc*/
 solaris*Gcc*/
 SunOS*Gcc*/
 platforms/
+build/
 
 # Source packages - anywhere
 *.tar.bz2
