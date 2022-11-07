@@ -23,7 +23,6 @@ tmp<fv::convectionScheme<scalar>> mvConvection
 
 {
     start = std::clock();
-    // chemistry.solve(mesh.time().deltaTValue());
     combustion->correct();
     label flag_mpi_init;
     MPI_Initialized(&flag_mpi_init);
@@ -45,7 +44,6 @@ tmp<fv::convectionScheme<scalar>> mvConvection
                  fvm::ddt(rho, Yi)
                + mvConvection->fvmDiv(phi, Yi)
               ==
-                //  chemistry.RR(i)
                 combustion->R(Yi)
             );
 
