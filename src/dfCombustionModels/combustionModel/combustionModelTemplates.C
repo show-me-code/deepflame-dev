@@ -46,17 +46,7 @@ Foam::autoPtr<CombustionModel> Foam::combustionModel::New
         )
     );
 
-    word combModelName("none");
-    if (combIO.typeHeaderOk<IOdictionary>(false))
-    {
-        IOdictionary(combIO).lookup("combustionModel") >> combModelName;
-    }
-    else
-    {
-        Info<< "Combustion model not active: "
-            << thermo.phasePropertyName(combustionProperties)
-            << " not found" << endl;
-    }
+    word combModelName = IOdictionary(combIO).lookup("combustionModel");
 
     Info<< "Selecting combustion model " << combModelName << endl;
 

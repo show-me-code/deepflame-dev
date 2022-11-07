@@ -9,33 +9,12 @@ FoamFile
 {
     version     2.0;
     format      ascii;
-    class       volScalarField;
-    object      T;
+    class       dictionary;
+    location    "constant";
+    object      combustionProperties;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-dimensions      [0 0 0 1 0 0 0];
-
-internalField   uniform 0.913683;
-//internalField   uniform 300;
-
-boundaryField
-{
-    Left
-    {
-        type            zeroGradient;
-    }
-    
-    Right
-    {
-        type            fixedValue;
-        value           uniform 748.472;
-    }
-
-    empty
-    {
-        type            empty;
-    }
-}
+combustionModel  laminar;
 
 // ************************************************************************* //
