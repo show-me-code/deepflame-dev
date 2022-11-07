@@ -36,11 +36,11 @@ TEST(corrtest,df0DFoam_CH4){
 }
 
 TEST(corrtest,dfLowMachFoam_TGV){
-    EXPECT_FLOAT_EQ(TGV500,1534.77);   // compare the maximum temperature along y direction in 2D TGV after 500 time steps
-    EXPECT_FLOAT_EQ(TGV400,1313.03);   //  ..........400 time steps
-    EXPECT_FLOAT_EQ(TGV300,887.622);
-    EXPECT_FLOAT_EQ(TGV200,553.332);
-    EXPECT_FLOAT_EQ(TGV100,364.106);
+    EXPECT_FLOAT_EQ(TGV500,1533.48);   // compare the maximum temperature along y direction in 2D TGV after 500 time steps
+    EXPECT_FLOAT_EQ(TGV400,1296.99);   //  ..........400 time steps
+    EXPECT_FLOAT_EQ(TGV300,878.071);
+    EXPECT_FLOAT_EQ(TGV200,545.819);
+    EXPECT_FLOAT_EQ(TGV100,364.017);
 }
 
 TEST(corrtest,dfHighSpeedFoam){
