@@ -45,7 +45,8 @@ SourceFiles
 #ifdef USE_PYTORCH
 #include <pybind11/embed.h>
 #include <pybind11/numpy.h>
-#include <pybind11/stl.h> //used to convert
+#include <pybind11/stl.h>
+#include <pybind11/stl_bind.h>
 #include "GpuProblem.H"
 #include "GpuSolution.H"
 #include "DynamicBuffer.H"
@@ -293,6 +294,21 @@ public:
         ThermoType& thermo() {return thermo_;}
 
         const CanteraMixture& mixture() {return mixture_;}
+
+    // profiling
+#ifdef USE_PYTORCH
+    double time_allsolve() {return time_allsolve_;}
+    double time_submaster() {return time_submaster_;}
+    double time_sendProblem() {return time_sendProblem_;}
+    double time_RecvProblem() {return time_RecvProblem_;}
+    double time_sendRecvSolution() {return time_sendRecvSolution_;}
+    double time_getDNNinputs() {return time_getDNNinputs_;}
+    double time_DNNinference() {return time_DNNinference_;}
+    double time_updateSolutionBuffer() {return time_updateSolutionBuffer_;}
+    double time_vec2ndarray() {return time_vec2ndarray_;}
+    double time_python() {return time_python_;}
+#endif
+
 };
 
 

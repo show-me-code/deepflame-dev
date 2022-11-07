@@ -672,7 +672,7 @@ void Foam::dfChemistryModel<ThermoType>::correctThermo()
                     const scalar RT = constant::physicoChemical::R.value()*1e3*pT[facei];
                     forAll(rhoD_, i)
                     {
-                        rhoD_[i].boundaryFieldRef()[patchi][facei] = dTemp_[i];
+                        rhoD_[i].boundaryFieldRef()[patchi][facei] = prho[facei]*dTemp_[i];
 
                         hai_[i].boundaryFieldRef()[patchi][facei] = hrtTemp_[i]*RT/CanteraGas_->molecularWeight(i);
                     }
@@ -1382,9 +1382,9 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::torchDCUSolve(
         std::chrono::steady_clock::time_point start7 = std::chrono::steady_clock::now();
         std::chrono::steady_clock::time_point start8 = std::chrono::steady_clock::now();
 
-        pybind11::array_t<double> vec0 = pybind11::cast(DNNinputs[0]); // cast vector to np.array
-        pybind11::array_t<double> vec1 = pybind11::cast(DNNinputs[1]);
-        pybind11::array_t<double> vec2 = pybind11::cast(DNNinputs[2]);
+        pybind11::array_t<double> vec0 = pybind11::array_t<double>({DNNinputs[0].size()}, {8}, &DNNinputs[0][0]); // cast vector to np.array
+        pybind11::array_t<double> vec1 = pybind11::array_t<double>({DNNinputs[1].size()}, {8}, &DNNinputs[1][0]);
+        pybind11::array_t<double> vec2 = pybind11::array_t<double>({DNNinputs[2].size()}, {8}, &DNNinputs[2][0]);
 
         std::chrono::steady_clock::time_point stop8 = std::chrono::steady_clock::now();
         std::chrono::duration<double> processingTime8 = std::chrono::duration_cast<std::chrono::duration<double>>(stop8 - start8);
