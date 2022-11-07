@@ -9,3 +9,7 @@ echo "Cleaning polyMesh/"
 rm -r constant/polyMesh
 echo "Cleaning postProcessing/"
 rm -r postProcessing
+
+. $WM_PROJECT_DIR/bin/tools/CleanFunctions
+
+cleanCase
