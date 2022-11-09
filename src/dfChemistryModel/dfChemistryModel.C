@@ -121,18 +121,21 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
     GPUsPerNode = this->subDict("torchParameters1").lookupOrDefault("GPUsPerNode", 4);
 
     // initialization the Inferencer (if use multi GPU)
-    if(!(Pstream::myProcNo() % coresPerGPU)) // Now is a master
+    if(torchSwitch_)
     {
-        int CUDANo = (Pstream::myProcNo() / coresPerGPU) % GPUsPerNode;
-        std::string device_ = "cuda:" + std::to_string(CUDANo);
-        Info << "location 0" << endl;
-        Info << "torchModelName1_ = " << torchModelName1_ << endl;
-        torch::jit::script::Module torchModel1_ = torch::jit::load(torchModelName1_);
-        torch::jit::script::Module torchModel2_ = torch::jit::load(torchModelName2_);
-        torch::jit::script::Module torchModel3_ = torch::jit::load(torchModelName3_);
-        Info << "location 1" << endl;
-        DNNInferencer DNNInferencer(torchModel1_, torchModel2_, torchModel3_, device_);
-        DNNInferencer_ = DNNInferencer;
+        if(!(Pstream::myProcNo() % coresPerGPU)) // Now is a master
+        {
+            int CUDANo = (Pstream::myProcNo() / coresPerGPU) % GPUsPerNode;
+            std::string device_ = "cuda:" + std::to_string(CUDANo);
+            Info << "location 0" << endl;
+            Info << "torchModelName1_ = " << torchModelName1_ << endl;
+            torch::jit::script::Module torchModel1_ = torch::jit::load(torchModelName1_);
+            torch::jit::script::Module torchModel2_ = torch::jit::load(torchModelName2_);
+            torch::jit::script::Module torchModel3_ = torch::jit::load(torchModelName3_);
+            Info << "location 1" << endl;
+            DNNInferencer DNNInferencer(torchModel1_, torchModel2_, torchModel3_, device_);
+            DNNInferencer_ = DNNInferencer;
+        }
     }
 #endif
 
