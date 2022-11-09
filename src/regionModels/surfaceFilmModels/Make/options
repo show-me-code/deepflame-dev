@@ -1,4 +1,5 @@
 EXE_INC = \
+    -Wno-old-style-cast \
     -I$(LIB_SRC)/transportModels/compressible/lnInclude \
     -I$(LIB_SRC)/thermophysicalModels/basic/lnInclude \
     -I$(DF_SRC)/thermophysicalModels/thermophysicalProperties/lnInclude \

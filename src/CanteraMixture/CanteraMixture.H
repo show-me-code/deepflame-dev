@@ -241,7 +241,7 @@ public:
         scalarList Cp_R(nSpecies());
         CanteraGas_->getCp_R(Cp_R.begin());
         CpTemp_ = Cp_R*RR;
-        for(int i=0; i<nSpecies(); ++i)
+        for(int i=0; i<(int)nSpecies(); ++i)
         {
             CvTemp_[i] = CpTemp_[i] - RR;
         }
