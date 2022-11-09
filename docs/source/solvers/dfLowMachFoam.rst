@@ -50,7 +50,7 @@ This case simulates the evolution of a 2D non-premixed planar jet flame to valid
    * - Computational Domain size (x)
      - 0.03 m * 0.05 m
    * - Jet Composition
-     - H2/H2= 1/3 (fuel jet), Air (co-flow)
+     - H2/N2= 1/3 (fuel jet), Air (co-flow)
    * - Initial Velocity   
      - 5 m/s (fuel jet), 1 m/s (co-flow)
    * - Initial Gas Temperature
@@ -73,15 +73,17 @@ Three-Dimensional reactive Taylor-Green Vortex
 
 3D reactive Taylor-Green Vortex (TGV) which is a newly established benchmark case for reacting flow DNS codes is simulated here to evaluate the computational performance of our solver. 
 
-**Output** 
-
-The initial and the developed TGV are displayed in the figures below. 
+The initial fields are set according to a benchmark case established by Abdelsamie et al. The figure below shows contours of vorticity magnitude and temperature as well as the x-direction profiles of species at initial time.
 
 .. figure:: 3D_TGV_initial.png
    :width: 500
    :align: center
 
    Initial contours and profiles of vorticity magnitude, temperature, and species mass fraction for the reactive TGV
+
+**Output** 
+
+The developed TGV are displayed in the figures below. 
 
 .. figure:: 3D_TGV_0.5ms.png
    :width: 500
@@ -91,4 +93,4 @@ The initial and the developed TGV are displayed in the figures below.
 
 **Reference**
 
-A.Abdelsamie, G.Lartigue, C.E.Frouzakis, D.Thevenin The taylor-green vortex as a benchmark for high-fidelity combustion simulations using low-mach solvers, Computers & Fluids 223.
+A.Abdelsamie, G.Lartigue, C.E.Frouzakis, D.Thevenin, The taylor-green vortex as a benchmark for high-fidelity combustion simulations using low-mach solvers, Computers & Fluids 223 (2021): 104935.
