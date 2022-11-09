@@ -1,6 +1,11 @@
 #!/bin/sh
 
-
+unset USE_LIBTORCH
+unset USE_PYTORCH
+unset LIBTORCH_DIR
+unset LIBCANTERA_DIR
+unset PYTORCH_INC
+unset PYTORCH_LIB
 
 print_usage() {
     echo "Usage: . install.sh --libtorch_no (default) | --libtorch_dir _path_to_libtorch | --libtorch_autodownload | --use_pytorch | --libcantera_dir _path_to_libcantera"

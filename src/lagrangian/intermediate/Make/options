@@ -1,4 +1,5 @@
 EXE_INC = \
+    -Wno-old-style-cast \
     -I$(LIB_SRC)/lagrangian/basic/lnInclude \
     -I$(LIB_SRC)/lagrangian/distributionModels/lnInclude \
     -I$(DF_SRC)/lagrangian/intermediate/lnInclude \

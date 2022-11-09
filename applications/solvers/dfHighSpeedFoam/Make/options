@@ -1,9 +1,10 @@
 -include $(GENERAL_RULES)/mplibType
 
 EXE_INC = -std=c++14 \
+    -Wno-old-style-cast \
     $(PFLAGS) $(PINC) \
     $(if $(LIBTORCH_ROOT),-DUSE_LIBTORCH,) \
-    $(if $(PYTHON_INC_DIR),-DUSE_PYTORCH,) \ 
+    $(if $(PYTHON_INC_DIR),-DUSE_PYTORCH,) \
     -I$(FOAM_APP)/solvers/compressible/rhoCentralFoam/BCs/lnInclude \
     -I$(LIB_SRC)/finiteVolume/cfdTools \
     -I$(LIB_SRC)/finiteVolume/lnInclude \
