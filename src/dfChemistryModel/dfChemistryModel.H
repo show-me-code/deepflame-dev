@@ -128,7 +128,10 @@ public IOdictionary
 
 
 #ifdef USE_LIBTORCH
+    bool useDNN;
+
     Switch torchSwitch_;
+    Switch GPU;
     DNNInferencer DNNInferencer_;
     int coresPerGPU;
     int GPUsPerNode;
@@ -165,7 +168,10 @@ public IOdictionary
 #endif
 
 #ifdef USE_PYTORCH
+    bool useDNN;
+
     Switch torchSwitch_;
+    Switch GPU;
     scalar Tact1_;
     scalar Qdotact1_;
     scalar Tact2_;

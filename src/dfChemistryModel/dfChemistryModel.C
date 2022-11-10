@@ -99,6 +99,12 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
     )
 {
 #ifdef USE_LIBTORCH
+    useDNN = true;
+    if (!Qdot_.typeHeaderOk<volScalarField>())
+    {
+        useDNN = false;
+    }
+
     torchSwitch_ = this->lookupOrDefault("torch", false);
 
     torchModelName_ = this->lookupOrDefault("torchModel", word(""));
@@ -140,6 +146,12 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
 #endif
 
 #ifdef USE_PYTORCH
+    useDNN = true;
+    if (!Qdot_.typeHeaderOk<volScalarField>())
+    {
+        useDNN = false;
+    }
+
     torchSwitch_ = this->lookupOrDefault("torch", false);
 
     Tact1_ = this->subDict("torchParameters1").lookupOrDefault("Tact", 700);
@@ -285,7 +297,16 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve
 #elif USE_PYTORCH
     if(torchSwitch_)
     {
-        result = solve_DNN_GPU(deltaT);
+        if (useDNN)
+        {
+            Info << "now use DNN" << endl;
+            result = solve_DNN_GPU(deltaT);
+        }
+        else
+        {
+            result = solve_loadBalance(deltaT);
+            useDNN = true;
+        }
     }
     else
     {
@@ -520,34 +541,34 @@ Foam::dfChemistryModel<ThermoType>::getGPUProblems
         // choose DNN module
         if ((Qdot_[cellI] < Qdotact2_) && (T_[cellI] < Tact2_) && ( T_[cellI] >= Tact1_))//choose1
         {
-            problem.DNNid = 0;
+            problem.DNNid = 0; 
             problemList.append(problem);
             continue;
         }
         if(((Qdot_[cellI] >= Qdotact2_) && (T_[cellI] < Tact2_)&&(T_[cellI] >= Tact1_))||((Qdot_[cellI] > Qdotact3_) && T_[cellI] > Tact2_))  //choose2
         {
-            problem.DNNid = 1;
+            problem.DNNid = 1; 
             problemList.append(problem);
             continue;
         }
         if  ((Qdot_[cellI] < Qdotact3_) && (T_[cellI] >= Tact2_) && (Qdot_[cellI]!=0)) //choose3
         {
-            problem.DNNid = 2;
+            problem.DNNid = 2; 
             problemList.append(problem);
             continue;
         }
 
     }
 
-    return problemList;
+    return problemList; 
 }
 
 template <class ThermoType>
 void Foam::dfChemistryModel<ThermoType>::getDNNinputs
 (
-    const Foam::DynamicBuffer<GpuProblem>& problemBuffer,
+    const Foam::DynamicBuffer<GpuProblem>& problemBuffer, 
     std::vector<label>& outputLength,
-    std::vector<std::vector<double>>& DNNinputs,
+    std::vector<std::vector<double>>& DNNinputs, 
     std::vector<Foam::DynamicBuffer<label>>& cellIDBuffer,
     std::vector<std::vector<label>>& problemCounter
 )
@@ -610,7 +631,7 @@ void Foam::dfChemistryModel<ThermoType>::getDNNinputs
                 counter2++;
                 cellIDList2.append(problemBuffer[i][cellI].cellid);
                 break;
-
+            
             default:
                 Info<<"invalid input"<<endl;
                 break;
@@ -638,7 +659,7 @@ void Foam::dfChemistryModel<ThermoType>::getDNNinputs
     // auto inputTensor1 = torch::tensor(inputsDNN1);
     // inputTensor1 = inputTensor1.reshape({length1, mixture_.nSpecies() + 3});
     // auto inputTensor2 = torch::tensor(inputsDNN2);
-    // inputTensor2 = inputTensor2.reshape({length2, mixture_.nSpecies() + 3});
+    // inputTensor2 = inputTensor2.reshape({length2, mixture_.nSpecies() + 3});    
 
     // set output
     outputLength = {length0, length1, length2};
@@ -658,7 +679,7 @@ void Foam::dfChemistryModel<ThermoType>::getDNNinputs
 template <class ThermoType>
 void Foam::dfChemistryModel<ThermoType>::updateSolutionBuffer
 (
-    Foam::DynamicBuffer<Foam::GpuSolution>& solutionBuffer,
+    Foam::DynamicBuffer<Foam::GpuSolution>& solutionBuffer, 
     const std::vector<std::vector<double>>& results,
     const std::vector<Foam::label>& outputLength,
     const std::vector<Foam::DynamicBuffer<Foam::label>>& cellIDBuffer,
@@ -731,14 +752,14 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN_GPU(
     /*==============================send problems==============================*/
     std::chrono::steady_clock::time_point start2 = std::chrono::steady_clock::now();
 
-    PstreamBuffers pBufs(Pstream::commsTypes::nonBlocking);
-    if (Pstream::myProcNo() % coresPerGPU) //for slave
+    PstreamBuffers pBufs(Pstream::commsTypes::nonBlocking); 
+    if (Pstream::myProcNo() % coresPerGPU) //for slave 
     {
         UOPstream send((Pstream::myProcNo()/coresPerGPU)*coresPerGPU, pBufs);// sending problem to master
         send << problemList;
     }
     pBufs.finishedSends();
-
+    
     DynamicBuffer<GpuSolution> solutionBuffer;
 
     std::chrono::steady_clock::time_point stop2 = std::chrono::steady_clock::now();
@@ -751,7 +772,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN_GPU(
     {
         std::chrono::steady_clock::time_point start1 = std::chrono::steady_clock::now();
         std::chrono::steady_clock::time_point start3 = std::chrono::steady_clock::now();
-
+        
         label problemSize = 0; // problemSize is defined to debug
         DynamicBuffer<GpuProblem> problemBuffer(coresPerGPU);//each submaster init a local problemBuffer TODO:rename it
 
@@ -804,10 +825,10 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN_GPU(
         std::chrono::duration<double> processingTime6 = std::chrono::duration_cast<std::chrono::duration<double>>(stop6 - start6);
         std::cout << "updateSolutionBufferTime = " << processingTime6.count() << std::endl;
         time_updateSolutionBuffer_ += processingTime6.count();
-
+        
         std::chrono::steady_clock::time_point stop1 = std::chrono::steady_clock::now();
         std::chrono::duration<double> processingTime1 = std::chrono::duration_cast<std::chrono::duration<double>>(stop1 - start1);
-        std::cout << "submasterTime = " << processingTime1.count() << std::endl;
+        std::cout << "submasterTime = " << processingTime1.count() << std::endl;  
         time_submaster_ += processingTime1.count();
     }
 
@@ -821,19 +842,19 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN_GPU(
         finalList = solutionBuffer[0];
         for (label i = 1; i < coresPerGPU; i++)
         {
-
+            
             UOPstream send(i + Pstream::myProcNo(), pBufs2);
             send << solutionBuffer[i];
         }
     }
     pBufs2.finishedSends();
-
+    
     if (Pstream::myProcNo() % coresPerGPU)
     {
         UIPstream recv((Pstream::myProcNo()/coresPerGPU)*coresPerGPU, pBufs2);
         recv >> finalList;
     }
-
+   
     std::chrono::steady_clock::time_point stop4 = std::chrono::steady_clock::now();
     std::chrono::duration<double> processingTime4 = std::chrono::duration_cast<std::chrono::duration<double>>(stop4 - start4);
     std::cout << "SendRecvSolutionTime = " << processingTime4.count() << std::endl;
@@ -1078,7 +1099,7 @@ Foam::dfChemistryModel<ThermoType>::getProblems
     forAll(T, celli)
     {
         {
-            for(label i = 0; i < (int)(mixture_.nSpecies()); i++)
+            for(label i = 0; i < mixture_.nSpecies(); i++)
             {
                 yTemp_[i] = Y_[i][celli];
             }
@@ -1155,7 +1176,7 @@ Foam::dfChemistryModel<ThermoType>::updateReactionRates
         for(const auto& solution : array)
         {
 
-            for(label j = 0; j < int(mixture_.nSpecies()); j++)
+            for(label j = 0; j < mixture_.nSpecies(); j++)
             {
                 this->RR_[j][solution.cellid] = solution.RRi[j];
             }
@@ -1452,23 +1473,23 @@ Foam::dfChemistryModel<ThermoType>::getGPUProblems
         // choose DNN module
         if ((Qdot_[cellI] < Qdotact2_) && (T_[cellI] < Tact2_) && ( T_[cellI] >= Tact1_))//choose1
         {
-            problem.DNNid = 0;
+            problem.DNNid = 0; 
             problemList.append(problem);
             continue;
         }
         if(((Qdot_[cellI] >= Qdotact2_) && (T_[cellI] < Tact2_)&&(T_[cellI] >= Tact1_))||((Qdot_[cellI] > Qdotact3_) && T_[cellI] > Tact2_))  //choose2
         {
-            problem.DNNid = 1;
+            problem.DNNid = 1; 
             problemList.append(problem);
             continue;
         }
         if  ((Qdot_[cellI] < Qdotact3_) && (T_[cellI] >= Tact2_) && (Qdot_[cellI]!=0)) //choose3
         {
-            problem.DNNid = 2;
+            problem.DNNid = 2; 
             problemList.append(problem);
             continue;
         }
-
+    
     }
 
     return problemList;
