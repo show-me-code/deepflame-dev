@@ -1,6 +1,6 @@
 CVODE Intergrator
 ===================
-
+CVODE Integrator is the one without the application of Deep Neural Network (DNN), and it can be used to validate PyTorch and LibTorch integrators.
 Follow the steps below to run an example of CVODE. Examples are stored in the directory: 
 .. code-block:: bash
 
@@ -22,7 +22,7 @@ Next, you can go to the directory of any example case that you want to run. For 
 
 .. code-block:: bash
 
-    cd $HOME/deepflame-dev/examples/zeroD_cubicReactor/H2/cvodeSolver
+    cd $HOME/deepflame-dev/examples/zeroD_cubicReactor/H2/cvodeIntegrator
 
 This is an example for the zero-dimensional hydrogen combustion  with CVODE integrator.
 
@@ -44,4 +44,4 @@ You will get a graph:
 
 .. figure:: 0Dcvode.jpg
     
-    Visualisation of the zero-dimensional hydrogen combustion result with CVODE solver
+    Visualisation of the zero-dimensional hydrogen combustion result with CVODE integrator

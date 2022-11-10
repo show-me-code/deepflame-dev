@@ -12,5 +12,6 @@ To get a quick start with all three integrators, there are several examples stor
    :glob:
 
    cvode
-   libtorch
    pytorch
+   libtorch
+   
