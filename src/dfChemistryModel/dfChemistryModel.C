@@ -83,6 +83,19 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
         mesh_,
         dimensionedScalar(dimEnergy/dimVolume/dimTime, 0)
     ),
+    selectDNN_
+    (
+        IOobject
+        (
+            "selectDNN",
+            mesh_.time().timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar(dimless, -1)
+    ),
     balancer_(createBalancer()),
     cpuTimes_
     (
@@ -522,18 +535,21 @@ Foam::dfChemistryModel<ThermoType>::getGPUProblems
         {
             problem.DNNid = 0;
             problemList.append(problem);
+            selectDNN_[cellI]=0;
             continue;
         }
         if(((Qdot_[cellI] >= Qdotact2_) && (T_[cellI] < Tact2_)&&(T_[cellI] >= Tact1_))||((Qdot_[cellI] > Qdotact3_) && T_[cellI] > Tact2_))  //choose2
         {
             problem.DNNid = 1;
             problemList.append(problem);
+            selectDNN_[cellI]=1;
             continue;
         }
         if  ((Qdot_[cellI] < Qdotact3_) && (T_[cellI] >= Tact2_) && (Qdot_[cellI]!=0)) //choose3
         {
             problem.DNNid = 2;
             problemList.append(problem);
+            selectDNN_[cellI]=2;
             continue;
         }
 

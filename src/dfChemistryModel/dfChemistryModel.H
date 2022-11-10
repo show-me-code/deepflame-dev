@@ -125,7 +125,8 @@ public IOdictionary
     volScalarField& psi_;
     // heat release rate, [J/m^3/s]
     volScalarField Qdot_;
-
+    // DNN selection fields 
+    volScalarField selectDNN_;
 
 #ifdef USE_LIBTORCH
     Switch torchSwitch_;
