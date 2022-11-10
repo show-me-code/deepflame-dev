@@ -106,6 +106,7 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
     }
 
     torchSwitch_ = this->lookupOrDefault("torch", false);
+    gpu_ = this->lookupOrDefault("GPU", false),
 
     torchModelName_ = this->lookupOrDefault("torchModel", word(""));
     torchModelName1_ = this->lookupOrDefault("torchModel1", word(""));
@@ -131,14 +132,23 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
     {
         if(!(Pstream::myProcNo() % coresPerGPU)) // Now is a master
         {
-            int CUDANo = (Pstream::myProcNo() / coresPerGPU) % GPUsPerNode;
-            std::string device_ = "cuda:" + std::to_string(CUDANo);
+            
             Info << "location 0" << endl;
             Info << "torchModelName1_ = " << torchModelName1_ << endl;
             torch::jit::script::Module torchModel1_ = torch::jit::load(torchModelName1_);
             torch::jit::script::Module torchModel2_ = torch::jit::load(torchModelName2_);
             torch::jit::script::Module torchModel3_ = torch::jit::load(torchModelName3_);
             Info << "location 1" << endl;
+            std::string device_;
+            if (gpu_)
+            {
+                int CUDANo = (Pstream::myProcNo() / coresPerGPU) % GPUsPerNode;
+                device_ = "cuda:" + std::to_string(CUDANo); 
+            }
+            else
+            {
+                device_ = "cpu";
+            }
             DNNInferencer DNNInferencer(torchModel1_, torchModel2_, torchModel3_, device_);
             DNNInferencer_ = DNNInferencer;
         }
@@ -151,6 +161,7 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
     {
         useDNN = false;
     }
+    gpu_ = this->lookupOrDefault("GPU", false),
 
     torchSwitch_ = this->lookupOrDefault("torch", false);
 
@@ -288,32 +299,39 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve
 #ifdef USE_LIBTORCH
     if(torchSwitch_)
     {
-        result = solve_DNN_GPU(deltaT);
+        if (useDNN)
+        {
+            result = solve_DNN(deltaT);
+        }
+        else
+        {
+            result = solve_CVODE(deltaT);
+            useDNN = true;
+        }
     }
     else
     {
-        result = solve_loadBalance(deltaT);
+        result = solve_CVODE(deltaT);
     }
 #elif USE_PYTORCH
     if(torchSwitch_)
     {
         if (useDNN)
         {
-            Info << "now use DNN" << endl;
-            result = solve_DNN_GPU(deltaT);
+            result = solve_DNN(deltaT);
         }
         else
         {
-            result = solve_loadBalance(deltaT);
+            result = solve_CVODE(deltaT);
             useDNN = true;
         }
     }
     else
     {
-        result = solve_loadBalance(deltaT);
+        result = solve_CVODE(deltaT);
     }
 #else
-    result = solve_loadBalance(deltaT);
+    result = solve_CVODE(deltaT);
 #endif
 
     return result;
@@ -352,152 +370,6 @@ void Foam::dfChemistryModel<ThermoType>::setNumerics(Cantera::ReactorNet &sim)
 
 
 #ifdef USE_LIBTORCH
-template<class ThermoType>
-template<class DeltaTType>
-Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN
-(
-    const DeltaTType& deltaT
-)
-{
-    scalar deltaTMin = great;
-
-    if (!this->chemistry_)
-    {
-        return deltaTMin;
-    }
-
-    Info<<"=== begin solve_DNN === "<<endl;
-
-    // set variables
-    scalarList yPre_(mixture_.nSpecies());
-    scalarList yBCT_(mixture_.nSpecies());
-    scalarList u_(mixture_.nSpecies()+2); //plus T and p
-    Cantera::Reactor react;
-    double lambda = 0.1;
-
-    // load model
-    torch::DeviceType device_type;
-    torch::DeviceIndex index = -1;
-    if (0)
-    {
-        device_type = torch::kCUDA;
-        index = 0;
-    }
-    else
-    {
-        device_type = torch::kCPU;
-        index = 0;
-    }
-    torch::Device device(device_type, index);
-    if (!isFile(torchModelName_))
-    {
-        FatalErrorInFunction
-            << torchModelName_
-            << " doesn't exist!"
-            << exit(FatalError);
-    }
-    torch::jit::script::Module torchModel_ = torch::jit::load(torchModelName_, device);
-
-    std::vector<label> torch_cell;
-    label torch_cellname= 0;
-
-    // obtain the number of DNN cells
-    forAll(T_, cellI)
-    {
-        if ((Qdot_[cellI] >= Qdotact_) && (T_[cellI] >= Tact_))
-        {
-            torch_cell.push_back(cellI);
-        }
-    }
-
-    torch::Tensor inputs(torch::zeros({torch_cell.size(),mixture_.nSpecies()+2}));
-    forAll(T_, cellI)
-    {
-        scalar Ti = T_[cellI];
-        scalar pi = p_[cellI];
-        scalar rhoi = rho_[cellI];
-
-        if ((Qdot_[cellI] >= Qdotact_) && (Ti >= Tact_))
-        {
-            Qdot_[cellI] = 0.0;
-            // Info<<"Now is DNN "<<endl;
-
-            // set inputs
-            std::vector<double> inputs_;
-            inputs_.push_back((Ti - Xmu_[0])/Xstd_[0]);
-            inputs_.push_back((pi / 101325 - Xmu_[1])/Xstd_[1]);
-            for (size_t i=0; i<CanteraGas_->nSpecies(); ++i)
-            {
-                yPre_[i] = Y_[i][cellI];
-                yBCT_[i] = (pow(yPre_[i],lambda) - 1) / lambda; // function BCT
-            }
-            for (size_t i=0; i<CanteraGas_->nSpecies(); ++i)
-            {
-                inputs_.push_back((yBCT_[i] - Xmu_[i+2]) / Xstd_[i+2]);
-            }
-            inputs[torch_cellname] = torch::tensor(inputs_);
-            torch_cellname ++;
-            // Info << "cell_name = "<< cellI <<endl;
-        }
-        else
-        {
-            Qdot_[cellI] = 0.0;
-            for (size_t i=0; i<CanteraGas_->nSpecies(); ++i)
-            {
-                yPre_[i] = Y_[i][cellI];
-            }
-
-            CanteraGas_->setState_TPY(Ti, pi, yPre_.begin());
-            react.insert(mixture_.CanteraSolution());
-            react.setEnergy(0);
-
-            Cantera::ReactorNet sim;
-            sim.addReactor(react);
-            setNumerics(sim);
-            sim.advance(deltaT[cellI]);
-
-            CanteraGas_->getMassFractions(yTemp_.begin());
-
-            for (size_t i=0; i<CanteraGas_->nSpecies(); ++i)
-            {
-                RR_[i][cellI] = (yTemp_[i] - yPre_[i])*rhoi/deltaT[cellI];
-                Qdot_[cellI] -= hc_[i]*RR_[i][cellI];
-            }
-        }
-    }
-    // DNN
-    std::vector<torch::jit::IValue> INPUTS{inputs};
-    auto outputs_raw = torchModel_.forward(INPUTS);
-    auto outputs = outputs_raw.toTensor();
-
-    for(size_t cellI = 0; cellI<torch_cell.size(); cellI ++)
-    {
-        // update y
-        scalar Yt = 0;
-        for (size_t i=0; i<CanteraGas_->nSpecies(); ++i)
-        {
-            yPre_[i] = Y_[i][torch_cell[cellI]];
-            yTemp_[i] = Y_[i][torch_cell[cellI]];
-            yBCT_[i] = (pow(yPre_[i],lambda) - 1) / lambda; // function BCT
-        }
-        for (size_t i=0; i<(CanteraGas_->nSpecies()); ++i)//
-        {
-            u_[i+2] = outputs[cellI][i+2].item().to<double>()*Ystd_[i+2]+Ymu_[i+2];
-            yTemp_[i] = pow((yBCT_[i] + u_[i+2]*deltaT[cellI])*lambda+1,1/lambda);
-            Yt += yTemp_[i];
-        }
-        for (size_t i=0; i<CanteraGas_->nSpecies(); ++i)
-        {
-            yTemp_[i] = yTemp_[i] / Yt;
-            RR_[i][torch_cell[cellI]] = (yTemp_[i] - Y_[i][torch_cell[cellI]])*rho_[torch_cell[cellI]]/deltaT[cellI];
-            Qdot_[torch_cell[cellI]] -= hc_[i]*RR_[i][torch_cell[cellI]];
-        }
-    }
-
-    Info<<"=== end torch&ode-solve === "<<endl;
-    return deltaTMin;
-}
-
 template <class ThermoType>
 template<class DeltaTType>
 Foam::DynamicList<Foam::GpuProblem>
@@ -667,11 +539,9 @@ void Foam::dfChemistryModel<ThermoType>::getDNNinputs
     cellIDBuffer = {cellIDList0Buffer, cellIDList1Buffer, cellIDList2Buffer};
     problemCounter = {problemCounter0, problemCounter1, problemCounter2};
 
-    std::cout<<"inputsDNN0 = "<<inputsDNN0.size()<<endl;
-    std::cout<<"inputsDNN1 = "<<inputsDNN1.size()<<endl;
-    std::cout<<"inputsDNN2 = "<<inputsDNN2.size()<<endl;
-
-    Info<<"get inputs successfully"<<endl;
+    std::cout<<"inputsDNN0 = "<<inputsDNN0.size()/10 << "\n";
+    std::cout<<"inputsDNN1 = "<<inputsDNN1.size()/10 << "\n";
+    std::cout<<"inputsDNN2 = "<<inputsDNN2.size()/10 << "\n";
 
     return;
 }
@@ -733,7 +603,7 @@ void Foam::dfChemistryModel<ThermoType>::updateSolutionBuffer
 
 template <class ThermoType>
 template <class DeltaTType>
-Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN_GPU(
+Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
     const DeltaTType &deltaT)
 {
     scalar deltaTMin = great;
@@ -744,7 +614,15 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN_GPU(
     }
 
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-    Info << "=== begin solve_DNN_CUDA === " << endl;
+    Info << "=== begin solve_DNN === " << endl;
+    if (gpu_)
+    {
+        Info << "now DNN inference is conducted on GPU" << endl;
+    }
+    else
+    {
+        Info << "now DNN inference is conducted on CPU" << endl;
+    }
 
     /*=============================gather problems=============================*/
     DynamicList<GpuProblem> problemList = getGPUProblems(deltaT);
@@ -764,7 +642,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN_GPU(
 
     std::chrono::steady_clock::time_point stop2 = std::chrono::steady_clock::now();
     std::chrono::duration<double> processingTime2 = std::chrono::duration_cast<std::chrono::duration<double>>(stop2 - start2);
-    std::cout << "sendProblemTime = " << processingTime2.count() << std::endl;
+    // std::cout << "sendProblemTime = " << processingTime2.count() << std::endl;
     time_sendProblem_ += processingTime2.count();
 
     /*=============================submaster work start=============================*/
@@ -790,7 +668,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN_GPU(
 
         std::chrono::steady_clock::time_point stop3 = std::chrono::steady_clock::now();
         std::chrono::duration<double> processingTime3 = std::chrono::duration_cast<std::chrono::duration<double>>(stop3 - start3);
-        std::cout << "RecvProblemTime = " << processingTime3.count() << std::endl;
+        // std::cout << "RecvProblemTime = " << processingTime3.count() << std::endl;
         time_RecvProblem_ += processingTime3.count();
 
         /*==============================construct DNN inputs==============================*/
@@ -803,7 +681,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN_GPU(
         getDNNinputs(problemBuffer, outputLength, DNNinputs, cellIDBuffer, problemCounter);
         std::chrono::steady_clock::time_point stop5 = std::chrono::steady_clock::now();
         std::chrono::duration<double> processingTime5 = std::chrono::duration_cast<std::chrono::duration<double>>(stop5 - start5);
-        std::cout << "getDNNinputsTime = " << processingTime5.count() << std::endl;
+        // std::cout << "getDNNinputsTime = " << processingTime5.count() << std::endl;
         time_getDNNinputs_ += processingTime5.count();
 
         /*=============================inference via DNNInferencer=============================*/
@@ -813,7 +691,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN_GPU(
 
         std::chrono::steady_clock::time_point stop7 = std::chrono::steady_clock::now();
         std::chrono::duration<double> processingTime7 = std::chrono::duration_cast<std::chrono::duration<double>>(stop7 - start7);
-        std::cout << "DNNinferenceTime = " << processingTime7.count() << std::endl;
+        // std::cout << "DNNinferenceTime = " << processingTime7.count() << std::endl;
         time_DNNinference_ += processingTime7.count();
 
         /*=============================construct solutions=============================*/
@@ -823,12 +701,12 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN_GPU(
 
         std::chrono::steady_clock::time_point stop6 = std::chrono::steady_clock::now();
         std::chrono::duration<double> processingTime6 = std::chrono::duration_cast<std::chrono::duration<double>>(stop6 - start6);
-        std::cout << "updateSolutionBufferTime = " << processingTime6.count() << std::endl;
+        // std::cout << "updateSolutionBufferTime = " << processingTime6.count() << std::endl;
         time_updateSolutionBuffer_ += processingTime6.count();
         
         std::chrono::steady_clock::time_point stop1 = std::chrono::steady_clock::now();
         std::chrono::duration<double> processingTime1 = std::chrono::duration_cast<std::chrono::duration<double>>(stop1 - start1);
-        std::cout << "submasterTime = " << processingTime1.count() << std::endl;  
+        // std::cout << "submasterTime = " << processingTime1.count() << std::endl;  
         time_submaster_ += processingTime1.count();
     }
 
@@ -857,7 +735,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN_GPU(
    
     std::chrono::steady_clock::time_point stop4 = std::chrono::steady_clock::now();
     std::chrono::duration<double> processingTime4 = std::chrono::duration_cast<std::chrono::duration<double>>(stop4 - start4);
-    std::cout << "SendRecvSolutionTime = " << processingTime4.count() << std::endl;
+    // std::cout << "SendRecvSolutionTime = " << processingTime4.count() << std::endl;
     time_sendRecvSolution_ += processingTime4.count();
 
     /*=============================update RR fields=============================*/
@@ -871,11 +749,11 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN_GPU(
         }
     }
 
-    Info << "=== end torch&ode-CUDAsolve === " << endl;
+    Info << "=== end solve_DNN === " << endl;
 
     std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now();
     std::chrono::duration<double> processingTime = std::chrono::duration_cast<std::chrono::duration<double>>(stop - start);
-    std::cout << "allSolveTime = " << processingTime.count() << std::endl;
+    // std::cout << "allSolveTime = " << processingTime.count() << std::endl;
     time_allsolve_ += processingTime.count();
 
     return deltaTMin;
@@ -1214,7 +1092,7 @@ Foam::dfChemistryModel<ThermoType>::createBalancer()
 
 template <class ThermoType>
 template <class DeltaTType>
-Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_loadBalance
+Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_CVODE
 (
     const DeltaTType& deltaT
 )
@@ -1591,11 +1469,9 @@ void Foam::dfChemistryModel<ThermoType>::getDNNinputs
     cellIDBuffer = {cellIDList0Buffer, cellIDList1Buffer, cellIDList2Buffer};
     problemCounter = {problemCounter0, problemCounter1, problemCounter2};
 
-    std::cout << "inputsDNN0 = " << inputsDNN0.size();
-    std::cout << "inputsDNN1 = " << inputsDNN1.size();
-    std::cout << "inputsDNN2 = " << inputsDNN2.size();
-
-    Info<<"get inputs successfully"<<endl;
+    std::cout<<"inputsDNN0 = "<<inputsDNN0.size()/10 << "\n";
+    std::cout<<"inputsDNN1 = "<<inputsDNN1.size()/10 << "\n";
+    std::cout<<"inputsDNN2 = "<<inputsDNN2.size()/10 << "\n";
 
     return;
 }
@@ -1661,7 +1537,7 @@ void Foam::dfChemistryModel<ThermoType>::updateSolutionBuffer
 
 template <class ThermoType>
 template <class DeltaTType>
-Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN_GPU(
+Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
     const DeltaTType &deltaT)
 {
     scalar deltaTMin = great;
@@ -1672,7 +1548,16 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN_GPU(
     }
 
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-    Info << "=== begin solve_DNN_GPU === " << endl;
+    Info << "=== begin solve_DNN === " << endl;
+    if (gpu_)
+    {
+        Info << "now DNN inference is conducted on GPU" << endl;
+    }
+    else
+    {
+        Info << "now DNN inference is conducted on CPU" << endl;
+    }
+    
 
     /*=============================gather problems=============================*/
     DynamicList<GpuProblem> problemList = getGPUProblems(deltaT);
@@ -1692,7 +1577,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN_GPU(
 
     std::chrono::steady_clock::time_point stop2 = std::chrono::steady_clock::now();
     std::chrono::duration<double> processingTime2 = std::chrono::duration_cast<std::chrono::duration<double>>(stop2 - start2);
-    std::cout << "sendProblemTime = " << processingTime2.count() << std::endl;
+    // std::cout << "sendProblemTime = " << processingTime2.count() << std::endl;
     time_sendProblem_ += processingTime2.count();
 
     /*=============================submaster work start=============================*/
@@ -1718,7 +1603,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN_GPU(
 
         std::chrono::steady_clock::time_point stop3 = std::chrono::steady_clock::now();
         std::chrono::duration<double> processingTime3 = std::chrono::duration_cast<std::chrono::duration<double>>(stop3 - start3);
-        std::cout << "RecvProblemTime = " << processingTime3.count() << std::endl;
+        // std::cout << "RecvProblemTime = " << processingTime3.count() << std::endl;
         time_RecvProblem_ += processingTime3.count();
 
         /*==============================construct DNN inputs==============================*/
@@ -1731,7 +1616,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN_GPU(
         getDNNinputs(problemBuffer, outputLength, DNNinputs, cellIDBuffer, problemCounter);
         std::chrono::steady_clock::time_point stop5 = std::chrono::steady_clock::now();
         std::chrono::duration<double> processingTime5 = std::chrono::duration_cast<std::chrono::duration<double>>(stop5 - start5);
-        std::cout << "getDNNinputsTime = " << processingTime5.count() << std::endl;
+        // std::cout << "getDNNinputsTime = " << processingTime5.count() << std::endl;
         time_getDNNinputs_ += processingTime5.count();
 
         /*=============================inference via pybind11=============================*/
@@ -1744,7 +1629,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN_GPU(
 
         std::chrono::steady_clock::time_point stop8 = std::chrono::steady_clock::now();
         std::chrono::duration<double> processingTime8 = std::chrono::duration_cast<std::chrono::duration<double>>(stop8 - start8);
-        std::cout << "vec2ndarrayTime = " << processingTime8.count() << std::endl;
+        // std::cout << "vec2ndarrayTime = " << processingTime8.count() << std::endl;
         time_vec2ndarray_ += processingTime8.count();
 
         pybind11::module_ call_torch = pybind11::module_::import("inference"); // import python file
@@ -1756,12 +1641,12 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN_GPU(
 
         std::chrono::steady_clock::time_point stop9 = std::chrono::steady_clock::now();
         std::chrono::duration<double> processingTime9 = std::chrono::duration_cast<std::chrono::duration<double>>(stop9 - start9);
-        std::cout << "pythonTime = " << processingTime9.count() << std::endl;
+        // std::cout << "pythonTime = " << processingTime9.count() << std::endl;
         time_python_ += processingTime9.count();
 
         std::chrono::steady_clock::time_point stop7 = std::chrono::steady_clock::now();
         std::chrono::duration<double> processingTime7 = std::chrono::duration_cast<std::chrono::duration<double>>(stop7 - start7);
-        std::cout << "DNNinferenceTime = " << processingTime7.count() << std::endl;
+        // std::cout << "DNNinferenceTime = " << processingTime7.count() << std::endl;
         time_DNNinference_ += processingTime7.count();
 
         /*=============================construct solutions=============================*/
@@ -1769,12 +1654,12 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN_GPU(
         updateSolutionBuffer(solutionBuffer, star, outputLength, cellIDBuffer, problemCounter);
         std::chrono::steady_clock::time_point stop6 = std::chrono::steady_clock::now();
         std::chrono::duration<double> processingTime6 = std::chrono::duration_cast<std::chrono::duration<double>>(stop6 - start6);
-        std::cout << "updateSolutionBufferTime = " << processingTime6.count() << std::endl;
+        // std::cout << "updateSolutionBufferTime = " << processingTime6.count() << std::endl;
         time_updateSolutionBuffer_ += processingTime6.count();
 
         std::chrono::steady_clock::time_point stop1 = std::chrono::steady_clock::now();
         std::chrono::duration<double> processingTime1 = std::chrono::duration_cast<std::chrono::duration<double>>(stop1 - start1);
-        std::cout << "submasterTime = " << processingTime1.count() << std::endl;
+        // std::cout << "submasterTime = " << processingTime1.count() << std::endl;
         time_submaster_ += processingTime1.count();
     }
 
@@ -1801,7 +1686,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN_GPU(
 
     std::chrono::steady_clock::time_point stop4 = std::chrono::steady_clock::now();
     std::chrono::duration<double> processingTime4 = std::chrono::duration_cast<std::chrono::duration<double>>(stop4 - start4);
-    std::cout << "SendRecvSolutionTime = " << processingTime4.count() << std::endl;
+    // std::cout << "SendRecvSolutionTime = " << processingTime4.count() << std::endl;
     time_sendRecvSolution_ += processingTime4.count();
 
     /*=============================update RR fields=============================*/
@@ -1815,11 +1700,11 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN_GPU(
         }
     }
 
-    Info << "=== end torch&ode-CUDAsolve === " << endl;
+    Info << "=== end solve_DNN === " << endl;
 
     std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now();
     std::chrono::duration<double> processingTime = std::chrono::duration_cast<std::chrono::duration<double>>(stop - start);
-    std::cout << "allSolveTime = " << processingTime.count() << std::endl;
+    // std::cout << "allSolveTime = " << processingTime.count() << std::endl;
     time_allsolve_ += processingTime.count();
 
     return deltaTMin;
