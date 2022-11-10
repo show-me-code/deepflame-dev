@@ -265,7 +265,7 @@ std::vector<std::vector<double>> DNNInferencer::Inference_multiDNNs(std::vector<
 
     std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now();
     std::chrono::duration<double> processingTime = std::chrono::duration_cast<std::chrono::duration<double>>(stop - start);
-    std::cout << "preInf time = " << processingTime.count() << std::endl;
+    // std::cout << "preInf time = " << processingTime.count() << std::endl;
     time_preInf += processingTime.count();
 
     // inference
@@ -288,7 +288,7 @@ std::vector<std::vector<double>> DNNInferencer::Inference_multiDNNs(std::vector<
 
     std::chrono::steady_clock::time_point stop1 = std::chrono::steady_clock::now();
     std::chrono::duration<double> processingTime1 = std::chrono::duration_cast<std::chrono::duration<double>>(stop1 - start1);
-    std::cout << "Inf time = " << processingTime1.count() << std::endl;
+    // std::cout << "Inf time = " << processingTime1.count() << std::endl;
     time_Inference += processingTime1.count();
 
     // generate outputTensor
@@ -322,7 +322,7 @@ std::vector<std::vector<double>> DNNInferencer::Inference_multiDNNs(std::vector<
 
     std::chrono::steady_clock::time_point stop3 = std::chrono::steady_clock::now();
     std::chrono::duration<double> processingTime3 = std::chrono::duration_cast<std::chrono::duration<double>>(stop3 - start3);
-    std::cout << "hot time = " << processingTime3.count() << std::endl;
+    // std::cout << "hot time = " << processingTime3.count() << std::endl;
     time_hot += processingTime3.count();
 
     std::vector<double> RRoutputs0(Youtputs0.data_ptr<double>(), Youtputs0.data_ptr<double>() + Youtputs0.numel());
@@ -333,13 +333,13 @@ std::vector<std::vector<double>> DNNInferencer::Inference_multiDNNs(std::vector<
 
     std::chrono::steady_clock::time_point stop2 = std::chrono::steady_clock::now();
     std::chrono::duration<double> processingTime2 = std::chrono::duration_cast<std::chrono::duration<double>>(stop2 - start2);
-    std::cout << "postInf time = " << processingTime2.count() << std::endl;
+    // std::cout << "postInf time = " << processingTime2.count() << std::endl;
     time_postInf += processingTime2.count();
 
-    std::cout << "preInf sum time = " << time_preInf << std::endl;
-    std::cout << "Inf sum time = " << time_Inference << std::endl;
-    std::cout << "postInf sum time = " << time_postInf << std::endl;
-    std::cout << "hot sum time = " << time_hot << std::endl;
+    // std::cout << "preInf sum time = " << time_preInf << std::endl;
+    // std::cout << "Inf sum time = " << time_Inference << std::endl;
+    // std::cout << "postInf sum time = " << time_postInf << std::endl;
+    // std::cout << "hot sum time = " << time_hot << std::endl;
 
     return results;
 }
