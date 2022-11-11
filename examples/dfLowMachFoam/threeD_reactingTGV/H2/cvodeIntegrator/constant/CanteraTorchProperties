@@ -30,6 +30,9 @@ zeroDReactor
 {
     //cvorcp "UV";
 }
+
+splittingStrategy   off;
+
 loadbalancing
 {
         active  true;

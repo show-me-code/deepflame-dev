@@ -7,5 +7,4 @@ echo "Cleaning processor*"
 rm -r processor*
 echo "Cleaning polyMesh/"
 rm -r constant/polyMesh
-echo "Cleaning torch *.pt"
-rm *.pt
+
