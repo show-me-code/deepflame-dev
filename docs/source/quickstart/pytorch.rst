@@ -1,13 +1,7 @@
 PyTorch Integrator
 ===================
 
-To get a quick start with DeepFlame, there are several examples for each solver stored in the following directory that can be run.
-
-.. code-block:: bash
-
-    $HOME/deepflame-dev/examples
-
-To run these examples, first source your OpenFOAM, depending on your OpenFOAM path:
+If you choose to use PyTorch as the integratgor and use the compilation flag `--use_pytorch`, you can run examples stored in `$HOME/deepflame-dev/examples/.../pytorchIntegratgor`. To run an example, you first need to source your OpenFOAM:
 
 .. code-block:: bash
 
@@ -23,9 +17,9 @@ Next, you can go to the directory of any example case that you want to run. For 
 
 .. code-block:: bash
 
-    cd $HOME/deepflame-dev/examples/zeroD_cubicReactor/H2/cvodeSolver
+    cd $HOME/deepflame-dev/examples/zeroD_cubicReactor/H2/pytorchIntegratgor
 
-This is an example for the zero-dimensional hydrogen combustion  with CVODE Solver.
+This is an example for the zero-dimensional hydrogen combustion with PyTorch as the integrator. All files needed by DNN are stored in `pytorchDNN` folder, and the inference file is `inference.py`. Configurations regarding DNN are included in `constant/CanteraTorchProperties`.
 
 The case is run by simply typing: 
 
@@ -33,4 +27,10 @@ The case is run by simply typing:
 
     ./Allrun
 
-.. Note:: For the example cases with torchSolver, an additional DNN model file in the `.pt` format is required. Please contact the developers if you would like a test run.
+.. Note:: Users can go to `constant/CanteraTorchProperties` and check if `torch` is switched on. Switch it `on` to run DNN cases, and switch `off` to run CVODE cases.
+
+If you plot PyTorch's result together with CVODE's result, the graph is expected to look like:
+
+.. figure:: pytorch.png
+    
+    Visualisation of 0D results from PyTorch and CVODE integrators 
