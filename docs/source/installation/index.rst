@@ -38,32 +38,6 @@ DeepFlame supports three compilation choices: no torch, LibTorch, and PyTorch.
     .. Note:: You are encouaged to try all three options, but remember to install the next version in a new terminal to clean previous environment variables.
 
 
-No Torch version
--------------------------
-
-If your are using DeepFlame's CVODE solver without DNN model, just install LibCantera via `conda <https://docs.conda.io/en/latest/miniconda.html#linux-installers>`_.
-
-.. code-block:: bash
-
-    conda create -n df-notorch
-    conda activate df-notorch
-    conda install -c cantera libcantera-devel
-
-.. Note:: Check your ``Miniconda3/envs/libcantera`` directory and make sure the install was successful (lib/ include/ etc. exist).
-
-
-If the conda env ``df-notorch`` is activated, install DeepFlame by running:
-
-.. code-block:: bash
-
-    . install.sh 
-
-If ``df-notorch`` not activated (or you have a self-complied libcantera), specify the path to your libcantera:
-
-.. code-block:: bash
-
-    . install.sh --libcantera_dir /your/path/to/libcantera/
-
 
 PyTorch version (**RECOMMEND**)
 -------------------------------
@@ -107,3 +81,28 @@ Then you can pass your own libtorch path to DeepFlame.
 
 .. Note::  Some compiling issues may happen due to system compatability. Instead of using conda installed Cantera C++ lib and the downloaded Torch C++ lib, try to compile your own Cantera and Torch C++ libraries.
 
+No Torch version
+-------------------------
+
+If your are using DeepFlame's CVODE solver without DNN model, just install LibCantera via `conda <https://docs.conda.io/en/latest/miniconda.html#linux-installers>`_.
+
+.. code-block:: bash
+
+    conda create -n df-notorch
+    conda activate df-notorch
+    conda install -c cantera libcantera-devel
+
+.. Note:: Check your ``Miniconda3/envs/libcantera`` directory and make sure the install was successful (lib/ include/ etc. exist).
+
+
+If the conda env ``df-notorch`` is activated, install DeepFlame by running:
+
+.. code-block:: bash
+
+    . install.sh 
+
+If ``df-notorch`` not activated (or you have a self-complied libcantera), specify the path to your libcantera:
+
+.. code-block:: bash
+
+    . install.sh --libcantera_dir /your/path/to/libcantera/
