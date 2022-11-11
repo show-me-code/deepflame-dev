@@ -2,7 +2,8 @@ Brief Introduction to Inputs
 ======================================
 The dictionary ``CanteraTorchProperties`` is the original dictionay of DeepFlame. It read in netowrk realted parameters and configurations. It typically looks like:
 
-.. code-block:: 
+.. code-block::
+
     chemistry           on;
     CanteraMechanismFile "ES80_H2-7-16.yaml";
     transportModel "Mix";//"UnityLewis";
