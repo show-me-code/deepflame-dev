@@ -7,5 +7,3 @@ echo "Cleaning polyMesh/"
 rm -r constant/polyMesh
 echo "Cleaning postProcessing/"
 rm -r postProcessing
-echo "Cleaning torch *.pt"
-rm *.pt
