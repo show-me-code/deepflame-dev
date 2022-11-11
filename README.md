@@ -70,7 +70,7 @@ DeepFlame supports three compilation choices: no torch, LibTorch, and PyTorch.
 >**Note**: You are encouaged to try all three options, but remember to install the next version in a new terminal to clean previous environment variables.
 
 #### 4.1 PyTorch version (**RECOMMEND**)
-PyTorch version aims to support Python-based progamming for DeepFlame. Run the following commands to install:
+PyTorch version aims to support Python-based progamming for DeepFlame. First install [LibCantera](https://anaconda.org/conda-forge/libcantera-devel) via [conda] Run the following commands to install:
 ```
 conda create -n df-pytorch python=3.8
 conda activate df-pytorch
