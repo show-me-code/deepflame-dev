@@ -2,7 +2,7 @@ Brief Introduction to Inputs
 ======================================
 The dictionary ``CanteraTorchProperties`` is the original dictionay of DeepFlame. It read in netowrk realted parameters and configurations. It typically looks like:
 
-.. code-block::
+```
 
     chemistry           on;
     CanteraMechanismFile "ES80_H2-7-16.yaml";
@@ -46,13 +46,12 @@ The dictionary ``CanteraTorchProperties`` is the original dictionay of DeepFlame
             active  false;
             //log   true;
     }
+```
 
-
-In the above example, the meanings of the parameters are:
-* ``CanteraMechanismFile``: the name of the reaction mechanism file 
+In the above example, the meanings of the parameters are:  ``CanteraMechanismFile``: the name of the reaction mechanism file 
 * ``odeCoeffs``: the ode torlerance. 1e-15 and 1e-24 are used for network training, so it should keep the same when comparing results with nd without DNN.
 * ``torch``: the switch used to control the on and off of DNN. If users are running CVODE, this needs to be switched off.
 * ``GPU``: the switch used to control whether GPU or CPU is used to carry out inference.
 * ``torchModel``: name of network.
-* ``torchParameters``: thresholds used to decide when to use network
-* ``coresPerGPU``: number of CPU cores on one node
+* ``torchParameters``: thresholds used to decide when to use network.
+* ``coresPerGPU``: number of CPU cores on one node.
