@@ -12,9 +12,6 @@ import os
 
 torch.set_printoptions(precision=10)
 print('position 0 in inference.py')
-device = torch.device("cuda")
-device_ids = range(torch.cuda.device_count())
-
 
 
 class MyGELU(torch.nn.Module):
@@ -51,11 +48,49 @@ class Net(torch.nn.Module):
         x = self.fc(x)
         return x
 try:
+    #load variables from constant/CanteraTorchProperties
+    path_r = r"./constant/CanteraTorchProperties"
+    with open(path_r, "r") as f:
+        data = f.read()
+        i = data.index('torchModel1') 
+        a = data.index('"',i) 
+        b = data.index('.',a+1)
+        moduleName1 = data[a+1:b]
+
+        i = data.index('torchModel2') 
+        a = data.index('"',i) 
+        b = data.index('.',a+1)
+        moduleName2 = data[a+1:b]
+
+        i = data.index('torchModel3') 
+        a = data.index('"',i) 
+        b = data.index('.',a+1)
+        moduleName3 = data[a+1:b]
+        
+        i = data.index('GPU') 
+        a = data.index(';',i) 
+        switch_GPU = data[i+4:a]
+
+    #load OpenFOAM switch
+    switch_on = ["True", "on", "yes", "y", "t", "any"]
+    switch_off = ["False", "off", "no", "n", "f", "none"]
+    if switch_GPU in switch_on:
+        device = torch.device("cuda")
+        device_ids = range(torch.cuda.device_count())
+    elif switch_GPU in switch_off:
+        device = torch.device("cpu")
+        device_ids = [0]
+    else:
+        print("invalid setting!")
+        os._exit(0)
+
+
+
     #glbal variable will only init once when called interperter
     #load parameters from json
-    setting0 = json2Parser('pytorchDNN/settings1.json')
-    setting1 = json2Parser('pytorchDNN/settings2.json')
-    setting2 = json2Parser('pytorchDNN/settings3.json')
+    setting0 = json2Parser(str("pytorchDNN/"+moduleName1+".json"))
+    setting1 = json2Parser(str("pytorchDNN/"+moduleName2+".json"))
+    setting2 = json2Parser(str("pytorchDNN/"+moduleName3+".json"))
     
     lamda = setting0.power_transform
     delta_t = setting0.delta_t
@@ -82,9 +117,9 @@ try:
     model0 = Net()
     model1 = Net()
     model2 = Net()
-    check_point0 = torch.load('pytorchDNN/ESH2-sub1.pt')
-    check_point1 = torch.load('pytorchDNN/ESH2-sub2.pt')
-    check_point2 = torch.load('pytorchDNN/ESH2-sub3.pt')
+    check_point0 = torch.load(str("pytorchDNN/"+moduleName1+".pt"))
+    check_point1 = torch.load(str("pytorchDNN/"+moduleName2+".pt"))
+    check_point2 = torch.load(str("pytorchDNN/"+moduleName3+".pt"))
     model0.load_state_dict(check_point0)
     model1.load_state_dict(check_point1)
     model2.load_state_dict(check_point2)

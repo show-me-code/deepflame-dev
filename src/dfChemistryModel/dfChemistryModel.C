@@ -1113,7 +1113,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_CVODE
     const DeltaTType& deltaT
 )
 {
-    Info<<"=== begin DLB-solve === "<<endl;
+    Info<<"=== begin solve_CVODE === "<<endl;
     // CPU time analysis
     clockTime timer;
     scalar t_getProblems(0);
@@ -1135,6 +1135,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_CVODE
 
     if(balancer_.active())
     {
+        Info<<"Now use DLB algorithm!!"<<endl;
         timer.timeIncrement();
         balancer_.updateState(allProblems);
         t_updateState = timer.timeIncrement();
@@ -1156,6 +1157,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_CVODE
     }
     else
     {
+        Info<<"Now do not use DLB algorithm!!"<<endl;
         timer.timeIncrement();
         incomingSolutions.append(solveList(allProblems));
         t_solveBuffer = timer.timeIncrement();
@@ -1175,7 +1177,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_CVODE
                         << endl;
     }
 
-    Info<<"=== end DLB-solve === "<<endl;
+    Info<<"=== end solve_CVODE === "<<endl;
     return updateReactionRates(incomingSolutions);
 }
 
