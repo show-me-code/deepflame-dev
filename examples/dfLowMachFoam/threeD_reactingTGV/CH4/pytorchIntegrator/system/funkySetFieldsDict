@@ -11,47 +11,19 @@ FoamFile
     format      ascii;
     class       dictionary;
     location    "system";
-    object      controlDict;
+    object      funkySetFieldsDict;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-application     df0DFoam;
+expressions
+ (
+TGV_U  
+    {
+     field U; 
+     expression "vector(4*sin(pos().x/0.001)*cos(pos().y/0.001)*cos(pos().z/0.001),-4*cos(pos().x/0.001)*sin(pos().y/0.001)*cos(pos().z/0.001),0)"; 
+     keepPatches 1; 
+    }
+ );
 
-startFrom       startTime;
-
-startTime       0;
-
-stopAt          endTime;
-
-endTime         1e-3;
-
-deltaT          1e-06;
-
-maxDeltaT       1e-03;
-
-adjustTimeStep  off;
-
-writeControl    runTime;
-
-writeInterval   0.01;
-
-purgeWrite      0;
-
-writeFormat     ascii;
-
-// writePrecision    6;
-
-writeCompression on;
-
-timeFormat      general;
-
-timePrecision   6;
-
-runTimeModifiable true;
-
-functions
-{
-  # includeFunc probes
-}
 
 // ************************************************************************* //

@@ -17,7 +17,7 @@ FoamFile
 
 
 chemistry           on;
-CanteraMechanismFile "ES80_H2-7-16.yaml";
+CanteraMechanismFile "drm19.yml";
 transportModel "Mix";//"UnityLewis";
 odeCoeffs
 {
@@ -33,9 +33,9 @@ zeroDReactor
 
 torch on;
 GPU on;
-torchModel1 "ESH2-sub1.pt"; 
-torchModel2 "ESH2-sub2.pt"; 
-torchModel3 "ESH2-sub3.pt"; 
+torchModel1 "modeldrm19_0.pt"; 
+torchModel2 "modeldrm19_1.pt"; 
+torchModel3 "modeldrm19_2.pt"; 
 
 torchParameters1  
 {
