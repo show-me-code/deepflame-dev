@@ -9,5 +9,3 @@ echo "Cleaning polyMesh/"
 rm -r constant/polyMesh
 echo "Cleaning dynamicCode/"
 rm -r dynamicCode
-echo "Cleaning torch *.pt"
-rm *.pt

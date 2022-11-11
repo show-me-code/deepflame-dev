@@ -29,6 +29,9 @@ zeroDReactor
 {
     //cvorcp "UV";
 }
+
+splittingStrategy   off;
+
 torch on;
 torchModel "new_modle.pt";  
 
@@ -147,4 +150,5 @@ loadbalancing
         active  false;
         //log   true;
 }
+
 // ************************************************************************* //

@@ -32,6 +32,8 @@ zeroDReactor
 {
 }
 
+splittingStrategy   off;
+
 loadbalancing
 {
     active          true;
