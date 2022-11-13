@@ -145,3 +145,4 @@ IOdictionary CanteraTorchProperties
     )
 );
 const Switch splitting = CanteraTorchProperties.lookupOrDefault("splittingStrategy", false);
+const Switch log_ = CanteraTorchProperties.subDict("TorchSettings").lookupOrDefault("log", false);
