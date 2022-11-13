@@ -188,16 +188,20 @@ int main(int argc, char *argv[])
 
         runTime.write();
 
-        Info<< "MonitorTime_chem = " << time_monitor_chem << " s" << nl << endl;
-        Info<< "MonitorTime_Y = " << time_monitor_Y << " s" << nl << endl;
-        Info<< "MonitorTime_flow = " << time_monitor_flow << " s" << nl << endl;
-        Info<< "MonitorTime_E = " << time_monitor_E << " s" << nl << endl;
-        Info<< "MonitorTime_corrThermo = " << time_monitor_corrThermo << " s" << nl << endl;
+        Info<< "========Time Spent in diffenet parts========"<< endl;
+        Info<< "Chemical sources           = " << time_monitor_chem << " s" << endl;
+        Info<< "Species Equations          = " << time_monitor_Y << " s" << endl;
+        Info<< "U & p Equations            = " << time_monitor_flow << " s" << endl;
+        Info<< "Energy Equations           = " << time_monitor_E << " s" << endl;
+        Info<< "thermo & Trans Properties  = " << time_monitor_corrThermo << " s" << endl;
+        Info<< "============================================"<<nl<< endl;
 
         Info<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
-            << "  ClockTime = " << runTime.elapsedClockTime() << " s"
+            << "  ClockTime = " << runTime.elapsedClockTime() << " s" << endl
         #ifdef USE_PYTORCH
-            << "    allsolveTime = " << chemistry->time_allsolve() << " s"
+        if (log_)
+        {
+            Info<< "    allsolveTime = " << chemistry->time_allsolve() << " s"
             << "    submasterTime = " << chemistry->time_submaster() << " s" << nl
             << "    sendProblemTime = " << chemistry->time_sendProblem() << " s"
             << "    recvProblemTime = " << chemistry->time_RecvProblem() << " s"
@@ -206,9 +210,9 @@ int main(int argc, char *argv[])
             << "    DNNinferenceTime = " << chemistry->time_DNNinference() << " s"
             << "    updateSolutionBufferTime = " << chemistry->time_updateSolutionBuffer() << " s" << nl
             << "    vec2ndarrayTime = " << chemistry->time_vec2ndarray() << " s"
-            << "    pythonTime = " << chemistry->time_python() << " s"
+            << "    pythonTime = " << chemistry->time_python() << " s"<< nl << endl;
+        }
         #endif
-            << nl << endl;
     }
 
     Info<< "End\n" << endl;

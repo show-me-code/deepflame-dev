@@ -50,6 +50,7 @@ Description
 //#include "fvOptions.H"
 #include "localEulerDdtScheme.H"
 #include "fvcSmooth.H"
+#include "PstreamGlobals.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -73,6 +74,11 @@ int main(int argc, char *argv[])
     #include "createFields.H"
     #include "createFieldRefs.H"
     #include "createRhoUfIfPresent.H"
+    
+    double time_monitor_chem=0;
+    double time_monitor_Y=0;
+    double time_monitor_corrThermo=0;
+    clock_t start, end;
 
     turbulence->validate();
 
@@ -107,9 +113,29 @@ int main(int argc, char *argv[])
 
         runTime.write();
 
+        Info<< "========Time Spent in diffenet parts========"<< endl;
+        Info<< "Chemical sources           = " << time_monitor_chem << " s" << endl;
+        Info<< "Species Equations          = " << time_monitor_Y << " s" << endl;
+        Info<< "thermo & Trans Properties  = " << time_monitor_corrThermo << " s" << endl;
+        Info<< "============================================"<<nl<< endl;
+
         Info<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
-            << "  ClockTime = " << runTime.elapsedClockTime() << " s"
-            << nl << endl;
+            << "  ClockTime = " << runTime.elapsedClockTime() << " s"<<endl;
+        #ifdef USE_PYTORCH
+        if (log_)
+        {
+            Info<< "    allsolveTime = " << chemistry.time_allsolve() << " s"
+            << "    submasterTime = " << chemistry.time_submaster() << " s" << nl
+            << "    sendProblemTime = " << chemistry.time_sendProblem() << " s"
+            << "    recvProblemTime = " << chemistry.time_RecvProblem() << " s"
+            << "    sendRecvSolutionTime = " << chemistry.time_sendRecvSolution() << " s" << nl
+            << "    getDNNinputsTime = " << chemistry.time_getDNNinputs() << " s"
+            << "    DNNinferenceTime = " << chemistry.time_DNNinference() << " s"
+            << "    updateSolutionBufferTime = " << chemistry.time_updateSolutionBuffer() << " s" << nl
+            << "    vec2ndarrayTime = " << chemistry.time_vec2ndarray() << " s"
+            << "    pythonTime = " << chemistry.time_python() << " s"<< nl << endl;
+        }
+        #endif
     }
 
     Info<< "End\n" << endl;
