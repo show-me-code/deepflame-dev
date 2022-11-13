@@ -38,17 +38,17 @@ OpenFOAM-7 and ParaView-5.6.0 will be installed in the ``/opt`` directory.
 
 Configure
 -------------------------
-**1. Source your OpenFOAM-7 bashrc to configure the ``$FOAM`` environment.**
+**1. Source your OpenFOAM-7 bashrc to configure the $FOAM environment.**
 
 .. Note:: This depends on your own path for OpenFOAM-7 bashrc.  
 
-If you have installed using ``apt-get install``, use 
+If you have installed using ``apt-get install``, use:
 
 .. code-block:: bash
 
     source /opt/openfoam7/etc/bashrc 
     
-If you compiled from source following the `official guild <https://openfoam.org/download/7-source/>`_ , use 
+If you compiled from source following the `official guild <https://openfoam.org/download/7-source/>`_, use:
 
 .. code-block:: bash
 
@@ -87,13 +87,15 @@ Finally you can build and install DeepFlame:
     cd ~/miniconda3/envs/df-pytorch/lib
     ln -s libmkl_rt.so.1 libmkl_rt.so.2
 
+**If you have compiled DeepFlame successfully, you should see the print message in your terminal:**
 
+.. figure:: complie_success.png
 
 Other Options
 -------------------------------
 DeepFlame also provides users with LibTorch and CVODE (no DNN version) options. 
 
-If you choose to use LibTorch (C++ API for Torch), first create the conda env and install `LibCantera <https://anaconda.org/conda-forge/libcantera-devel>`_:
+**1. If you choose to use LibTorch (C++ API for Torch), first create the conda env and install** `LibCantera <https://anaconda.org/conda-forge/libcantera-devel>`_:
     
 .. code-block:: bash
 
@@ -113,7 +115,7 @@ Then you can pass your own libtorch path to DeepFlame.
 .. Note::  Some compiling issues may happen due to system compatability. Instead of using conda installed Cantera C++ lib and the downloaded Torch C++ lib, try to compile your own Cantera and Torch C++ libraries.
 
 
-If your are using DeepFlame's CVODE solver without DNN model, just install LibCantera via `conda <https://docs.conda.io/en/latest/miniconda.html#linux-installers>`_.
+**2. If you just need DeepFlame's CVODE solver without DNN model, just install LibCantera via** `conda <https://docs.conda.io/en/latest/miniconda.html#linux-installers>`_.
 
 .. code-block:: bash
 
