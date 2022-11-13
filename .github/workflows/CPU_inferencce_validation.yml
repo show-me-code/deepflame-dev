@@ -36,7 +36,7 @@ jobs:
         conda install -c cantera libcantera-devel
         conda install pytorch 
         conda install pybind11
-        conda install easdydict
+        conda install -c auto easdydict
         cd /github/home/miniconda3/envs/libcantera/lib
         ln -s libmkl_rt.so.1 libmkl_rt.so.2
  
