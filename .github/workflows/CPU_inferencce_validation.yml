@@ -34,9 +34,9 @@ jobs:
         conda create -n libcantera python=3.8
         conda activate libcantera
         conda install -c cantera libcantera-devel
-        conda install pytorch torchvision torchaudio -c pytorch -c nvidia
+        conda install pytorch 
         conda install pybind11
-        conda install -c conda-forge easdydict
+        conda install easdydict
         cd /github/home/miniconda3/envs/libcantera/lib
         ln -s libmkl_rt.so.1 libmkl_rt.so.2
  
