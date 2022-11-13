@@ -135,8 +135,8 @@ public IOdictionary
     Switch gpu_;
     Switch gpulog_;
     DNNInferencer DNNInferencer_;
-    int coresPerGPU;
-    int GPUsPerNode;
+    int coresPerGPU_;
+    int GPUsPerNode_;
 
     word torchModelName_;
     scalarList Xmu_;
