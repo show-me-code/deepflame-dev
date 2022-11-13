@@ -197,7 +197,7 @@ int main(int argc, char *argv[])
         Info<< "============================================"<<nl<< endl;
 
         Info<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
-            << "  ClockTime = " << runTime.elapsedClockTime() << " s" << endl
+            << "  ClockTime = " << runTime.elapsedClockTime() << " s" << endl;
         #ifdef USE_PYTORCH
         if (log_)
         {
