@@ -89,7 +89,7 @@ Finally you can build and install DeepFlame:
 
 **If you have compiled DeepFlame successfully, you should see the print message in your terminal:**
 
-.. figure:: complie_success.png
+.. figure:: compile_success.png
 
 Other Options
 -------------------------------
