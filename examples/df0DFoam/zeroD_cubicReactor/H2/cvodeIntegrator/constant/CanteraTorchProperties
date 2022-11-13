@@ -11,27 +11,51 @@ FoamFile
     format      ascii;
     class       dictionary;
     location    "constant";
-    object      thermophysicalProperties;
+    object      chemistryProperties;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
+
 chemistry           on;
 CanteraMechanismFile "ES80_H2-7-16.yaml";
-transportModel "UnityLewis";
+transportModel "Mix";//"UnityLewis";
 odeCoeffs
 {
-    // "relTol"   1e-6;
-    // "absTol"   1e-10;
+    "relTol"   1e-15;
+    "absTol"   1e-24;
 }
 inertSpecie        "N2";
+
 zeroDReactor
 {
-    constantProperty "pressure";
+    constantProperty "pressure";//cvorcp "UV";
+}
+
+torch off;
+GPU off;
+torchModel1 "ESH2-sub1.pt"; 
+torchModel2 "ESH2-sub2.pt"; 
+torchModel3 "ESH2-sub3.pt"; 
+
+torchParameters1  
+{
+    Tact 700  ;
+    Qdotact  3e7;
+    coresPerGPU 4;
+}
+torchParameters2
+{
+    Tact 2000;
+    Qdotact  3e7;
+}
+torchParameters3
+{
+    Tact 2000;
+    Qdotact  7e8;
 }
 loadbalancing
 {
         active  false;
         //log   true;
 }
-
 // ************************************************************************* //

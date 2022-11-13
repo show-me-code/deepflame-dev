@@ -11,47 +11,35 @@ FoamFile
     format      ascii;
     class       dictionary;
     location    "system";
-    object      controlDict;
+    object      decomposeParDict;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-application     df0DFoam;
+numberOfSubdomains 4;
 
-startFrom       startTime;
+method          scotch;
 
-startTime       0;
-
-stopAt          endTime;
-
-endTime         1e-3;
-
-deltaT          1e-06;
-
-maxDeltaT       1e-03;
-
-adjustTimeStep  off;
-
-writeControl    runTime;
-
-writeInterval   0.01;
-
-purgeWrite      0;
-
-writeFormat     ascii;
-
-// writePrecision    6;
-
-writeCompression on;
-
-timeFormat      general;
-
-timePrecision   6;
-
-runTimeModifiable true;
-
-functions
+simpleCoeffs
 {
-  # includeFunc probes
+    n               (4 1 1);
+    delta           0.001;
 }
+
+hierarchicalCoeffs
+{
+    n               (1 1 1);
+    delta           0.001;
+    order           xyz;
+}
+
+manualCoeffs
+{
+    dataFile        "";
+}
+
+distributed     no;
+
+roots           ( );
+
 
 // ************************************************************************* //
