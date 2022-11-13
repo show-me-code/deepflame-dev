@@ -128,13 +128,13 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
     torchModelName3_ = this->subDict("TorchSettings").lookupOrDefault("torchModel3", word(""));
 
     // set the number of cores slaved by each GPU card
-    coresPerGPU = this->subDict("TorchSettings").lookupOrDefault("coresPerGPU", 8);
-    GPUsPerNode = this->subDict("TorchSettings").lookupOrDefault("GPUsPerNode", 4);
+    coresPerGPU_ = this->subDict("TorchSettings").lookupOrDefault("coresPerGPU", 8);
+    GPUsPerNode_ = this->subDict("TorchSettings").lookupOrDefault("GPUsPerNode", 4);
 
     // initialization the Inferencer (if use multi GPU)
     if(torchSwitch_)
     {
-        if(!(Pstream::myProcNo() % coresPerGPU)) // Now is a master
+        if(!(Pstream::myProcNo() % coresPerGPU_)) // Now is a master
         {
             
             Info << "location 0" << endl;
@@ -146,7 +146,7 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
             std::string device_;
             if (gpu_)
             {
-                int CUDANo = (Pstream::myProcNo() / coresPerGPU) % GPUsPerNode;
+                int CUDANo = (Pstream::myProcNo() / coresPerGPU_) % GPUsPerNode_;
                 device_ = "cuda:" + std::to_string(CUDANo); 
             }
             else
@@ -169,7 +169,7 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
     torchSwitch_ = this->subDict("TorchSettings").lookupOrDefault("torch", false);
     gpulog_ = this->subDict("TorchSettings").lookupOrDefault("log", false),
 
-    coresPerGPU = this->subDict("TorchSettings").lookupOrDefault("coresPerGPU", 8);
+    coresPerGPU_ = this->subDict("TorchSettings").lookupOrDefault("coresPerGPU", 8);
 
     time_allsolve_ = 0;
     time_submaster_ = 0;
@@ -456,7 +456,7 @@ void Foam::dfChemistryModel<ThermoType>::getDNNinputs
     DynamicBuffer<label> cellIDList1Buffer; // store the cellIDList1 of each subslave
     DynamicBuffer<label> cellIDList2Buffer; // store the cellIDList2 of each subslave
 
-    for (label i = 0; i < coresPerGPU; i++) // for all local core TODO: i may cause misleading
+    for (label i = 0; i < coresPerGPU_; i++) // for all local core TODO: i may cause misleading
     {
         label counter0 = 0;
         label counter1 = 0;
@@ -564,7 +564,7 @@ void Foam::dfChemistryModel<ThermoType>::updateSolutionBuffer
     label outputCounter1 = 0;
     label outputCounter2 = 0;
 
-    for (label i = 0; i < coresPerGPU; i++) //TODO: i may cause misleading
+    for (label i = 0; i < coresPerGPU_; i++) //TODO: i may cause misleading
     {
         for (size_t cellI = 0; cellI < problemCounter[0][i]; cellI++)
         {
@@ -632,9 +632,9 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
     std::chrono::steady_clock::time_point start2 = std::chrono::steady_clock::now();
 
     PstreamBuffers pBufs(Pstream::commsTypes::nonBlocking); 
-    if (Pstream::myProcNo() % coresPerGPU) //for slave 
+    if (Pstream::myProcNo() % coresPerGPU_) //for slave 
     {
-        UOPstream send((Pstream::myProcNo()/coresPerGPU)*coresPerGPU, pBufs);// sending problem to master
+        UOPstream send((Pstream::myProcNo()/coresPerGPU_)*coresPerGPU_, pBufs);// sending problem to master
         send << problemList;
     }
     pBufs.finishedSends();
@@ -647,19 +647,19 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
     time_sendProblem_ += processingTime2.count();
 
     /*=============================submaster work start=============================*/
-    if (!(Pstream::myProcNo() % coresPerGPU))
+    if (!(Pstream::myProcNo() % coresPerGPU_))
     {
         std::chrono::steady_clock::time_point start1 = std::chrono::steady_clock::now();
         std::chrono::steady_clock::time_point start3 = std::chrono::steady_clock::now();
         
         label problemSize = 0; // problemSize is defined to debug
-        DynamicBuffer<GpuProblem> problemBuffer(coresPerGPU);//each submaster init a local problemBuffer TODO:rename it
+        DynamicBuffer<GpuProblem> problemBuffer(coresPerGPU_);//each submaster init a local problemBuffer TODO:rename it
 
         /*==============================gather problems==============================*/
         problemBuffer[0] = problemList; //problemList of submaster get index 0
         problemSize += problemBuffer[0].size();
 
-        for (label i = 1; i < coresPerGPU; i++)
+        for (label i = 1; i < coresPerGPU_; i++)
         {
             UIPstream recv(i + Pstream::myProcNo(), pBufs);
             recv >> problemBuffer[i];  //recv previous send problem and append to problemList
@@ -719,10 +719,10 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
 
     DynamicList<GpuSolution> finalList;
     PstreamBuffers pBufs2(Pstream::commsTypes::nonBlocking);
-    if (!(Pstream::myProcNo() % coresPerGPU))
+    if (!(Pstream::myProcNo() % coresPerGPU_))
     {
         finalList = solutionBuffer[0];
-        for (label i = 1; i < coresPerGPU; i++)
+        for (label i = 1; i < coresPerGPU_; i++)
         {
             
             UOPstream send(i + Pstream::myProcNo(), pBufs2);
@@ -731,9 +731,9 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
     }
     pBufs2.finishedSends();
     
-    if (Pstream::myProcNo() % coresPerGPU)
+    if (Pstream::myProcNo() % coresPerGPU_)
     {
-        UIPstream recv((Pstream::myProcNo()/coresPerGPU)*coresPerGPU, pBufs2);
+        UIPstream recv((Pstream::myProcNo()/coresPerGPU_)*coresPerGPU_, pBufs2);
         recv >> finalList;
     }
    
@@ -1402,7 +1402,7 @@ void Foam::dfChemistryModel<ThermoType>::getDNNinputs
     DynamicBuffer<label> cellIDList1Buffer; // store the cellIDList1 of each subslave
     DynamicBuffer<label> cellIDList2Buffer; // store the cellIDList2 of each subslave
 
-    for (label i = 0; i < coresPerGPU; i++) // for all local core TODO: i may cause misleading
+    for (label i = 0; i < coresPerGPU_; i++) // for all local core TODO: i may cause misleading
     {
         label counter0 = 0;
         label counter1 = 0;
@@ -1506,7 +1506,7 @@ void Foam::dfChemistryModel<ThermoType>::updateSolutionBuffer
     label outputCounter1 = 0;
     label outputCounter2 = 0;
 
-    for (label i = 0; i < coresPerGPU; i++) //TODO: i may cause misleading
+    for (label i = 0; i < coresPerGPU_; i++) //TODO: i may cause misleading
     {
         for (size_t cellI = 0; cellI < problemCounter[0][i]; cellI++)
         {
@@ -1575,9 +1575,9 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
     std::chrono::steady_clock::time_point start2 = std::chrono::steady_clock::now();
 
     PstreamBuffers pBufs(Pstream::commsTypes::nonBlocking);
-    if (Pstream::myProcNo() % coresPerGPU) //for slave
+    if (Pstream::myProcNo() % coresPerGPU_) //for slave
     {
-        UOPstream send((Pstream::myProcNo()/coresPerGPU)*coresPerGPU, pBufs);// sending problem to master
+        UOPstream send((Pstream::myProcNo()/coresPerGPU_)*coresPerGPU_, pBufs);// sending problem to master
         send << problemList;
     }
     pBufs.finishedSends();
@@ -1590,19 +1590,19 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
     time_sendProblem_ += processingTime2.count();
 
     /*=============================submaster work start=============================*/
-    if (!(Pstream::myProcNo() % coresPerGPU))
+    if (!(Pstream::myProcNo() % coresPerGPU_))
     {
         std::chrono::steady_clock::time_point start1 = std::chrono::steady_clock::now();
         std::chrono::steady_clock::time_point start3 = std::chrono::steady_clock::now();
 
         label problemSize = 0; // problemSize is defined to debug
-        DynamicBuffer<GpuProblem> problemBuffer(coresPerGPU);//each submaster init a local problemBuffer TODO:rename it
+        DynamicBuffer<GpuProblem> problemBuffer(coresPerGPU_);//each submaster init a local problemBuffer TODO:rename it
 
         /*==============================gather problems==============================*/
         problemBuffer[0] = problemList; //problemList of submaster get index 0
         problemSize += problemBuffer[0].size();
 
-        for (label i = 1; i < coresPerGPU; i++)
+        for (label i = 1; i < coresPerGPU_; i++)
         {
             UIPstream recv(i + Pstream::myProcNo(), pBufs);
             recv >> problemBuffer[i];  //recv previous send problem and append to problemList
@@ -1680,19 +1680,19 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
 
     DynamicList<GpuSolution> finalList;
     PstreamBuffers pBufs2(Pstream::commsTypes::nonBlocking);
-    if (!(Pstream::myProcNo() % coresPerGPU))
+    if (!(Pstream::myProcNo() % coresPerGPU_))
     {
         finalList = solutionBuffer[0];
-        for (label i = 1; i < coresPerGPU; i++)
+        for (label i = 1; i < coresPerGPU_; i++)
         {
             UOPstream send(i + Pstream::myProcNo(), pBufs2);
             send << solutionBuffer[i];
         }
     }
     pBufs2.finishedSends();
-    if (Pstream::myProcNo() % coresPerGPU)
+    if (Pstream::myProcNo() % coresPerGPU_)
     {
-        UIPstream recv((Pstream::myProcNo()/coresPerGPU)*coresPerGPU, pBufs2);
+        UIPstream recv((Pstream::myProcNo()/coresPerGPU_)*coresPerGPU_, pBufs2);
         recv >> finalList;
     }
 
