@@ -117,3 +117,5 @@ if
 
 volScalarField& he = thermo.he();
 scalar u0 = he[0] - p[0]/rho[0];
+
+const Switch log_ = CanteraTorchProperties.subDict("TorchSettings").lookupOrDefault("log", false);

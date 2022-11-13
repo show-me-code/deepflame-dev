@@ -25,33 +25,20 @@ odeCoeffs
     "absTol"   1e-24;
 }
 inertSpecie        "N2";
-
 zeroDReactor
 {
     constantProperty "pressure";//cvorcp "UV";
 }
 
-torch on;
-GPU on;
-torchModel1 "ESH2-sub1.pt"; 
-torchModel2 "ESH2-sub2.pt"; 
-torchModel3 "ESH2-sub3.pt"; 
-
-torchParameters1  
+TorchSettings
 {
-    Tact 700  ;
-    Qdotact  3e7;
+    torch off;
+    GPU   off;
+    log  on;
+    torchModel1 "ESH2-sub1.pt"; 
+    torchModel2 "ESH2-sub2.pt"; 
+    torchModel3 "ESH2-sub3.pt"; 
     coresPerGPU 4;
-}
-torchParameters2
-{
-    Tact 2000;
-    Qdotact  3e7;
-}
-torchParameters3
-{
-    Tact 2000;
-    Qdotact  7e8;
 }
 loadbalancing
 {

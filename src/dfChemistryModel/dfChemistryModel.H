@@ -133,6 +133,7 @@ public IOdictionary
 
     Switch torchSwitch_;
     Switch gpu_;
+    Switch gpulog_;
     DNNInferencer DNNInferencer_;
     int coresPerGPU;
     int GPUsPerNode;
@@ -173,6 +174,7 @@ public IOdictionary
 
     Switch torchSwitch_;
     Switch gpu_;
+    Switch gpulog_;
     scalar Tact1_;
     scalar Qdotact1_;
     scalar Tact2_;

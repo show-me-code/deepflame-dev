@@ -118,27 +118,18 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
         useDNN = false;
     }
 
-    torchSwitch_ = this->lookupOrDefault("torch", false);
-    gpu_ = this->lookupOrDefault("GPU", false),
+    torchSwitch_ = this->subDict("TorchSettings").lookupOrDefault("torch", false);
+    gpu_ = this->subDict("TorchSettings").lookupOrDefault("GPU", false),
+    gpulog_ = this->subDict("TorchSettings").lookupOrDefault("log", false),
 
     torchModelName_ = this->lookupOrDefault("torchModel", word(""));
-    torchModelName1_ = this->lookupOrDefault("torchModel1", word(""));
-    torchModelName2_ = this->lookupOrDefault("torchModel2", word(""));
-    torchModelName3_ = this->lookupOrDefault("torchModel3", word(""));
-
-    // thresholds adopted for selecting the networks
-    Tact1_ = this->subDict("torchParameters1").lookupOrDefault("Tact", 700);
-    Qdotact1_ = this->subDict("torchParameters1").lookupOrDefault("Qdotact", 1e9);
-
-    Tact2_ = this->subDict("torchParameters2").lookupOrDefault("Tact", 700);
-    Qdotact2_ = this->subDict("torchParameters2").lookupOrDefault("Qdotact", 1e9);
-
-    Tact3_ = this->subDict("torchParameters3").lookupOrDefault("Tact", 700);
-    Qdotact3_ = this->subDict("torchParameters3").lookupOrDefault("Qdotact", 1e9);
+    torchModelName1_ = this->subDict("TorchSettings").lookupOrDefault("torchModel1", word(""));
+    torchModelName2_ = this->subDict("TorchSettings").lookupOrDefault("torchModel2", word(""));
+    torchModelName3_ = this->subDict("TorchSettings").lookupOrDefault("torchModel3", word(""));
 
     // set the number of cores slaved by each GPU card
-    coresPerGPU = this->subDict("torchParameters1").lookupOrDefault("coresPerGPU", 8);
-    GPUsPerNode = this->subDict("torchParameters1").lookupOrDefault("GPUsPerNode", 4);
+    coresPerGPU = this->subDict("TorchSettings").lookupOrDefault("coresPerGPU", 8);
+    GPUsPerNode = this->subDict("TorchSettings").lookupOrDefault("GPUsPerNode", 4);
 
     // initialization the Inferencer (if use multi GPU)
     if(torchSwitch_)
@@ -174,20 +165,11 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
     {
         useDNN = false;
     }
-    gpu_ = this->lookupOrDefault("GPU", false),
+    gpu_ = this->subDict("TorchSettings").lookupOrDefault("GPU", false),
+    torchSwitch_ = this->subDict("TorchSettings").lookupOrDefault("torch", false);
+    gpulog_ = this->subDict("TorchSettings").lookupOrDefault("log", false),
 
-    torchSwitch_ = this->lookupOrDefault("torch", false);
-
-    Tact1_ = this->subDict("torchParameters1").lookupOrDefault("Tact", 700);
-    Qdotact1_ = this->subDict("torchParameters1").lookupOrDefault("Qdotact", 1e9);
-
-    Tact2_ = this->subDict("torchParameters2").lookupOrDefault("Tact", 700);
-    Qdotact2_ = this->subDict("torchParameters2").lookupOrDefault("Qdotact", 1e9);
-
-    Tact3_ = this->subDict("torchParameters3").lookupOrDefault("Tact", 700);
-    Qdotact3_ = this->subDict("torchParameters3").lookupOrDefault("Qdotact", 1e9);
-
-    coresPerGPU = this->subDict("torchParameters1").lookupOrDefault("coresPerGPU", 8);
+    coresPerGPU = this->subDict("TorchSettings").lookupOrDefault("coresPerGPU", 8);
 
     time_allsolve_ = 0;
     time_submaster_ = 0;
@@ -401,8 +383,8 @@ Foam::dfChemistryModel<ThermoType>::getGPUProblems
         scalar pi = p_[cellI];
         scalar rhoi = rho_[cellI];
 
-        // if T < 1000, set RR=0
-        if (T_[cellI] < Tact1_)
+        // if T < 700, set RR=0
+        if (T_[cellI] < 700)
         {
             Qdot_[cellI] = 0;
             for (size_t i = 0; i < CanteraGas_->nSpecies(); i++)
@@ -424,21 +406,21 @@ Foam::dfChemistryModel<ThermoType>::getGPUProblems
         problem.rhoi = rhoi;
 
         // choose DNN module
-        if ((Qdot_[cellI] < Qdotact2_) && (T_[cellI] < Tact2_) && ( T_[cellI] >= Tact1_))//choose1
+        if ((Qdot_[cellI] < 3e7) && (T_[cellI] < 2000) && ( T_[cellI] >= 700))//choose1
         {
             problem.DNNid = 0; 
             problemList.append(problem);
             selectDNN_[cellI]=0;
             continue;
         }
-        if(((Qdot_[cellI] >= Qdotact2_) && (T_[cellI] < Tact2_)&&(T_[cellI] >= Tact1_))||((Qdot_[cellI] > Qdotact3_) && T_[cellI] > Tact2_))  //choose2
+        if(((Qdot_[cellI] >= 3e7) && (T_[cellI] < 2000)&&(T_[cellI] >= 700))||((Qdot_[cellI] > 7e8) && T_[cellI] > 2000))  //choose2
         {
             problem.DNNid = 1; 
             problemList.append(problem);
             selectDNN_[cellI]=1;
             continue;
         }
-        if  ((Qdot_[cellI] < Qdotact3_) && (T_[cellI] >= Tact2_) && (Qdot_[cellI]!=0)) //choose3
+        if  ((Qdot_[cellI] < 7e8) && (T_[cellI] >= 2000) && (Qdot_[cellI]!=0)) //choose3
         {
             problem.DNNid = 2; 
             problemList.append(problem);
@@ -555,9 +537,12 @@ void Foam::dfChemistryModel<ThermoType>::getDNNinputs
     cellIDBuffer = {cellIDList0Buffer, cellIDList1Buffer, cellIDList2Buffer};
     problemCounter = {problemCounter0, problemCounter1, problemCounter2};
 
-    std::cout<<"inputsDNN0 = "<<inputsDNN0.size()/10 << "\n";
-    std::cout<<"inputsDNN1 = "<<inputsDNN1.size()/10 << "\n";
-    std::cout<<"inputsDNN2 = "<<inputsDNN2.size()/10 << "\n";
+    if (gpulog_)
+    {
+        std::cout<<"inputsDNN0 = "<<inputsDNN0.size()/10 << "\n";
+        std::cout<<"inputsDNN1 = "<<inputsDNN1.size()/10 << "\n";
+        std::cout<<"inputsDNN2 = "<<inputsDNN2.size()/10 << "\n";
+    }
 
     return;
 }
@@ -680,7 +665,10 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
             recv >> problemBuffer[i];  //recv previous send problem and append to problemList
             problemSize += problemBuffer[i].size();
         }
-        Info << "problemSize = " << problemSize << endl;
+        if (gpulog_)
+        {
+            Info << "problemSize = " << problemSize << endl;
+        }
 
         std::chrono::steady_clock::time_point stop3 = std::chrono::steady_clock::now();
         std::chrono::duration<double> processingTime3 = std::chrono::duration_cast<std::chrono::duration<double>>(stop3 - start3);
@@ -1135,7 +1123,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_CVODE
 
     if(balancer_.active())
     {
-        Info<<"Now use DLB algorithm!!"<<endl;
+        Info<<"Now DLB algorithm is used!!"<<endl;
         timer.timeIncrement();
         balancer_.updateState(allProblems);
         t_updateState = timer.timeIncrement();
@@ -1157,7 +1145,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_CVODE
     }
     else
     {
-        Info<<"Now do not use DLB algorithm!!"<<endl;
+        Info<<"Now DLB algorithm is not used!!"<<endl;
         timer.timeIncrement();
         incomingSolutions.append(solveList(allProblems));
         t_solveBuffer = timer.timeIncrement();
@@ -1345,7 +1333,7 @@ Foam::dfChemistryModel<ThermoType>::getGPUProblems
         scalar rhoi = rho_[cellI];
 
         // if T < 1000, set RR=0
-        if (T_[cellI] < Tact1_)
+        if (T_[cellI] < 700)
         {
             Qdot_[cellI] = 0;
             for (size_t i = 0; i < CanteraGas_->nSpecies(); i++)
@@ -1367,19 +1355,19 @@ Foam::dfChemistryModel<ThermoType>::getGPUProblems
         problem.rhoi = rhoi;
 
         // choose DNN module
-        if ((Qdot_[cellI] < Qdotact2_) && (T_[cellI] < Tact2_) && ( T_[cellI] >= Tact1_))//choose1
+        if ((Qdot_[cellI] < 3e7) && (T_[cellI] < 2000) && ( T_[cellI] >= 700))//choose1
         {
             problem.DNNid = 0; 
             problemList.append(problem);
             continue;
         }
-        if(((Qdot_[cellI] >= Qdotact2_) && (T_[cellI] < Tact2_)&&(T_[cellI] >= Tact1_))||((Qdot_[cellI] > Qdotact3_) && T_[cellI] > Tact2_))  //choose2
+        if(((Qdot_[cellI] >= 3e7) && (T_[cellI] < 2000)&&(T_[cellI] >= 700))||((Qdot_[cellI] > 7e8) && T_[cellI] > 2000))  //choose2
         {
             problem.DNNid = 1; 
             problemList.append(problem);
             continue;
         }
-        if  ((Qdot_[cellI] < Qdotact3_) && (T_[cellI] >= Tact2_) && (Qdot_[cellI]!=0)) //choose3
+        if  ((Qdot_[cellI] < 7e8) && (T_[cellI] >= 2000) && (Qdot_[cellI]!=0)) //choose3
         {
             problem.DNNid = 2; 
             problemList.append(problem);
@@ -1487,9 +1475,12 @@ void Foam::dfChemistryModel<ThermoType>::getDNNinputs
     cellIDBuffer = {cellIDList0Buffer, cellIDList1Buffer, cellIDList2Buffer};
     problemCounter = {problemCounter0, problemCounter1, problemCounter2};
 
-    std::cout<<"inputsDNN0 = "<<inputsDNN0.size()/10 << "\n";
-    std::cout<<"inputsDNN1 = "<<inputsDNN1.size()/10 << "\n";
-    std::cout<<"inputsDNN2 = "<<inputsDNN2.size()/10 << "\n";
+    if (gpulog_)
+    {
+        std::cout<<"inputsDNN0 = "<<inputsDNN0.size()/10 << "\n";
+        std::cout<<"inputsDNN1 = "<<inputsDNN1.size()/10 << "\n";
+        std::cout<<"inputsDNN2 = "<<inputsDNN2.size()/10 << "\n";
+    }
 
     return;
 }
@@ -1617,7 +1608,10 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
             recv >> problemBuffer[i];  //recv previous send problem and append to problemList
             problemSize += problemBuffer[i].size();
         }
-        Info << "problemSize = " << problemSize << endl;
+        if (gpulog_)
+        {
+            Info << "problemSize = " << problemSize << endl;
+        }
 
         std::chrono::steady_clock::time_point stop3 = std::chrono::steady_clock::now();
         std::chrono::duration<double> processingTime3 = std::chrono::duration_cast<std::chrono::duration<double>>(stop3 - start3);

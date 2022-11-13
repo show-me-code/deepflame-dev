@@ -11,7 +11,6 @@ import torch.profiler
 import os
 
 torch.set_printoptions(precision=10)
-print('position 0 in inference.py')
 
 
 class MyGELU(torch.nn.Module):
@@ -67,13 +66,14 @@ try:
         b = data.index('.',a+1)
         moduleName3 = data[a+1:b]
         
-        i = data.index('GPU') 
-        a = data.index(';',i) 
-        switch_GPU = data[i+4:a]
+        i = data.index('GPU')
+        a = data.index(';', i)
+        b = data.rfind(' ',i+1,a)
+        switch_GPU = data[b+1:a]
 
     #load OpenFOAM switch
-    switch_on = ["True", "on", "yes", "y", "t", "any"]
-    switch_off = ["False", "off", "no", "n", "f", "none"]
+    switch_on = ["true", "True", "on", "yes", "y", "t", "any"]
+    switch_off = ["false", "False", "off", "no", "n", "f", "none"]
     if switch_GPU in switch_on:
         device = torch.device("cuda")
         device_ids = range(torch.cuda.device_count())
@@ -111,7 +111,6 @@ try:
     Xstd2 = torch.tensor(setting2.Xstd).unsqueeze(0).to(device=device)
     Ymu2 = torch.tensor(setting2.Ymu).unsqueeze(0).to(device=device)
     Ystd2 = torch.tensor(setting2.Ystd).unsqueeze(0).to(device=device)
-    print('position 1 in inference.py')
 
     #load module  
     model0 = Net()
@@ -130,7 +129,6 @@ try:
         model0 = torch.nn.DataParallel(model0, device_ids=device_ids)
         model1 = torch.nn.DataParallel(model1, device_ids=device_ids)
         model2 = torch.nn.DataParallel(model2, device_ids=device_ids)
-    print('call init')
 except Exception as e:
     print(e.args)
 
