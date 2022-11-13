@@ -35,29 +35,16 @@ zeroDReactor
 
 splittingStrategy   off;
 
-torch           on;
-GPU             on;
-torchModel1     "new_ESH2sub1.pt";
-torchModel2     "new_ESH2sub2.pt";
-torchModel3     "new_ESH2sub3.pt";
-
-torchParameters1
+TorchSettings
 {
-    Tact            700;
-    Qdotact         3e+07;
-    coresPerGPU     4;
-}
-
-torchParameters2
-{
-    Tact            2000;
-    Qdotact         3e+07;
-}
-
-torchParameters3
-{
-    Tact            2000;
-    Qdotact         7e+08;
+    torch on;
+    GPU   off;
+    log  on;
+    torchModel1 "new_ESH2sub1.pt";
+    torchModel2 "new_ESH2sub2.pt";
+    torchModel3 "new_ESH2sub3.pt";
+    coresPerGPU 4;
+    GPUsPerNode 4;
 }
 
 loadbalancing
