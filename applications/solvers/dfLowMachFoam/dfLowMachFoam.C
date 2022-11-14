@@ -46,7 +46,7 @@ Description
 #ifdef USE_LIBTORCH
 #include <torch/script.h>
 #include "DNNInferencer.H"
-#endif 
+#endif
 
 #include "fvCFD.H"
 #include "fluidThermo.H"
@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
     while (runTime.run())
     {
         timeIndex ++;
-        
+
         #include "readDyMControls.H"
 
         if (LTS)
@@ -123,7 +123,7 @@ int main(int argc, char *argv[])
         // --- Pressure-velocity PIMPLE corrector loop
         while (pimple.loop())
         {
-            if (splitting) 
+            if (splitting)
             {
                 #include "YEqn_RR.H"
             }
@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
 
         Info<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
             << "  ClockTime = " << runTime.elapsedClockTime() << " s" << endl;
-        #ifdef USE_PYTORCH
+#ifdef USE_PYTORCH
         if (log_ && torch_)
         {
             Info<< "    allsolveTime = " << chemistry->time_allsolve() << " s"
@@ -212,8 +212,8 @@ int main(int argc, char *argv[])
             << "    vec2ndarrayTime = " << chemistry->time_vec2ndarray() << " s"
             << "    pythonTime = " << chemistry->time_python() << " s"<< nl << endl;
         }
-        #endif
-        #ifdef USE_LIBTORCH
+#endif
+#ifdef USE_LIBTORCH
         if (log_ && torch_)
         {
             Info<< "    allsolveTime = " << chemistry->time_allsolve() << " s"
@@ -224,7 +224,7 @@ int main(int argc, char *argv[])
             << "    DNNinferenceTime = " << chemistry->time_DNNinference() << " s"
             << "    updateSolutionBufferTime = " << chemistry->time_updateSolutionBuffer() << " s" << nl;
         }
-        #endif
+#endif
     }
 
     Info<< "End\n" << endl;
