@@ -85,6 +85,7 @@ int main(int argc, char *argv[])
     double time_monitor_Y=0;
     double time_monitor_E=0;
     double time_monitor_corrThermo=0;
+    double time_monitor_corrDiff=0;
     label timeIndex = 0;
     clock_t start, end;
 
@@ -194,6 +195,8 @@ int main(int argc, char *argv[])
         Info<< "U & p Equations            = " << time_monitor_flow << " s" << endl;
         Info<< "Energy Equations           = " << time_monitor_E << " s" << endl;
         Info<< "thermo & Trans Properties  = " << time_monitor_corrThermo << " s" << endl;
+        Info<< "Diffusion Correction Time  = " << time_monitor_corrDiff << " s" << endl;
+        Info<< "sum Time                   = " << (time_monitor_chem + time_monitor_Y + time_monitor_flow + time_monitor_E + time_monitor_corrThermo + time_monitor_corrDiff) << " s" << endl;
         Info<< "============================================"<<nl<< endl;
 
         Info<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
