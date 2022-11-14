@@ -67,3 +67,5 @@ thirdParty
 libtorch*.zip*
 .DS_Store
 __pycache__/
+lib/
+bin/
