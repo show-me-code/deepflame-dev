@@ -45,7 +45,7 @@ build/
 *.tar
 *.tgz
 *.gtgz
-*.pt
+
 
 cantera_build/
 log.*
@@ -54,7 +54,7 @@ log.*
 dynamicCode/
 postProcessing/
 *.out
-*.json
+
 processor*/
 chemkin/
 *.foam
