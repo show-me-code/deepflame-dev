@@ -1,4 +1,4 @@
-name: Build and Validation
+name: Build and Validation with CPU inference
 on: 
   push:
     branches:
@@ -34,13 +34,18 @@ jobs:
         conda create -n libcantera python=3.8
         conda activate libcantera
         conda install -c cantera libcantera-devel
+        conda install pytorch 
+        conda install pybind11
+        conda install --channel https://conda.anaconda.org/zhaofeng-shu33 easydict        
+        cd /github/home/miniconda3/envs/libcantera/lib
+        ln -s libmkl_rt.so.1 libmkl_rt.so.2
  
-     - name: build_notorch
+     - name: build and validation with CPU inference 
        env: 
         OMPI_ALLOW_RUN_AS_ROOT: 1 
         OMPI_ALLOW_RUN_AS_ROOT_CONFIRM: 1 
         OMPI_MCA_btl_vader_single_copy_mechanism: none
        run: 
-        /bin/bash -c "source ~/miniconda3/etc/profile.d/conda.sh && conda activate libcantera && source /opt/openfoam7/etc/bashrc && . install.sh && cd test && ./Allrun && cmake -B build && cmake --build build && cd build && ctest"    
+        /bin/bash -c "source ~/miniconda3/etc/profile.d/conda.sh && conda activate libcantera && source /opt/openfoam7/etc/bashrc && . configure.sh --use_pytorch && source ./bashrc && . install.sh && cd test && ./Allrun && cmake -B build && cmake --build build && cd build && ctest"    
         
         
