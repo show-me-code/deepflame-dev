@@ -10,6 +10,8 @@ from easydict import EasyDict as edict
 import torch.profiler
 import os
 
+
+
 torch.set_printoptions(precision=10)
 
 
@@ -91,11 +93,12 @@ try:
     setting0 = json2Parser(str("pytorchDNN/"+moduleName1+".json"))
     setting1 = json2Parser(str("pytorchDNN/"+moduleName2+".json"))
     setting2 = json2Parser(str("pytorchDNN/"+moduleName3+".json"))
-    
+    #print(str("pytorchDNN/"+moduleName1+".json"))
     lamda = setting0.power_transform
     delta_t = setting0.delta_t
     dim = setting0.dim
     layers = setting0.layers
+    
 
     Xmu0 = torch.tensor(setting0.Xmu).unsqueeze(0).to(device)
     Xstd0 = torch.tensor(setting0.Xstd).unsqueeze(0).to(device=device)
@@ -116,22 +119,33 @@ try:
     model0 = Net()
     model1 = Net()
     model2 = Net()
-    check_point0 = torch.load(str("pytorchDNN/"+moduleName1+".pt"))
-    check_point1 = torch.load(str("pytorchDNN/"+moduleName2+".pt"))
-    check_point2 = torch.load(str("pytorchDNN/"+moduleName3+".pt"))
+    
+    if torch.cuda.is_available()==False:
+        check_point0 = torch.load(str("pytorchDNN/"+moduleName1+".pt"), map_location='cpu')
+        check_point1 = torch.load(str("pytorchDNN/"+moduleName2+".pt"), map_location='cpu')
+        check_point2 = torch.load(str("pytorchDNN/"+moduleName3+".pt"), map_location='cpu')
+    else:
+        check_point0 = torch.load(str("pytorchDNN/"+moduleName1+".pt"))
+        check_point1 = torch.load(str("pytorchDNN/"+moduleName2+".pt"))
+        check_point2 = torch.load(str("pytorchDNN/"+moduleName3+".pt"))
+    
     model0.load_state_dict(check_point0)
     model1.load_state_dict(check_point1)
     model2.load_state_dict(check_point2)
     model0.to(device=device)
     model1.to(device=device)
     model2.to(device=device)
+
     if len(device_ids) > 1:
         model0 = torch.nn.DataParallel(model0, device_ids=device_ids)
         model1 = torch.nn.DataParallel(model1, device_ids=device_ids)
         model2 = torch.nn.DataParallel(model2, device_ids=device_ids)
 except Exception as e:
     print(e.args)
-
+# print("check_point0")
+# print(check_point0)
+# print("fc.0.weight")
+# print(model0.state_dict()['fc.0.weight'])
 
 def inference(vec0, vec1, vec2):
     '''
@@ -159,7 +173,8 @@ def inference(vec0, vec1, vec2):
             input0_normalized = (input0_bct - Xmu0) / Xstd0
             # input0_normalized[:, -1] = 0 #set Y_AR to 0
             input0_normalized = input0_normalized.float()
-
+            #print("input0_normalized")
+            #print(input0_normalized[0])
             rho1 = input1_[:, 0].unsqueeze(1)
             input1_Y = input1_[:, 3:].clone()
             input1_bct = input1_[:, 1:]
@@ -181,8 +196,13 @@ def inference(vec0, vec1, vec2):
             output0_normalized = model0(input0_normalized)
             output1_normalized = model1(input1_normalized)
             output2_normalized = model2(input2_normalized)
+            #print("output0_normalized")
+            #print(output0_normalized[0])
+            # for name in model0.state_dict():
+            #     print(name)
 
-
+            # print("fc.0.weight")
+            # print(model0.state_dict()['fc.0.weight'])
             # post_processing
             output0_bct = (output0_normalized * Ystd0 + Ymu0) * delta_t + input0_bct
             output0_Y = (lamda * output0_bct[:, 2:] + 1)**(1 / lamda)
