@@ -181,7 +181,7 @@ public IOdictionary
     scalar Qdotact2_;
     scalar Tact3_;
     scalar Qdotact3_;
-    int coresPerGPU_;
+    int coresPerNode_;
 
     // profiling
     double time_allsolve_;

@@ -1,13 +1,13 @@
 #!/bin/sh
 
 print_finish() {
-    if [ $USE_LIBTORCH = true ]; then
+    if [ ! -z "$LIBTORCH_ROOT" ]; then
         echo " = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = ="
         echo "| deepflame (linked with libcantera and libtorch) compiled successfully! Enjoy!! |"
         echo " = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = ="
         return
     fi
-    if [ $USE_PYTORCH = true ]; then
+    if [ ! -z "$PYTHON_LIB_DIR" ]; then
         echo " = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = ="
         echo "| deepflame (linked with libcantera and pytorch) compiled successfully! Enjoy!! | "
         echo " = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = ="
