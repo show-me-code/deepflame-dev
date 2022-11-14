@@ -38,14 +38,13 @@ splittingStrategy    off;
 
 TorchSettings
 {
-    torch            on;
-    GPU              on;
-    log              on;
-    torchModel1      "ESH2-sub1.pt"; 
-    torchModel2      "ESH2-sub2.pt"; 
-    torchModel3      "ESH2-sub3.pt"; 
-    coresPerGPU      4;
-    GPUsPerNode      4;
+    torch on;
+    GPU   off;
+    log  on;
+    torchModel1 "ESH2-sub1.pt"; 
+    torchModel2 "ESH2-sub2.pt"; 
+    torchModel3 "ESH2-sub3.pt"; 
+    coresPerNode 4;
 }
 
 loadbalancing
