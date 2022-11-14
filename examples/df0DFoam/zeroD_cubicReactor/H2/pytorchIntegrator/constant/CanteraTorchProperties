@@ -32,7 +32,7 @@ zeroDReactor
 
 TorchSettings
 {
-    torch off;
+    torch on;
     GPU   off;
     log  on;
     torchModel1 "ESH2-sub1.pt"; 
