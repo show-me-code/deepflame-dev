@@ -1,5 +1,0 @@
-Application blockMesh - case .: completed 
-Application setFields - case .: completed 
-Application decomposePar - case .: completed 
-Application mpirun - case .: ** FOAM FATAL ERROR **
-
