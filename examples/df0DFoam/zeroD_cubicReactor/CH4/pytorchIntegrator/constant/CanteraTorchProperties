@@ -17,7 +17,7 @@ FoamFile
 
 chemistry            on;
 
-CanteraMechanismFile "drm19.yml";
+CanteraMechanismFile "drm19.yaml";
 
 transportModel       "Mix";
 
