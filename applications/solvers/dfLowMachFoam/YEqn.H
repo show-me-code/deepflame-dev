@@ -1,3 +1,5 @@
+start = std::clock();
+
 hDiffCorrFlux = Zero;
 diffAlphaD = Zero;
 sumYDiffError = Zero;
@@ -18,6 +20,10 @@ forAll(Y, i)
     sumYDiffError += chemistry->rhoD(i)*fvc::grad(Y[i]);
 }
 const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
+
+MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
+end = std::clock();
+time_monitor_corrDiff += double(end - start) / double(CLOCKS_PER_SEC);
 
 {
     if (!splitting)

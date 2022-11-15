@@ -129,10 +129,14 @@ public IOdictionary
     volScalarField selectDNN_;
 
 #ifdef USE_LIBTORCH
+    bool useDNN;
+
     Switch torchSwitch_;
+    Switch gpu_;
+    Switch gpulog_;
     DNNInferencer DNNInferencer_;
-    int coresPerGPU;
-    int GPUsPerNode;
+    int coresPerGPU_;
+    int GPUsPerNode_;
 
     word torchModelName_;
     scalarList Xmu_;
@@ -166,14 +170,18 @@ public IOdictionary
 #endif
 
 #ifdef USE_PYTORCH
+    bool useDNN;
+
     Switch torchSwitch_;
+    Switch gpu_;
+    Switch gpulog_;
     scalar Tact1_;
     scalar Qdotact1_;
     scalar Tact2_;
     scalar Qdotact2_;
     scalar Tact3_;
     scalar Qdotact3_;
-    int coresPerGPU;
+    int coresPerNode_;
 
     // profiling
     double time_allsolve_;
@@ -213,9 +221,6 @@ public IOdictionary
         scalar canteraSolve(const DeltaTType& deltaT);
 
 #ifdef USE_LIBTORCH
-        //- DNN solver
-        template<class DeltaTType>
-        scalar solve_DNN(const DeltaTType& deltaT);
 
         //- DNN solver that support the use of GPU (single card & single CPU core)
         template<class DeltaTType>
@@ -223,9 +228,9 @@ public IOdictionary
 
         //- DNN solver that support the use of GPU (multi-cards)
         template<class DeltaTType>
-        scalar solve_DNN_GPU(const DeltaTType& deltaT);
+        scalar solve_DNN(const DeltaTType& deltaT);
 
-        /*============= private methods in solve_CVODE =============*/
+        /*============= private methods in solve_DNN =============*/
         //- get a list of GPU problems to be solved
         template<class DeltaTType>
         DynamicList<GpuProblem> getGPUProblems(const DeltaTType& deltaT);
@@ -246,9 +251,9 @@ public IOdictionary
         scalar solve_DNN_GPU_oneCore(const DeltaTType& deltaT);
 
         template<class DeltaTType>
-        scalar solve_DNN_GPU(const DeltaTType& deltaT);
+        scalar solve_DNN(const DeltaTType& deltaT);
 
-        /*=======================private methods for solve_DNN_GPU=======================*/
+        /*=======================private methods for solve_DNN=======================*/
         //- get a list of GPU problems to be solved
         template<class DeltaTType>
         DynamicList<GpuProblem> getGPUProblems(const DeltaTType& deltaT);
@@ -287,7 +292,7 @@ public IOdictionary
 
         //- Solve the reaction system with DLB algorithm
         template<class DeltaTType>
-        scalar solve_loadBalance(const DeltaTType& deltaT);
+        scalar solve_CVODE(const DeltaTType& deltaT);
 
         //- Output logFiles
         Foam::autoPtr<Foam::OFstream> logFile(const word& name) const
@@ -361,6 +366,16 @@ public:
     double time_updateSolutionBuffer() {return time_updateSolutionBuffer_;}
     double time_vec2ndarray() {return time_vec2ndarray_;}
     double time_python() {return time_python_;}
+#endif
+#ifdef USE_LIBTORCH
+    double time_allsolve() {return time_allsolve_;}
+    double time_submaster() {return time_submaster_;}
+    double time_sendProblem() {return time_sendProblem_;}
+    double time_RecvProblem() {return time_RecvProblem_;}
+    double time_sendRecvSolution() {return time_sendRecvSolution_;}
+    double time_getDNNinputs() {return time_getDNNinputs_;}
+    double time_DNNinference() {return time_DNNinference_;}
+    double time_updateSolutionBuffer() {return time_updateSolutionBuffer_;}
 #endif
 
 };
