@@ -47,6 +47,9 @@ Cantera is used instead of the built-in modules of OpenFOAM to solve the chemica
    :align: center
 
 
+----------------------------
+----------------------------
+
 Sydney Spray Burner
 ------------------------
 
