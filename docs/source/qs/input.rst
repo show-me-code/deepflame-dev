@@ -1,6 +1,6 @@
 Brief Introduction to Inputs
 ======================================
-The dictionary ``CanteraTorchProperties`` is the original dictionay of DeepFlame. It read in netowrk realted parameters and configurations. It typically looks like:
+The dictionary ``CanteraTorchProperties`` is the original dictionay of DeepFlame. It read in network related parameters and configurations. It typically looks like:
 
 .. code-block::
 
