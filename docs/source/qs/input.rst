@@ -28,7 +28,7 @@ The dictionary ``CanteraTorchProperties`` is the original dictionay of DeepFlame
         torchModel1 "ESH2-sub1.pt"; 
         torchModel2 "ESH2-sub2.pt"; 
         torchModel3 "ESH2-sub3.pt"; 
-        coresPerGPU 4;
+        coresPerNode 4;
 
     }
     loadbalancing
