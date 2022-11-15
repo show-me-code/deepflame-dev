@@ -43,13 +43,13 @@ Configure
 
 .. Note:: This depends on your own path for OpenFOAM-7 bashrc.  
 
-If you have installed using ``apt-get install``, use:
+If you have installed using ``apt-get install``, then:
 
 .. code-block:: bash
 
     source /opt/openfoam7/etc/bashrc 
     
-If you compiled from source following the `official guild <https://openfoam.org/download/7-source/>`_, use:
+If you compiled from source following the `official guild <https://openfoam.org/download/7-source/>`_, then:
 
 .. code-block:: bash
 
@@ -71,7 +71,7 @@ If you compiled from source following the `official guild <https://openfoam.org/
     . configure.sh --use_pytorch
     source ./bashrc
 
-.. Note:: Check your environment using ``echo $DF_ROOT`` and you should get the path for the deepflame-dev directory.
+.. Note:: Check your environment using ``echo $DF_ROOT`` and you should get the path for the ``deepflame-dev`` directory.
 
 Build and Install
 -------------------------------
@@ -85,7 +85,7 @@ Finally you can build and install DeepFlame:
     
 .. code-block:: bash
 
-    cd ~/miniconda3/envs/df-pytorch/lib
+    cd ~/miniconda3/envs/deepflame/lib
     ln -s libmkl_rt.so.1 libmkl_rt.so.2
 
 **If you have compiled DeepFlame successfully, you should see the print message in your terminal:**
