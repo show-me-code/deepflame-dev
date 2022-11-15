@@ -53,20 +53,17 @@ try:
     path_r = r"./constant/CanteraTorchProperties"
     with open(path_r, "r") as f:
         data = f.read()
-        i = data.index('torchModel1') 
+        i = data.index('torchModel') 
         a = data.index('"',i) 
-        b = data.index('.',a+1)
-        moduleName1 = data[a+1:b]
+        b = data.index('sub',a) 
+        c = data.index('"',b+1)
+        modelName_split1 = data[a+1:b+3]
+        modelName_split2 = data[b+3:c]
 
-        i = data.index('torchModel2') 
-        a = data.index('"',i) 
-        b = data.index('.',a+1)
-        moduleName2 = data[a+1:b]
-
-        i = data.index('torchModel3') 
-        a = data.index('"',i) 
-        b = data.index('.',a+1)
-        moduleName3 = data[a+1:b]
+        modelPath = str(modelName_split1+modelName_split2)
+        model1Path = str("mechanisms/"+modelPath+"/"+modelName_split1+"1"+modelName_split2+"/checkpoint/")
+        model2Path = str("mechanisms/"+modelPath+"/"+modelName_split1+"2"+modelName_split2+"/checkpoint/")
+        model3Path = str("mechanisms/"+modelPath+"/"+modelName_split1+"3"+modelName_split2+"/checkpoint/")
         
         i = data.index('GPU')
         a = data.index(';', i)
@@ -90,44 +87,51 @@ try:
 
     #glbal variable will only init once when called interperter
     #load parameters from json
-    setting0 = json2Parser(str("pytorchDNN/"+moduleName1+".json"))
-    setting1 = json2Parser(str("pytorchDNN/"+moduleName2+".json"))
-    setting2 = json2Parser(str("pytorchDNN/"+moduleName3+".json"))
-    #print(str("pytorchDNN/"+moduleName1+".json"))
+
+    norm0 = json2Parser(str(model1Path+"norm.json"))
+    norm1 = json2Parser(str(model2Path+"norm.json"))
+    norm2 = json2Parser(str(model3Path+"norm.json"))
+    setting0 = json2Parser(str(model1Path+"settings.json"))
     lamda = setting0.power_transform
     delta_t = setting0.delta_t
     dim = setting0.dim
     layers = setting0.layers
     
 
-    Xmu0 = torch.tensor(setting0.Xmu).unsqueeze(0).to(device)
-    Xstd0 = torch.tensor(setting0.Xstd).unsqueeze(0).to(device=device)
-    Ymu0 = torch.tensor(setting0.Ymu).unsqueeze(0).to(device=device)
-    Ystd0 = torch.tensor(setting0.Ystd).unsqueeze(0).to(device=device)
+    Xmu0 = torch.tensor(norm0.input_mean).unsqueeze(0).to(device=device)
+    Xstd0 = torch.tensor(norm0.input_std).unsqueeze(0).to(device=device)
+    Ymu0 = torch.tensor(norm0.label_mean).unsqueeze(0).to(device=device)
+    Ystd0 = torch.tensor(norm0.label_std).unsqueeze(0).to(device=device)
 
-    Xmu1 = torch.tensor(setting1.Xmu).unsqueeze(0).to(device=device)
-    Xstd1 = torch.tensor(setting1.Xstd).unsqueeze(0).to(device=device)
-    Ymu1 = torch.tensor(setting1.Ymu).unsqueeze(0).to(device=device)
-    Ystd1 = torch.tensor(setting1.Ystd).unsqueeze(0).to(device=device)
+    Xmu1 = torch.tensor(norm1.input_mean).unsqueeze(0).to(device=device)
+    Xstd1 = torch.tensor(norm1.input_std).unsqueeze(0).to(device=device)
+    Ymu1 = torch.tensor(norm1.label_mean).unsqueeze(0).to(device=device)
+    Ystd1 = torch.tensor(norm1.label_std).unsqueeze(0).to(device=device)
 
-    Xmu2 = torch.tensor(setting2.Xmu).unsqueeze(0).to(device=device)
-    Xstd2 = torch.tensor(setting2.Xstd).unsqueeze(0).to(device=device)
-    Ymu2 = torch.tensor(setting2.Ymu).unsqueeze(0).to(device=device)
-    Ystd2 = torch.tensor(setting2.Ystd).unsqueeze(0).to(device=device)
+    Xmu2 = torch.tensor(norm2.input_mean).unsqueeze(0).to(device=device)
+    Xstd2 = torch.tensor(norm2.input_std).unsqueeze(0).to(device=device)
+    Ymu2 = torch.tensor(norm2.label_mean).unsqueeze(0).to(device=device)
+    Ystd2 = torch.tensor(norm2.label_std).unsqueeze(0).to(device=device)
 
-    #load module  
+    #load model  
     model0 = Net()
     model1 = Net()
     model2 = Net()
+
+    path_list=os.listdir(model1Path)
+    for filename in path_list:
+        if os.path.splitext(filename)[1] == '.pt':
+            modelname = filename
+    
     
     if torch.cuda.is_available()==False:
-        check_point0 = torch.load(str("pytorchDNN/"+moduleName1+".pt"), map_location='cpu')
-        check_point1 = torch.load(str("pytorchDNN/"+moduleName2+".pt"), map_location='cpu')
-        check_point2 = torch.load(str("pytorchDNN/"+moduleName3+".pt"), map_location='cpu')
+        check_point0 = torch.load(str(model1Path+modelname), map_location='cpu')
+        check_point1 = torch.load(str(model2Path+modelname), map_location='cpu')
+        check_point2 = torch.load(str(model3Path+modelname), map_location='cpu')
     else:
-        check_point0 = torch.load(str("pytorchDNN/"+moduleName1+".pt"))
-        check_point1 = torch.load(str("pytorchDNN/"+moduleName2+".pt"))
-        check_point2 = torch.load(str("pytorchDNN/"+moduleName3+".pt"))
+        check_point0 = torch.load(str(model1Path+modelname))
+        check_point1 = torch.load(str(model2Path+modelname))
+        check_point2 = torch.load(str(model3Path+modelname))
     
     model0.load_state_dict(check_point0)
     model1.load_state_dict(check_point1)
@@ -142,10 +146,7 @@ try:
         model2 = torch.nn.DataParallel(model2, device_ids=device_ids)
 except Exception as e:
     print(e.args)
-# print("check_point0")
-# print(check_point0)
-# print("fc.0.weight")
-# print(model0.state_dict()['fc.0.weight'])
+
 
 def inference(vec0, vec1, vec2):
     '''
@@ -173,8 +174,7 @@ def inference(vec0, vec1, vec2):
             input0_normalized = (input0_bct - Xmu0) / Xstd0
             # input0_normalized[:, -1] = 0 #set Y_AR to 0
             input0_normalized = input0_normalized.float()
-            #print("input0_normalized")
-            #print(input0_normalized[0])
+
             rho1 = input1_[:, 0].unsqueeze(1)
             input1_Y = input1_[:, 3:].clone()
             input1_bct = input1_[:, 1:]
@@ -196,13 +196,7 @@ def inference(vec0, vec1, vec2):
             output0_normalized = model0(input0_normalized)
             output1_normalized = model1(input1_normalized)
             output2_normalized = model2(input2_normalized)
-            #print("output0_normalized")
-            #print(output0_normalized[0])
-            # for name in model0.state_dict():
-            #     print(name)
-
-            # print("fc.0.weight")
-            # print(model0.state_dict()['fc.0.weight'])
+                                       
             # post_processing
             output0_bct = (output0_normalized * Ystd0 + Ymu0) * delta_t + input0_bct
             output0_Y = (lamda * output0_bct[:, 2:] + 1)**(1 / lamda)

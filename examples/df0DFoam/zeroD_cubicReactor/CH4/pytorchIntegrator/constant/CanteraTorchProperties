@@ -41,11 +41,8 @@ TorchSettings
     torch            on;
     GPU              on;
     log              on;
-    torchModel1      "modeldrm19_0.pt"; 
-    torchModel2      "modeldrm19_1.pt"; 
-    torchModel3      "modeldrm19_2.pt"; 
-    coresPerGPU      4;
-    GPUsPerNode      4;
+    torchModel       ""; 
+    coresPerNode     4;
 }
 
 loadbalancing
