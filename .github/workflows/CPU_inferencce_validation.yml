@@ -7,7 +7,7 @@ on:
     branches:
      - master
 jobs:
-  gpu_build:
+  build:
     runs-on: self-hosted
     if: github.repository_owner == 'deepmodeling'     
     container: 
@@ -27,7 +27,10 @@ jobs:
         export DEBIAN_FRONTEND=noninteractive
         apt-get -y install openfoam7 
         git clone https://github.com/deepmodeling/deepflame-dev.git
-        cd deepflame-dev      
+        cd deepflame-dev
+        git clone https://github.com/JX278/deepcombustion.git
+        cd mechanisms && rm -rf HE04_Hydrogen_ESH2_GMS_sub_20221101 && ln -s ../deepcombustion/DeePCK/HE04_Hydrogen_ESH2_GMS_sub_20221101/ .
+        cd ../    
         wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
         sh Miniconda3-latest-Linux-x86_64.sh -b
         . ~/miniconda3/etc/profile.d/conda.sh
