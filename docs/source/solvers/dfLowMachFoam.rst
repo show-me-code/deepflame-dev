@@ -36,7 +36,7 @@ The case simulates the steady-state 1D freely-propagating flame. The results are
    Numerical setup of one-dimensional premixed flame and the detailed flame structure obtained by our solver 
 
 
-Two-Dimensional Jet Flame
+Two-Dimensional Triple Flame
 --------------------------------------------
 
 **Problem Description**
@@ -68,35 +68,9 @@ This case simulates the evolution of a 2D non-premixed planar jet flame to valid
 
 The initial condition and the evolution of the jet flame are presented in this figure. 
 
-Three-Dimensional reactive Taylor-Green Vortex
----------------------------------------------------
-
-3D reactive Taylor-Green Vortex (TGV) which is a newly established benchmark case for reacting flow DNS codes is simulated here to evaluate the computational performance of our solver. 
-
-The initial fields are set according to a benchmark case established by Abdelsamie et al. The figure below shows contours of vorticity magnitude and temperature as well as the x-direction profiles of species at initial time.
-
-.. figure:: 3D_TGV_initial.png
-   :width: 500
-   :align: center
-
-   Initial contours and profiles of vorticity magnitude, temperature, and species mass fraction for the reactive TGV
-
-**Output** 
-
-The developed TGV are displayed in the figures below. 
-
-.. figure:: 3D_TGV_0.5ms.png
-   :width: 500
-   :align: center
-
-   Contours and profiles of temperature and species mass fraction at t = 0.5 ms
-
-**Reference**
-
-A.Abdelsamie, G.Lartigue, C.E.Frouzakis, D.Thevenin, The taylor-green vortex as a benchmark for high-fidelity combustion simulations using low-mach solvers, Computers & Fluids 223 (2021): 104935.
 
 
-Two-Dimensional reactive Taylor-Green Vortex
+Two-Dimensional Reactive Taylor-Green Vortex
 ---------------------------------------------------
 
 **Problem Description**
@@ -114,14 +88,14 @@ The developed 2D TGV are displayed in the figures below.
    :align: center
 
    Profiles of temperature history and contours of temperature and species mass fraction at t = 0.5 ms (two reference time)
+   
 
-
-Two-Dimensional homogeneous isotropic turbulence (HIT)
+Two-Dimensional Flame in Homogeneous Isotropic Turbulence
 ----------------------------------------------------------
 
 **Problem Description**
 
-2D reacting flow with HIT is simulated here. It can be used to simulate kinetic energy dissapation and qualitatively assess turbulence effects on combustion under the circumstances that 3D simulations are computationally prohibitive.
+2D reacting flow with homogeneous isotropic turbulence (HIT) is simulated here. It can be used to simulate kinetic energy dissapation and qualitatively assess turbulence effects on combustion under the circumstances that 3D simulations are computationally prohibitive.
 
 The domain is initially filled with CH4/air mixture with an equivalence ratio of 0.6 at atmospheric pressure. To initialize 2d HIT simulations, turbulence is generated follwing the procedure described by Vuorinen and Keskinen.
 
@@ -157,3 +131,36 @@ The developed 2D HIT are displayed in the figures below.
 **Reference**
 
 Vuorinen, Ville, and K. Keskinen. "DNSLab: A gateway to turbulent flow simulation in Matlab." Computer Physics Communications 203 (2016): 278-289.
+
+
+   
+Three-Dimensional Reactive Taylor-Green Vortex
+---------------------------------------------------
+
+3D reactive Taylor-Green Vortex (TGV) which is a newly established benchmark case for reacting flow DNS codes is simulated here to evaluate the computational performance of our solver. 
+
+The initial fields are set according to a benchmark case established by Abdelsamie et al. The figure below shows contours of vorticity magnitude and temperature as well as the x-direction profiles of species at initial time.
+
+.. figure:: 3D_TGV_initial.png
+   :width: 500
+   :align: center
+
+   Initial contours and profiles of vorticity magnitude, temperature, and species mass fraction for the reactive TGV
+
+**Output** 
+
+The developed TGV are displayed in the figures below. 
+
+.. figure:: 3D_TGV_0.5ms.png
+   :width: 500
+   :align: center
+
+   Contours and profiles of temperature and species mass fraction at t = 0.5 ms
+
+**Reference**
+
+A.Abdelsamie, G.Lartigue, C.E.Frouzakis, D.Thevenin, The taylor-green vortex as a benchmark for high-fidelity combustion simulations using low-mach solvers, Computers & Fluids 223 (2021): 104935.
+
+
+
+
