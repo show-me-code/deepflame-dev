@@ -25,9 +25,7 @@ The dictionary ``CanteraTorchProperties`` is the original dictionay of DeepFlame
         torch on;
         GPU   off;
         log  on;
-        torchModel1 "ESH2-sub1.pt"; 
-        torchModel2 "ESH2-sub2.pt"; 
-        torchModel3 "ESH2-sub3.pt"; 
+        torchModel "HE04_Hydrogen_ESH2_GMS_sub_20221101"; 
         coresPerNode 4;
 
     }
@@ -42,7 +40,7 @@ In the above example, the meanings of the parameters are:
 * ``CanteraMechanismFile``: the name of the reaction mechanism file.
 * ``transportModel``: the default model is *Mix*, but other models including *UnityLewis* and *Multi* are also availabile.
 * ``constantProperty``: property set to be constant during reaction. It can be set to *pressure* or *volume*.
-* ``odeCoeffs``: the ode torlerance. 1e-15 and 1e-24 are used for network training, so it should keep the same when comparing results with and without DNN. Default values are 1e-6 and 1e-10.
+* ``odeCoeffs``: the ode torlerance. 1e-15 and 1e-24 are used for network training, so it should keep the same when comparing results with and without DNN. Default values are 1e-9 and 1e-15.
 * ``TorchSettings``: all paramenters regarding the usage of DNN. This section will not be read in CVODE cases.
 * ``torch``: the switch used to control the on and off of DNN. If users are running CVODE, this needs to be switched off.
 * ``GPU``: the switch used to control whether GPU or CPU is used to carry out inference.
