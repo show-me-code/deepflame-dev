@@ -9,7 +9,7 @@ To run DeepFlame with DNN, first download the DeepCombustion repository into ``d
     cd $DF_ROOT
     git clone https://github.com/deepcombustion/deepcombustion.git 
     
-Then copy the required DNN model into ``mechanism/``, for example:
+Then copy the required DNN model into ``mechanisms/``, for example:
 
 .. code-block:: bash
 
