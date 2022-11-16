@@ -49,7 +49,7 @@ If you have installed using ``apt-get install``, then:
 
     source /opt/openfoam7/etc/bashrc 
     
-If you compiled from source following the `official guild <https://openfoam.org/download/7-source/>`_, then:
+If you compiled from source following the `official guide <https://openfoam.org/download/7-source/>`_, then:
 
 .. code-block:: bash
 

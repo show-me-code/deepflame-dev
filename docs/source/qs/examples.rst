@@ -4,7 +4,7 @@ Two Examples
 DeepFlame with DNN
 --------------------------
 
-If you choose to use PyTorch as the integratgor and use the compilation flag `--use_pytorch`, you can run examples stored in `$HOME/deepflame-dev/examples/.../pytorchIntegratgor`. To run an example, you first need to source your OpenFOAM:
+If you choose to use PyTorch as the integratgor and use the compilation flag *--use_pytorch*, you can run examples stored in `$HOME/deepflame-dev/examples/.../pytorchIntegratgor`. To run an example, you first need to source your OpenFOAM:
 
 .. code-block:: bash
 
@@ -20,9 +20,9 @@ Next, you can go to the directory of any example case that you want to run. For 
 
 .. code-block:: bash
 
-    cd $HOME/deepflame-dev/examples/zeroD_cubicReactor/H2/pytorchIntegratgor
+    cd $HOME/deepflame-dev/examples/df0DFoam/zeroD_cubicReactor/H2/pytorchIntegratgor
 
-This is an example for the zero-dimensional hydrogen combustion with PyTorch as the integrator. All files needed by DNN are stored in `pytorchDNN` folder, and the inference file is `inference.py`. Configurations regarding DNN are included in `constant/CanteraTorchProperties`.
+This is an example for the zero-dimensional hydrogen combustion with PyTorch as the integrator. Networks used are stored in the *mechanisms* folder, and the inference file is `inference.py`. Configurations regarding DNN are included in `constant/CanteraTorchProperties`.
 
 The case is run by simply typing: 
 
@@ -63,7 +63,7 @@ Next, you can go to the directory of any example case that you want to run. For 
 
 .. code-block:: bash
 
-    cd $HOME/deepflame-dev/examples/zeroD_cubicReactor/H2/cvodeIntegrator
+    cd $HOME/deepflame-dev/examples/df0DFoam/zeroD_cubicReactor/H2/cvodeIntegrator
 
 This is an example for the zero-dimensional hydrogen combustion  with CVODE integrator.
 
