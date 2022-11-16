@@ -28,9 +28,8 @@ jobs:
         apt-get -y install openfoam7 
         git clone https://github.com/deepmodeling/deepflame-dev.git
         cd deepflame-dev
-        git clone https://github.com/JX278/deepcombustion.git
-        cd mechanisms && rm -rf HE04_Hydrogen_ESH2_GMS_sub_20221101 && ln -s ../deepcombustion/DeePCK/HE04_Hydrogen_ESH2_GMS_sub_20221101/ .
-        cd ../    
+        git clone https://github.com/deepcombustion/deepcombustion.git
+        cp -r deepcombustion/DeePCK/Model/HE04_Hydrogen_ESH2_GMS_sub_20221101/ mechanisms/    
         wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
         sh Miniconda3-latest-Linux-x86_64.sh -b
         . ~/miniconda3/etc/profile.d/conda.sh
