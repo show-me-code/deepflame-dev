@@ -146,10 +146,7 @@ try:
         model2 = torch.nn.DataParallel(model2, device_ids=device_ids)
 except Exception as e:
     print(e.args)
-# print("check_point0")
-# print(check_point0)
-# print("fc.0.weight")
-# print(model0.state_dict()['fc.0.weight'])
+
 
 def inference(vec0, vec1, vec2):
     '''
@@ -177,8 +174,7 @@ def inference(vec0, vec1, vec2):
             input0_normalized = (input0_bct - Xmu0) / Xstd0
             # input0_normalized[:, -1] = 0 #set Y_AR to 0
             input0_normalized = input0_normalized.float()
-            #print("input0_normalized")
-            #print(input0_normalized[0])
+
             rho1 = input1_[:, 0].unsqueeze(1)
             input1_Y = input1_[:, 3:].clone()
             input1_bct = input1_[:, 1:]
@@ -200,13 +196,7 @@ def inference(vec0, vec1, vec2):
             output0_normalized = model0(input0_normalized)
             output1_normalized = model1(input1_normalized)
             output2_normalized = model2(input2_normalized)
-            #print("output0_normalized")
-            #print(output0_normalized[0])
-            # for name in model0.state_dict():
-            #     print(name)
-
-            # print("fc.0.weight")
-            # print(model0.state_dict()['fc.0.weight'])
+                                       
             # post_processing
             output0_bct = (output0_normalized * Ystd0 + Ymu0) * delta_t + input0_bct
             output0_Y = (lamda * output0_bct[:, 2:] + 1)**(1 / lamda)
