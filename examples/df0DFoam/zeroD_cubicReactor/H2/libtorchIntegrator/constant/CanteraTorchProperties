@@ -44,7 +44,8 @@ TorchSettings
     torchModel1      "new_ESH2sub1.pt"; 
     torchModel2      "new_ESH2sub2.pt"; 
     torchModel3      "new_ESH2sub3.pt"; 
-    coresPerNode     4;
+    coresPerGPU      4;
+    GPUsPerNode      4;
 }
 
 loadbalancing

@@ -23,11 +23,16 @@ transportModel       "Mix";
 
 odeCoeffs
 {
-    "relTol"         1e-6;
-    "absTol"         1e-10;
+    "relTol"         1e-15;
+    "absTol"         1e-24;
 }
 
 inertSpecie          "N2";
+
+zeroDReactor
+{
+    constantProperty "pressure";
+}
 
 splittingStrategy    off;
 
@@ -39,7 +44,8 @@ TorchSettings
     torchModel1      "new_ESH2sub1.pt"; 
     torchModel2      "new_ESH2sub2.pt"; 
     torchModel3      "new_ESH2sub3.pt"; 
-    coresPerNode     4;
+    coresPerGPU      4;
+    GPUsPerNode      4;
 }
 
 loadbalancing
