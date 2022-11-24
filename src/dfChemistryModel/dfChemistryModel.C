@@ -1359,18 +1359,21 @@ Foam::dfChemistryModel<ThermoType>::getGPUProblems
         {
             problem.DNNid = 0;
             problemList.append(problem);
+            selectDNN_[cellI]=0;
             continue;
         }
         if(((Qdot_[cellI] >= 3e7) && (T_[cellI] < 2000)&&(T_[cellI] >= 700))||((Qdot_[cellI] > 7e8) && T_[cellI] > 2000))  //choose2
         {
             problem.DNNid = 1;
             problemList.append(problem);
+            selectDNN_[cellI]=1;
             continue;
         }
         if  ((Qdot_[cellI] < 7e8) && (T_[cellI] >= 2000) && (Qdot_[cellI]!=0)) //choose3
         {
             problem.DNNid = 2;
             problemList.append(problem);
+            selectDNN_[cellI]=2;
             continue;
         }
 
