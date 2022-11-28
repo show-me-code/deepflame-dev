@@ -6,6 +6,6 @@ cd ${0%/*} || exit 1    # Run from this directory
 
 application=df0DFoam
 
-runApplication blockMesh
-runApplication decomposePar
-runApplication mpirun -np 4 $application -parallel 
+#runApplication blockMesh
+#runApplication decomposePar
+runApplication mpirun -np 8 $application -parallel 
