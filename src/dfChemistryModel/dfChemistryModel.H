@@ -71,6 +71,8 @@ SourceFiles
 #include "LoadBalancer.H"
 #include "OFstream.H"
 #include "IOmanip.H"
+#include "OPstream.H"
+#include "IPstream.H"
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
@@ -194,6 +196,10 @@ public IOdictionary
     double time_updateSolutionBuffer_;
     double time_vec2ndarray_;
     double time_python_;
+
+    //sub communicator list
+    labelList subCommList;
+    label localSubComm; //select local subComm
 #endif
 
     // Load balancing object
@@ -267,6 +273,9 @@ public IOdictionary
         void updateSolutionBuffer(DynamicBuffer<GpuSolution>& solutionBuffer, const double* star,
         const std::vector<label>& outputLength, const std::vector<DynamicBuffer<label>>& cellIDBuffer,
         std::vector<std::vector<label>>& problemCounter);
+
+        //- construct sub communicator
+        void constructSubCommunicator();
 #endif
 
         //- Solve a single ChemistryProblem and put the solution to ChemistrySolution

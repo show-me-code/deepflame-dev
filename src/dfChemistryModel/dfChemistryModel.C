@@ -27,6 +27,7 @@ License
 #include "UniformField.H"
 #include "clockTime.H"
 #include "runtime_assert.H"
+#include <iostream>
 
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
@@ -119,7 +120,7 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
     }
 
     torchSwitch_ = this->subDict("TorchSettings").lookupOrDefault("torch", false);
-    gpu_ = this->subDict("TorchSettings").lookupOrDefault("GPU", false),
+    gpu_ = this->subDict("TorchSettings").lookupOrDefault("GPU", true),
     gpulog_ = this->subDict("TorchSettings").lookupOrDefault("log", false),
 
     torchModelName_ = this->lookupOrDefault("torchModel", word(""));
@@ -165,11 +166,12 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
     {
         useDNN = false;
     }
-    gpu_ = this->subDict("TorchSettings").lookupOrDefault("GPU", false),
-    torchSwitch_ = this->subDict("TorchSettings").lookupOrDefault("torch", false);
-    gpulog_ = this->subDict("TorchSettings").lookupOrDefault("log", false),
+    Info << useDNN << "use DNN" << endl;
+    gpu_ = this->subDict("TorchSettings").lookupOrDefault("GPU", true),
+    torchSwitch_ = this->subDict("TorchSettings").lookupOrDefault("torch", true);
+    gpulog_ = this->subDict("TorchSettings").lookupOrDefault("log", true),
 
-    coresPerNode_ = this->subDict("TorchSettings").lookupOrDefault("coresPerNode", 8);
+    coresPerNode_ = this->subDict("TorchSettings").lookupOrDefault("coresPerNode", 2);
 
     time_allsolve_ = 0;
     time_submaster_ = 0;
@@ -181,6 +183,8 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
     time_updateSolutionBuffer_ = 0;
     time_vec2ndarray_ = 0;
     time_python_ = 0;
+
+    constructSubCommunicator();
 #endif
 
     for(const auto& name : CanteraGas_->speciesNames())
@@ -282,6 +286,43 @@ Foam::dfChemistryModel<ThermoType>::
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
+/*
+construct sub communicator
+select sub master and append rank of sub master : rank of sub master + coresPerNode_ to list
+use list to construct sub communicator
+finally get a sub communicator list, use rank / coresPerNode_ to decide which sub communicator to use
+*/
+template <class ThermoType>
+void Foam::dfChemistryModel<ThermoType>::constructSubCommunicator(){
+    Info << "Constructing subcommunicator" << endl;
+    Info << coresPerNode_ << " coresPerNode" << endl;
+    Info << Pstream::nProcs() << " nProcs" << endl;
+    Info << Pstream::myProcNo() << " myProcNo" << endl;
+
+    labelList subMasterList_;
+    for (label rank = 0; rank < Pstream::nProcs(); rank++)
+    {
+        subMasterList_.append(rank);
+        if (rank % coresPerNode_ == (coresPerNode_ - 1))
+        {
+            label subComm;
+            subComm = UPstream::allocateCommunicator(UPstream::worldComm, subMasterList_, true);
+            subCommList.append(subComm);
+            subMasterList_.clear();
+        }
+
+    }
+
+    if(Pstream::myProcNo() % coresPerNode_ == 0){
+        Info << "DCU " << Pstream::myProcNo() / coresPerNode_ << " is working" << endl;
+        Info << "My Proc No" << Pstream::myProcNo() << endl;
+        Info << "sub comm list is" << subCommList << endl;
+        
+        localSubComm = subCommList[Pstream::myProcNo() / coresPerNode_]; //local comm list start form 1
+        Info << localSubComm << "localSubComm" <<endl;
+
+    }
+}
 
 template<class ThermoType>
 template<class DeltaTType>
@@ -607,6 +648,7 @@ template <class DeltaTType>
 Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
     const DeltaTType &deltaT)
 {
+    
     scalar deltaTMin = great;
     // set the cores slaved by a DCU
     if (!this->chemistry_)
@@ -616,6 +658,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
 
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
     Info << "=== begin solve_DNN === " << endl;
+    Info << Pstream::myProcNo() << "Solving chemistry with DNN" << endl;
     if (gpu_)
     {
         Info << "now DNN inference is conducted on GPU" << endl;
@@ -1043,7 +1086,6 @@ Foam::dfChemistryModel<ThermoType>::solveBuffer
 }
 
 
-
 template <class ThermoType>
 Foam::scalar
 Foam::dfChemistryModel<ThermoType>::updateReactionRates
@@ -1070,7 +1112,6 @@ Foam::dfChemistryModel<ThermoType>::updateReactionRates
 
     return deltaTMin;
 }
-
 
 
 template <class ThermoType>
@@ -1558,9 +1599,20 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
     {
         return deltaTMin;
     }
+    
+    //used to point out which rank is communicated, [0] refer to sub master rank, other refer to slave rank
+    labelList communicationList; 
+    if (Pstream::myProcNo() % coresPerNode_ == 0){
+        for (label i = 0; i < coresPerNode_; i++)
+        {
+            communicationList.append(Pstream::myProcNo() + i);
+        }
+        Info << "communicationList = " << communicationList << endl;
+    }
 
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
     Info << "=== begin solve_DNN === " << endl;
+
     if (gpu_)
     {
         Info << "now DNN inference is conducted on GPU" << endl;
@@ -1570,20 +1622,22 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
         Info << "now DNN inference is conducted on CPU" << endl;
     }
 
-
     /*=============================gather problems=============================*/
     DynamicList<GpuProblem> problemList = getGPUProblems(deltaT);
 
     /*==============================send problems==============================*/
     std::chrono::steady_clock::time_point start2 = std::chrono::steady_clock::now();
 
-    PstreamBuffers pBufs(Pstream::commsTypes::nonBlocking);
+    //PstreamBuffers pBufs(Pstream::commsTypes::nonBlocking);
+    //slave send problem to master, blocking
     if (Pstream::myProcNo() % coresPerNode_) //for slave
     {
-        UOPstream send((Pstream::myProcNo()/coresPerNode_)*coresPerNode_, pBufs);// sending problem to master
+        //UOPstream send((Pstream::myProcNo()/coresPerNode_)*coresPerNode_, pBufs);// sending problem to master
+        //send << problemList;
+        OPstream send(UPstream::commsTypes::scheduled, communicationList[0], 0, 1, localSubComm);
         send << problemList;
     }
-    pBufs.finishedSends();
+    //pBufs.finishedSends();
 
     DynamicBuffer<GpuSolution> solutionBuffer;
 
@@ -1602,13 +1656,17 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
         DynamicBuffer<GpuProblem> problemBuffer(coresPerNode_);//each submaster init a local problemBuffer TODO:rename it
 
         /*==============================gather problems==============================*/
-        problemBuffer[0] = problemList; //problemList of submaster get index 0
+        //problemList of submaster get index 0
+        problemBuffer[0] = problemList; 
         problemSize += problemBuffer[0].size();
 
+        //submaster recv problem from slave
         for (label i = 1; i < coresPerNode_; i++)
         {
-            UIPstream recv(i + Pstream::myProcNo(), pBufs);
-            recv >> problemBuffer[i];  //recv previous send problem and append to problemList
+            IPstream recv(UPstream::commsTypes::scheduled, communicationList[i], 0, 1, localSubComm);
+            recv >> problemBuffer[i];
+            //UIPstream recv(i + Pstream::myProcNo(), pBufs);
+            //recv >> problemBuffer[i];  //recv previous send problem and append to problemList
             problemSize += problemBuffer[i].size();
         }
         if (gpulog_)
@@ -1682,21 +1740,27 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
     std::chrono::steady_clock::time_point start4 = std::chrono::steady_clock::now();
 
     DynamicList<GpuSolution> finalList;
-    PstreamBuffers pBufs2(Pstream::commsTypes::nonBlocking);
+    //PstreamBuffers pBufs2(Pstream::commsTypes::nonBlocking);
+    //for submaster to send solutions to slave
     if (!(Pstream::myProcNo() % coresPerNode_))
     {
         finalList = solutionBuffer[0];
         for (label i = 1; i < coresPerNode_; i++)
         {
-            UOPstream send(i + Pstream::myProcNo(), pBufs2);
+            OPstream send(UPstream::commsTypes::scheduled, communicationList[i], 0, 1, localSubComm);
             send << solutionBuffer[i];
+            //UOPstream send(i + Pstream::myProcNo(), pBufs2);
+            //send << solutionBuffer[i];
         }
     }
-    pBufs2.finishedSends();
+    //pBufs2.finishedSends();
+    //for slave
     if (Pstream::myProcNo() % coresPerNode_)
     {
-        UIPstream recv((Pstream::myProcNo()/coresPerNode_)*coresPerNode_, pBufs2);
+        IPstream recv(UPstream::commsTypes::scheduled, communicationList[0], 0, 1, localSubComm);
         recv >> finalList;
+        //UIPstream recv((Pstream::myProcNo()/coresPerNode_)*coresPerNode_, pBufs2);
+        //recv >> finalList;
     }
 
     std::chrono::steady_clock::time_point stop4 = std::chrono::steady_clock::now();

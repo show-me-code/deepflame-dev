@@ -39,16 +39,17 @@ splittingStrategy    off;
 TorchSettings
 {
     torch            on;
-    GPU              off;
+    GPU              on;
     log              on;
     torchModel       "HE04_Hydrogen_ESH2_GMS_sub_20221101"; 
-    coresPerNode     4;
+    coresPerNode     2;
 }
 
 loadbalancing
 {
     active           true;
     log              false;
+    algorithm        allAverage;
 }
 
 

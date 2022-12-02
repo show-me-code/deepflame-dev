@@ -1,0 +1,18 @@
+{
+    "files.associations": {
+        "dfChemistryModel.C": "cpp",
+        "dfChemistryModel.H": "cpp",
+        "iostream": "cpp",
+        "*.tcc": "cpp",
+        "string": "cpp",
+        "deque": "cpp",
+        "list": "cpp",
+        "unordered_map": "cpp",
+        "unordered_set": "cpp",
+        "vector": "cpp",
+        "system_error": "cpp",
+        "type_traits": "cpp",
+        "chrono": "cpp"
+    },
+    "C_Cpp.dimInactiveRegions": false
+}
