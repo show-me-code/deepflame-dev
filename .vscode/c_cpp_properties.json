@@ -4,7 +4,9 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/opt/openfoam7/src"
+                "/opt/openfoam7/src/**",
+                "/opt/openfoam7/applications/**",
+                
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",
