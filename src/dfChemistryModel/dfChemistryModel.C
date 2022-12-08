@@ -1670,8 +1670,8 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
         problemSize += problemBuffer[0].size();
 
         std::cout << "slave send to = " << communicationList[0] << std::endl;
-        IPstream recv(UPstream::commsTypes::scheduled, 1, 0, 1, localSubComm);
-        std::cout << "sub master recv passed outer loop" << std::endl;
+        //IPstream recv(UPstream::commsTypes::scheduled, 1, 0, 1, localSubComm);
+        //std::cout << "sub master recv passed outer loop" << std::endl;
         //submaster recv problem from slave
         for (label i = 1; i < coresPerNode_; i++)
         {
