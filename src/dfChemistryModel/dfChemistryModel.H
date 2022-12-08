@@ -200,6 +200,7 @@ public IOdictionary
     //sub communicator list
     labelList subCommList;
     label localSubComm; //select local subComm
+    labelListList communicationListList; //communication list for each subComm
 #endif
 
     // Load balancing object

@@ -308,6 +308,7 @@ void Foam::dfChemistryModel<ThermoType>::constructSubCommunicator(){
             label subComm;
             subComm = UPstream::allocateCommunicator(UPstream::worldComm, subMasterList_, true);
             subCommList.append(subComm);
+            communicationListList.append(subMasterList_);
             subMasterList_.clear();
         }
 
@@ -1605,9 +1606,16 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
     if (Pstream::myProcNo() % coresPerNode_ == 0){
         for (label i = 0; i < coresPerNode_; i++)
         {
-            communicationList.append(Pstream::myProcNo() + i);
+            communicationList.append(i); //?
         }
         Info << "communicationList = " << communicationList << endl;
+        /*int communicationListIndex = Pstream::myProcNo() / coresPerNode_;
+        labelList communicationList = communicationListList[communicationListIndex];
+        for (int i = 0; i < 2; i++)
+        {
+            std::cout << "communicationList[" << i << "] = " << communicationList[i] << std::endl;
+        }*/
+        
     }
 
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
@@ -1621,7 +1629,6 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
     {
         Info << "now DNN inference is conducted on CPU" << endl;
     }
-
     /*=============================gather problems=============================*/
     DynamicList<GpuProblem> problemList = getGPUProblems(deltaT);
 
@@ -1634,11 +1641,13 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
     {
         //UOPstream send((Pstream::myProcNo()/coresPerNode_)*coresPerNode_, pBufs);// sending problem to master
         //send << problemList;
+        //std::cout << "slave send to = " << communicationList[0] << std::endl;
+        //OPstream send(UPstream::commsTypes::scheduled, communicationList[0], 0, 1, localSubComm);
         OPstream send(UPstream::commsTypes::scheduled, communicationList[0], 0, 1, localSubComm);
         send << problemList;
     }
     //pBufs.finishedSends();
-
+    std::cout << "Slave send passed" << std::endl;
     DynamicBuffer<GpuSolution> solutionBuffer;
 
     std::chrono::steady_clock::time_point stop2 = std::chrono::steady_clock::now();
@@ -1660,15 +1669,23 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
         problemBuffer[0] = problemList; 
         problemSize += problemBuffer[0].size();
 
+        std::cout << "slave send to = " << communicationList[0] << std::endl;
+        IPstream recv(UPstream::commsTypes::scheduled, 1, 0, 1, localSubComm);
+        std::cout << "sub master recv passed outer loop" << std::endl;
         //submaster recv problem from slave
         for (label i = 1; i < coresPerNode_; i++)
         {
-            IPstream recv(UPstream::commsTypes::scheduled, communicationList[i], 0, 1, localSubComm);
+            
+            std::cout << "CommunicationList = " << communicationList[i] << std::endl;
+            std::cout << "local Sub Comm = " << localSubComm << std::endl;
+            IPstream recv(UPstream::commsTypes::scheduled, 1, 0, 1, localSubComm);
+            std::cout << "sub master recv passed inner loop" << std::endl;
             recv >> problemBuffer[i];
             //UIPstream recv(i + Pstream::myProcNo(), pBufs);
             //recv >> problemBuffer[i];  //recv previous send problem and append to problemList
             problemSize += problemBuffer[i].size();
         }
+        Info << "submaster recv passed" << endl;
         if (gpulog_)
         {
             Info << "problemSize = " << problemSize << endl;
@@ -1753,6 +1770,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
             //send << solutionBuffer[i];
         }
     }
+    Info << "submaster send solutions to slave success" << endl;
     //pBufs2.finishedSends();
     //for slave
     if (Pstream::myProcNo() % coresPerNode_)
@@ -1762,7 +1780,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
         //UIPstream recv((Pstream::myProcNo()/coresPerNode_)*coresPerNode_, pBufs2);
         //recv >> finalList;
     }
-
+    Info << "slave recv solutions from submaster success" << endl;
     std::chrono::steady_clock::time_point stop4 = std::chrono::steady_clock::now();
     std::chrono::duration<double> processingTime4 = std::chrono::duration_cast<std::chrono::duration<double>>(stop4 - start4);
     // std::cout << "SendRecvSolutionTime = " << processingTime4.count() << std::endl;
