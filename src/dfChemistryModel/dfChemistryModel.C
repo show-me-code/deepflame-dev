@@ -313,8 +313,7 @@ void Foam::dfChemistryModel<ThermoType>::constructSubCommunicator(){
         }
 
     }
-
-    if(Pstream::myProcNo() % coresPerNode_ == 0){
+    /*if(Pstream::myProcNo() % coresPerNode_ == 0){
         Info << "DCU " << Pstream::myProcNo() / coresPerNode_ << " is working" << endl;
         Info << "My Proc No" << Pstream::myProcNo() << endl;
         Info << "sub comm list is" << subCommList << endl;
@@ -322,7 +321,7 @@ void Foam::dfChemistryModel<ThermoType>::constructSubCommunicator(){
         localSubComm = subCommList[Pstream::myProcNo() / coresPerNode_]; //local comm list start form 1
         Info << localSubComm << "localSubComm" <<endl;
 
-    }
+    }*/
 }
 
 template<class ThermoType>
@@ -1601,22 +1600,31 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
         return deltaTMin;
     }
     
+    label localSubComm;
+    int index = Pstream::myProcNo() / coresPerNode_;
+    std::cout << index << " = index" << std::endl;
+    localSubComm = subCommList[index];
+    std::cout << localSubComm << " = localSubComm" << std::endl;
     //used to point out which rank is communicated, [0] refer to sub master rank, other refer to slave rank
     labelList communicationList; 
-    if (Pstream::myProcNo() % coresPerNode_ == 0){
-        for (label i = 0; i < coresPerNode_; i++)
+    for (label i = 0; i < coresPerNode_; i++)
         {
             communicationList.append(i); //?
         }
-        Info << "communicationList = " << communicationList << endl;
+    //if (Pstream::myProcNo() % coresPerNode_ == 0){
+    //    for (label i = 0; i < coresPerNode_; i++)
+    //    {
+    //        communicationList.append(i); //?
+    //    }
+    //    Info << "communicationList = " << communicationList << endl;
         /*int communicationListIndex = Pstream::myProcNo() / coresPerNode_;
         labelList communicationList = communicationListList[communicationListIndex];
         for (int i = 0; i < 2; i++)
-        {
+    //    {
             std::cout << "communicationList[" << i << "] = " << communicationList[i] << std::endl;
-        }*/
+    //    }*/
         
-    }
+    //}
 
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
     Info << "=== begin solve_DNN === " << endl;
