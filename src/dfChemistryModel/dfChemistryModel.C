@@ -305,6 +305,7 @@ void Foam::dfChemistryModel<ThermoType>::constructSubCommunicator(){
         subMasterList_.append(rank);
         if (rank % coresPerNode_ == (coresPerNode_ - 1))
         {
+            Info << "subMasterList_ === " << subMasterList_ << endl;
             label subComm;
             subComm = UPstream::allocateCommunicator(UPstream::worldComm, subMasterList_, true);
             subCommList.append(subComm);
@@ -313,15 +314,6 @@ void Foam::dfChemistryModel<ThermoType>::constructSubCommunicator(){
         }
 
     }
-    /*if(Pstream::myProcNo() % coresPerNode_ == 0){
-        Info << "DCU " << Pstream::myProcNo() / coresPerNode_ << " is working" << endl;
-        Info << "My Proc No" << Pstream::myProcNo() << endl;
-        Info << "sub comm list is" << subCommList << endl;
-        
-        localSubComm = subCommList[Pstream::myProcNo() / coresPerNode_]; //local comm list start form 1
-        Info << localSubComm << "localSubComm" <<endl;
-
-    }*/
 }
 
 template<class ThermoType>
@@ -1602,29 +1594,16 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
     
     label localSubComm;
     int index = Pstream::myProcNo() / coresPerNode_;
-    std::cout << index << " = index" << std::endl;
+    //std::cout << index << " = index" << std::endl;
+    //Info << "subCommList is = " << subCommList << endl;
     localSubComm = subCommList[index];
-    std::cout << localSubComm << " = localSubComm" << std::endl;
-    //used to point out which rank is communicated, [0] refer to sub master rank, other refer to slave rank
-    labelList communicationList; 
+    //std::cout << localSubComm << " = localSubComm" << std::endl; 
+    labelList communicationList; //used to point out which rank is communicated, [0] refer to sub master rank, other refer to slave rank
     for (label i = 0; i < coresPerNode_; i++)
-        {
-            communicationList.append(i); //?
-        }
-    //if (Pstream::myProcNo() % coresPerNode_ == 0){
-    //    for (label i = 0; i < coresPerNode_; i++)
-    //    {
-    //        communicationList.append(i); //?
-    //    }
-    //    Info << "communicationList = " << communicationList << endl;
-        /*int communicationListIndex = Pstream::myProcNo() / coresPerNode_;
-        labelList communicationList = communicationListList[communicationListIndex];
-        for (int i = 0; i < 2; i++)
-    //    {
-            std::cout << "communicationList[" << i << "] = " << communicationList[i] << std::endl;
-    //    }*/
-        
-    //}
+    {
+        communicationList.append(i); //?
+    }
+    Info << "communicationList is " << communicationList << endl;
 
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
     Info << "=== begin solve_DNN === " << endl;
@@ -1684,10 +1663,9 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
         for (label i = 1; i < coresPerNode_; i++)
         {
             
-            std::cout << "CommunicationList = " << communicationList[i] << std::endl;
-            std::cout << "local Sub Comm = " << localSubComm << std::endl;
-            IPstream recv(UPstream::commsTypes::scheduled, 1, 0, 1, localSubComm);
-            std::cout << "sub master recv passed inner loop" << std::endl;
+            //std::cout << "CommunicationList = " << communicationList[i] << std::endl;
+            //std::cout << "local Sub Comm = " << localSubComm << std::endl;
+            IPstream recv(UPstream::commsTypes::scheduled, communicationList[i], 0, 1, localSubComm);
             recv >> problemBuffer[i];
             //UIPstream recv(i + Pstream::myProcNo(), pBufs);
             //recv >> problemBuffer[i];  //recv previous send problem and append to problemList
@@ -1780,7 +1758,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
     }
     Info << "submaster send solutions to slave success" << endl;
     //pBufs2.finishedSends();
-    //for slave
+    //to submaster
     if (Pstream::myProcNo() % coresPerNode_)
     {
         IPstream recv(UPstream::commsTypes::scheduled, communicationList[0], 0, 1, localSubComm);
