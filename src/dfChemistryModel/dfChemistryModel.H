@@ -197,9 +197,7 @@ public IOdictionary
     double time_vec2ndarray_;
     double time_python_;
 
-    //sub communicator list
     labelList subCommList;
-    //label localSubComm; //select local subComm
     labelListList communicationListList; //communication list for each subComm
 #endif
 
