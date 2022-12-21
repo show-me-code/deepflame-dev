@@ -768,6 +768,8 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(
 template<class ThermoType>
 void Foam::dfChemistryModel<ThermoType>::correctThermo()
 {
+    psi_.oldTime();
+
     forAll(T_, celli)
     {
         forAll(Y_, i)
