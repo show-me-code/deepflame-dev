@@ -11,7 +11,6 @@ import torch.profiler
 import os
 
 
-
 torch.set_printoptions(precision=10)
 
 
@@ -196,7 +195,7 @@ def inference(vec0, vec1, vec2):
             output0_normalized = model0(input0_normalized)
             output1_normalized = model1(input1_normalized)
             output2_normalized = model2(input2_normalized)
-                                       
+                       
             # post_processing
             output0_bct = (output0_normalized * Ystd0 + Ymu0) * delta_t + input0_bct
             output0_Y = (lamda * output0_bct[:, 2:] + 1)**(1 / lamda)
