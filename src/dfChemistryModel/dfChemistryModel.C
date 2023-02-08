@@ -111,46 +111,6 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
         scalar(0.0)
     )
 {
-#if defined USE_LIBTORCH || defined USE_PYTORCH
-    useDNN = true;
-    if (!Qdot_.typeHeaderOk<volScalarField>())
-    {
-        useDNN = false;
-    }
-
-    torchSwitch_ = this->subDict("TorchSettings").lookupOrDefault("torch", false);
-    gpu_ = this->subDict("TorchSettings").lookupOrDefault("GPU", false),
-    gpulog_ = this->subDict("TorchSettings").lookupOrDefault("log", false),
-
-    time_allsolve_ = 0;
-    time_submaster_ = 0;
-    time_sendProblem_ = 0;
-    time_RecvProblem_ = 0;
-    time_sendRecvSolution_ = 0;
-    time_getDNNinputs_ = 0;
-    time_DNNinference_ = 0;
-    time_updateSolutionBuffer_ = 0;
-    time_getProblems_ = 0;
-
-    // create new communicator for solving cvode
-    labelList subRank;
-    for (size_t rank = 0; rank < Pstream::nProcs(); rank ++)
-    {
-        if (rank % cores_)
-        {
-            subRank.append(rank);
-        }
-    }
-    cvodeComm = UPstream::allocateCommunicator(UPstream::worldComm, subRank, true);
-    if(Pstream::myProcNo() % cores_)
-    {
-        label sub_rank;
-        MPI_Comm_rank(PstreamGlobals::MPICommunicators_[cvodeComm], &sub_rank);
-        std::cout<<"my ProcessNo in worldComm = " << Pstream::myProcNo() << ' '
-        << "my ProcessNo in cvodeComm = "<<Pstream::myProcNo(cvodeComm)<<std::endl;
-    }
-
-#endif
 
 #ifdef USE_LIBTORCH
     torchModelName_ = this->lookupOrDefault("torchModel", word(""));
@@ -191,6 +151,47 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
 
     time_vec2ndarray_ = 0;
     time_python_ = 0;
+#endif
+
+#if defined USE_LIBTORCH || defined USE_PYTORCH
+    useDNN = true;
+    if (!Qdot_.typeHeaderOk<volScalarField>())
+    {
+        useDNN = false;
+    }
+
+    torchSwitch_ = this->subDict("TorchSettings").lookupOrDefault("torch", false);
+    gpu_ = this->subDict("TorchSettings").lookupOrDefault("GPU", false),
+    gpulog_ = this->subDict("TorchSettings").lookupOrDefault("log", false),
+
+    time_allsolve_ = 0;
+    time_submaster_ = 0;
+    time_sendProblem_ = 0;
+    time_RecvProblem_ = 0;
+    time_sendRecvSolution_ = 0;
+    time_getDNNinputs_ = 0;
+    time_DNNinference_ = 0;
+    time_updateSolutionBuffer_ = 0;
+    time_getProblems_ = 0;
+
+    // create new communicator for solving cvode
+    labelList subRank;
+    for (size_t rank = 0; rank < Pstream::nProcs(); rank ++)
+    {
+        if (rank % cores_)
+        {
+            subRank.append(rank);
+        }
+    }
+    cvodeComm = UPstream::allocateCommunicator(UPstream::worldComm, subRank, true);
+    if(Pstream::myProcNo() % cores_)
+    {
+        label sub_rank;
+        MPI_Comm_rank(PstreamGlobals::MPICommunicators_[cvodeComm], &sub_rank);
+        std::cout<<"my ProcessNo in worldComm = " << Pstream::myProcNo() << ' '
+        << "my ProcessNo in cvodeComm = "<<Pstream::myProcNo(cvodeComm)<<std::endl;
+    }
+
 #endif
 
     for(const auto& name : CanteraGas_->speciesNames())
