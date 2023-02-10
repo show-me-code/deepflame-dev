@@ -71,6 +71,7 @@ SourceFiles
 #include "LoadBalancer.H"
 #include "OFstream.H"
 #include "IOmanip.H"
+#include "PstreamGlobals.H"
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
@@ -140,6 +141,7 @@ public IOdictionary
     scalar Qdotact2_;
     scalar Tact3_;
     scalar Qdotact3_;
+    label cvodeComm;
 
     // profiling 
     double time_allsolve_;
@@ -150,6 +152,7 @@ public IOdictionary
     double time_getDNNinputs_;
     double time_DNNinference_;
     double time_updateSolutionBuffer_;
+    double time_getProblems_;
 #endif
 
 #ifdef USE_LIBTORCH
@@ -218,7 +221,7 @@ public IOdictionary
         solveBuffer(RecvBuffer<ChemistryProblem>& problems);
 
         //- Update the reaction rates and heat release rates from a list of solutions
-        scalar updateReactionRates(const RecvBuffer<ChemistrySolution>& solutions);
+        scalar updateReactionRates(const RecvBuffer<ChemistrySolution>& solutions, DynamicList<ChemistrySolution>& submasterODESolutions);
 
         //- Create a load balancer object
         LoadBalancer createBalancer();
@@ -239,7 +242,8 @@ public IOdictionary
         /*============= private methods in solve_DNN =============*/
         //- get a list of GPU problems to be solved
         template<class DeltaTType>
-        DynamicList<GpuProblem> getGPUProblems(const DeltaTType& deltaT);
+        void getGPUProblems(const DeltaTType& deltaT, Foam::DynamicList<GpuProblem>& GPUproblemList,
+        Foam::DynamicList<ChemistryProblem>& CPUproblemList);
 
         //- get the input for DNN inference
         void getDNNinputs(const DynamicBuffer<GpuProblem>& problemBuffer, std::vector<label>& outputlength,
@@ -322,6 +326,7 @@ public:
     double time_allsolve() {return time_allsolve_;}
     double time_submaster() {return time_submaster_;}
     double time_sendProblem() {return time_sendProblem_;}
+    double time_getProblem() {return time_getProblems_;}
     double time_RecvProblem() {return time_RecvProblem_;}
     double time_sendRecvSolution() {return time_sendRecvSolution_;}
     double time_getDNNinputs() {return time_getDNNinputs_;}
