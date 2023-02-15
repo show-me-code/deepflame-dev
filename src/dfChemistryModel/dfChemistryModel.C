@@ -839,26 +839,26 @@ void Foam::dfChemistryModel<ThermoType>::getGPUProblems
         if (((Qdot_[cellI] < 3e7) && (T_[cellI] < 2000) && ( T_[cellI] >= 700)) || (T_[cellI] < 700))//choose1
         {
             // if use CVODE
-            ode_problem.Y = problem.Y;
-            ode_problem.Ti = Ti;
-            ode_problem.pi = pi;
-            ode_problem.rhoi = rhoi;
-            ode_problem.deltaT = deltaT[cellI];
-            ode_problem.cpuTime = cpuTimes_[cellI];
-            ode_problem.cellid = cellI;
-            if (!(Pstream::myProcNo() % cores_)) // submaster
-            {
-                ode_problem.local = false;
-            }
-            CPUproblemList.append(ode_problem);
+            // ode_problem.Y = problem.Y;
+            // ode_problem.Ti = Ti;
+            // ode_problem.pi = pi;
+            // ode_problem.rhoi = rhoi;
+            // ode_problem.deltaT = deltaT[cellI];
+            // ode_problem.cpuTime = cpuTimes_[cellI];
+            // ode_problem.cellid = cellI;
+            // if (!(Pstream::myProcNo() % cores_)) // submaster
+            // {
+            //     ode_problem.local = false;
+            // }
+            // CPUproblemList.append(ode_problem);
             
-            selectDNN_[cellI]=0;
-            continue;
+            // selectDNN_[cellI]=0;
+            // continue;
 
             // if use DNN
-            // problem.DNNid = 0;
-            // GPUproblemList.append(problem);
-            // continue;
+            problem.DNNid = 0;
+            GPUproblemList.append(problem);
+            continue;
         }
         if(((Qdot_[cellI] >= 3e7) && (T_[cellI] < 2000)&&(T_[cellI] >= 700))||((Qdot_[cellI] > 7e8) && T_[cellI] > 2000)) //choose2
         {
