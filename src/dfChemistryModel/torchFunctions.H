@@ -18,15 +18,15 @@ void Foam::dfChemistryModel<ThermoType>::getGPUProblems
         scalar rhoi = rho_[cellI];
 
         // if T < 700, set RR=0
-        if (T_[cellI] < 700)
-        {
-            Qdot_[cellI] = 0;
-            for (int i = 0; i < mixture_.nSpecies(); i++)
-            {
-                RR_[i][cellI] = 0.0;
-            }
-            continue;
-        }
+        // if (T_[cellI] < 700)
+        // {
+        //     Qdot_[cellI] = 0;
+        //     for (int i = 0; i < mixture_.nSpecies(); i++)
+        //     {
+        //         RR_[i][cellI] = 0.0;
+        //     }
+        //     continue;
+        // }
 
         // set problems
         GpuProblem problem(mixture_.nSpecies());
