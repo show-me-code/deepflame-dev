@@ -24,8 +24,15 @@ The deep learning algorithms and models used in the DeepFlame tutorial examples 
 Detailed guide for installation and tutorials is available on [our documentation website](https://deepflame.deepmodeling.com).
 
 ## Features
-New in v0.6.0 (2022/11/14):
+New features as of 2023/03/01:
+- New load balancing algorithm
+- Add support for solving chemical source term simultaneously on GPU (DNN) and CPU (CVODE)
+- Add FGM model
+- Reconstruct dfChemistryModel 
+
+New in v1.0.0 (2022/11/15):
 - Add support for the parallel computation of DNN using libtorch on multiple GPUs 
+- Add TCI model
 
 New in v0.5.0 (2022/10/15):
 - Add support for the parallel computation of DNN via single and multiple GPUs
