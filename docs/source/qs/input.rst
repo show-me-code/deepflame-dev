@@ -47,7 +47,7 @@ In the above example, the meanings of the parameters are:
 * ``torchModel``: name of network.     
 * ``coresPerNode``: If you are using one node on a cluster or using your own PC, set this parameter to the actual number of cores used to run the task. If you are using more than one node on a cluster, set this parameter the total number of cores on one node. The number of GPUs used is auto-detected.
 
-The dictionary ``CanteraTorchProperties`` is the original dictionary of DeepFlame. It reads in network related parameters and configurations. It typically looks like:
+The dictionary ``combustionProperties`` is the original dictionary of DeepFlame. It reads in network related parameters and configurations. It typically looks like:
 
 .. code-block::
 
@@ -63,17 +63,24 @@ The dictionary ``CanteraTorchProperties`` is the original dictionary of DeepFlam
        mixingScale
        {
           type   globalScale;//globalScale,kolmogorovScale,geometriMeanScale,dynamicScale 
-
           globalScaleCoeffs
           {
             Cmix  0.01;
           }
-       }
+ 
+          dynamicScaleCoeffs
+          {
+            ChiType      algebraic;// algebraic; transport;
+          }	
+        }
        chemistryScale
        {
-          type  formationRate;//formationRate,globalConvertion
-          formationRateCoeffs
-          {}
+          type  globalConvertion;//formationRate,globalConvertion
+          globalConvertionCoeffs
+          {
+	       fuel CH4;
+	       oxidizer O2;
+          }
        }
 
     }  
@@ -105,6 +112,7 @@ In the above example, the meanings of the parameters are:
 * ``combustionModel``: the name of the combustion model, alternative models include PaSR, EDC, flareFGM.
 * ``EDCCoeffs, PaSRCoeffs, flareFGMCoeffs``: model cofficients we need to define.
 * ``mixingScale``: turbulent mixing time scale including globalScale,kolmogorovScale,geometriMeanScale,dynamicScale.
+* ``ChiType``: algebraic and transport are available for ChiType when selecting dynamicScale.
 * ``chemistryScale``: chemistry reaction time scale including formationRate,globalConvertion  .
 * ``buffer``: switch for buffer time.
 * ``scaledPV``:the switch is used to determine whether to use scaled progress variables or not.
