@@ -15,7 +15,7 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-combustionModel  EDC;
+combustionModel   PaSR;//EDC; PaSR
 
 EDCCoeffs
 {
@@ -24,7 +24,34 @@ EDCCoeffs
 
 PaSRCoeffs
 {
-   Cmix  0.03;
+   mixingScale
+   {
+      type   globalScale;//globalScale,kolmogorovScale,geometriMeanScale,dynamicScale 
+      
+      globalScaleCoeffs
+      {
+	      Cmix  0.01;
+      } 
+
+      dynamicScaleCoeffs
+      {
+        ChiType      algebraic;//algebraic; transport
+      }	     
+
+   }
+
+   chemistryScale
+   {
+      type  globalConvertion;//formationRate,globalConvertion
+
+      globalConvertionCoeffs
+      {
+	      fuel CH4;
+	      oxidizer O2;
+      }
+
+   }
+
 }
 
 // ************************************************************************* //
