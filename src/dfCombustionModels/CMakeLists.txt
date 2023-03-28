@@ -1,5 +1,5 @@
 project(dfCombustionModels LANGUAGES CXX)
-
+FIND_PACKAGE(MPI REQUIRED)
 #set(INC_DIR R_SEARCH(search_paths))
 
 message(STATUS "header" ${header_dir})
@@ -34,9 +34,10 @@ include_directories(
     ${OpenFOAM_SRC}/meshTools/lnInclude 
     ${DF_SRC}/dfCanteraMixture
     ${PROJECT_SOURCE_DIR}
+    ${OpenFOAM_SRC}/Pstream/mpi
     ${dfcombustion_inc}
     ${dfchemistry_inc}
-
+    ${MPI_INCLUDE_PATH}
     $ENV{CANTERA_ROOT}/include
     #$ENV{WM_DIR}/rules/mplibType 
 )
@@ -75,6 +76,8 @@ libfiniteVolume.so libmeshTools.so )
 target_link_libraries(${PROJECT_NAME} dfCompressibleTurbulenceModels
 dfCanteraMixture
 dfChemistryModel
+${MPI_LIBRARIES}
+$ENV{FOAM_LIBBIN}/$ENV{FOAM_MPI}/libPstream.so
 )
 
 target_link_libraries(${PROJECT_NAME} ${CANTERA_ROOT}/lib/libcantera_shared.so.2)
