@@ -135,11 +135,11 @@ target_link_libraries(${PROJECT_NAME} $ENV{FOAM_LIBBIN}/libfiniteVolume.so libme
 
 target_link_libraries(${PROJECT_NAME} ${CANTERA_ROOT}/lib/libcantera_shared.so.2)
 
-target_link_libraries(${PROJECT_NAME} /home/runze/JX/deepflame-cmake/lib/libdfCanteraMixture.so
-/home/runze/JX/deepflame-cmake/lib/libdfChemistryModel.so
-/home/runze/JX/deepflame-cmake/lib/libdfCanteraMixture.so
-/home/runze/JX/deepflame-cmake/lib/libdfFluidThermophysicalModels.so
-/home/runze/JX/deepflame-cmake/lib/libdfCombustionModels.so
+target_link_libraries(${PROJECT_NAME} ${DF_ROOT}/lib/libdfCanteraMixture.so
+${DF_ROOT}/lib/libdfChemistryModel.so
+${DF_ROOT}/lib/libdfCanteraMixture.so
+${DF_ROOT}/lib/libdfFluidThermophysicalModels.so
+${DF_ROOT}/lib/libdfCombustionModels.so
 )
 link_directories(${OpenFOAM_LIB_DIR} ${OpenFOAM_LIB_DIR}/dummy)
 
