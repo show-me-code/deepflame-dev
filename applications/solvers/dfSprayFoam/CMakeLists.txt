@@ -148,7 +148,7 @@ target_link_libraries(${PROJECT_NAME} $ENV{FOAM_LIBBIN}/libfiniteVolume.so libme
 
 target_link_libraries(${PROJECT_NAME} ${CANTERA_ROOT}/lib/libcantera_shared.so.2)
 
-target_link_libraries(${PROJECT_NAME} /home/runze/JX/deepflame-cmake/lib/libdfCanteraMixture.so
+target_link_libraries(${PROJECT_NAME} ${DF_ROOT}/lib/libdfCanteraMixture.so
 ${CMAKE_INSTALL_PREFIX}/lib/libdfChemistryModel.so
 ${CMAKE_INSTALL_PREFIX}/lib/libdfCanteraMixture.so
 ${CMAKE_INSTALL_PREFIX}/lib/libdfFluidThermophysicalModels.so
@@ -166,7 +166,7 @@ link_directories(${OpenFOAM_LIB_DIR} ${OpenFOAM_LIB_DIR}/$ENV{FOAM_MPI} $ENV{WM_
 
 
 target_link_libraries(${PROJECT_NAME} 
-libPstream.so
+${OpenFOAM_LIB_DIR}/$ENV{FOAM_MPI}/libPstream.so
 ${MPI_LIBRARIES}
 $ENV{WM_THIRD_PARTY_DIR}/platforms/linux64GccDPInt32/lib/openmpi-system/libptscotch.so
 $ENV{WM_THIRD_PARTY_DIR}/platforms/linux64GccDPInt32/lib/openmpi-system/libscotch.so
