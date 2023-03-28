@@ -1,6 +1,9 @@
 
 project(dfChemistryModel LANGUAGES CXX)
+FIND_PACKAGE(MPI REQUIRED)
 
+message(STATUS "MPI include path is " ${MPI_INCLUDE_PATH})
+message(STATUS "MPI libraries " ${MPI_LIBRARIES})
 include_directories(
                     ${dfchemistry_inc}
                     ${OpenFOAM_SRC}/meshTools/lnInclude
@@ -9,6 +12,8 @@ include_directories(
                     ${OpenFOAM_SRC}/TurbulenceModels/turbulenceModels/lnInclude
                     ${OpenFOAM_SRC}/TurbulenceModels/compressible/lnInclude
                     ${dfcantera_inc}
+                    ${MPI_INCLUDE_PATH}
+                    ${OpenFOAM_SRC}/Pstream/mpi
                     ${CANTERA_ROOT}/include
                     )
 
@@ -75,6 +80,7 @@ target_link_libraries(${PROJECT_NAME} ${CANTERA_ROOT}/lib/libcantera_shared.so.2
 target_link_libraries(${PROJECT_NAME} dfFluidThermophysicalModels
 dfCompressibleTurbulenceModels
 dfCanteraMixture
+${MPI_LIBRARIES}
 )
 
 
