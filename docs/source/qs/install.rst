@@ -142,7 +142,7 @@ If ``df-notorch`` not activated (or you have a self-complied libcantera), specif
     . install.sh
 
 
-**2. If you wish to employ the AMGX library for accelerating PDE solving using GPU:
+**3. If you wish to employ the AMGX library for accelerating PDE solving using GPU:**
 
 To begin, you will need to install AMGX. You can find the instructions for installing AMGX on its official website. Follow the instructions provided to install AMGX on your system. Once you have installed AMGX, navigate to the DeepFlame directory and follow the commands below.
 
@@ -154,7 +154,7 @@ To begin, you will need to install AMGX. You can find the instructions for insta
     cd build
     make
 
-After this, two libraries for enabling DeepFlame with AMGX are available in `${DF_ROOT}/src/dfMatrix/solver/amgx/build`.
+After this, two libraries for enabling DeepFlame with AMGX are available in ``${DF_ROOT}/src/dfMatrix/solver/amgx/build``.
 Beforing using AMGX, run:
 
 .. code-block:: bash
@@ -162,4 +162,4 @@ Beforing using AMGX, run:
     export LD_LIBRARY_PATH=${DF_ROOT}/src/dfMatrix/solver/amgx/build:$LD_LIBRARY_PATH
 
 
-If you want to use AMGX, you will need to add configuration files for AMGX for each euqation under `system` folder and name them in the pattern of `amgxpOptions`, `amgxUOptions` . Please refer to the AMGX official website to find out detailed instructions. 
+If you want to use AMGX, you will need to add configuration files for AMGX for each euqation under ``system`` folder and name them in the pattern of ``amgxpOptions``, ``amgxUOptions`` . Please refer to the AMGX official website to find out detailed instructions. 
