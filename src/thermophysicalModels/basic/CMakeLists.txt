@@ -37,7 +37,7 @@ include_directories(
 
 target_link_libraries(${PROJECT_NAME} 
     ${OpenFOAM_LIB_DIR}/libfiniteVolume.so libmeshTools.so libcompressibleTransportModels.so
-    ${CANTERA_ROOT}/lib/libcantera_shared.so.2
+    ${CANTERA_ROOT}/lib/libcantera.so.2
     dfThermophysicalProperties
 )
 

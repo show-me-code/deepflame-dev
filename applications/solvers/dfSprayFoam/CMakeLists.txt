@@ -146,7 +146,7 @@ endif()
 
 target_link_libraries(${PROJECT_NAME} $ENV{FOAM_LIBBIN}/libfiniteVolume.so libmeshTools.so libcompressibleTransportModels.so libturbulenceModels.so libsampling.so libOpenFOAM.so libdynamicFvMesh.so liblagrangian.so libregionModels.so)
 
-target_link_libraries(${PROJECT_NAME} ${CANTERA_ROOT}/lib/libcantera_shared.so.2)
+target_link_libraries(${PROJECT_NAME} ${CANTERA_ROOT}/lib/libcantera.so.2)
 
 target_link_libraries(${PROJECT_NAME}
   ${CMAKE_INSTALL_PREFIX}/lib/libdfChemistryModel.so

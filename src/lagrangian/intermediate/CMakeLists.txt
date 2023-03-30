@@ -1,25 +1,8 @@
 project(dfLagrangianIntermediate LANGUAGES CXX)
-#set the options for the shared library
-set(LINK_FLAGS  "-fuse-ld=bfd -shared -Xlinker --add-needed -Xlinker --no-as-needed")
-
-#set the link options
-set(CMAKE_SHARED_LINKER_FLAGS "${LINK_FLAGS}")
-set(CMAKE_EXE_LINKER_FLAGS "${LINK_FLAGS}")
-
-
-SET(CMAKE_C_COMPILER g++)
-set(PATH_LIB_OPENMPI "openmpi-system")  # Foundation version
-set(DEFINITIONS_COMPILE "-std=c++11 -m64 -Dlinux64 -DWM_ARCH_OPTION=64 
--DWM_DP -DWM_LABEL_SIZE=32 -Wall -Wextra -Wold-style-cast -Wnon-virtual-dtor 
--Wno-unused-parameter -Wno-invalid-offsetof -Wno-attributes -O3  
--DNoRepository -ftemplate-depth-100 -std=c++14 
--Wno-unused-variable -Wno-unused-but-set-variable -Wno-old-style-cast -DOMPI_SKIP_MPICXX  
--pthread
--fPIC -c")
-
 
 # Compiling configure
-add_definitions("${DEFINITIONS_COMPILE}")
+add_definitions("${SHARED_COMPILE_OPTION}")
+
 include_directories(
     ${OpenFOAM_SRC}/lagrangian/basic/lnInclude 
     ${OpenFOAM_SRC}/lagrangian/distributionModels/lnInclude 
@@ -30,7 +13,7 @@ include_directories(
     ${dfthermophysicalprop_inc} 
     ${OpenFOAM_SRC}/thermophysicalModels/thermophysicalProperties/lnInclude 
     ${dfthermophysicalslg_inc} 
-    $ENV{CANTERA_ROOT}/include
+    ${CANTERA_ROOT}/include
     ${dfcantera_inc} 
     ${OpenFOAM_SRC}/transportModels 
     ${OpenFOAM_SRC}/regionModels/regionModel/lnInclude 
@@ -42,31 +25,30 @@ include_directories(
 
 )
 
-set(workDir ${SRC_ORIG}/lagrangian/intermediate)
-set(PARCELS ${CMAKE_CURRENT_SOURCE_DIR}/parcels)
-set(BASEPARCELS ${PARCELS}/baseClasses)
-set(DERIVEDPARCELS ${PARCELS}/derived)
+SET(workDir ${SRC_ORIG}/lagrangian/intermediate)
+SET(PARCELS ${CMAKE_CURRENT_SOURCE_DIR}/parcels)
+SET(BASEPARCELS ${PARCELS}/baseClasses)
+SET(DERIVEDPARCELS ${PARCELS}/derived)
 
-set(CLOUDS ${CMAKE_CURRENT_SOURCE_DIR}/clouds)
-set(BASECLOUDS ${CLOUDS}/baseClasses)
-set(DERIVEDCLOUDS ${CLOUDS}/derived)
-set(KINEMATICPARCEL ${DERIVEDPARCELS}/basicKinematicParcel)
-set(KINEMATICCOLLIDINGPARCEL  ${DERIVEDPARCELS}/basicKinematicCollidingParcel)
-set(THERMOPARCEL  ${DERIVEDPARCELS}/basicThermoParcel)
-set(REACTINGPARCEL  ${DERIVEDPARCELS}/basicReactingParcel)
-set(REACTINGMPPARCEL  ${DERIVEDPARCELS}/basicReactingMultiphaseParcel)
-set(KINEMATICMPPICPARCEL  ${DERIVEDPARCELS}/basicKinematicMPPICParcel)
-set(KINEMATICINJECTION  ${workDir}/submodels/Kinematic/InjectionModel)
-set(THERMOINJECTION  ${workDir}/submodels/Thermodynamic/InjectionModel)
-set(REACTINGMPINJECTION  ${workDir}/submodels/ReactingMultiphase/InjectionModel)
-set(REACTINGINJECTION  ${workDir}/submodels/Reacting/InjectionModel)
-set(MPPICCORRECTIONLIMITING  ${workDir}/submodels/MPPIC/CorrectionLimitingMethods)
-set(MPPICPARTICLESTRESS  ${workDir}/submodels/MPPIC/ParticleStressModels)
-set(MPPICCORRECTIONLIMITING  ${workDir}/submodels/MPPIC/CorrectionLimitingMethods)
-set(MPPICTIMESCALE  ${workDir}/submodels/MPPIC/TimeScaleModels)
-add_library(dfLagrangianIntermediate SHARED
+SET(CLOUDS ${CMAKE_CURRENT_SOURCE_DIR}/clouds)
+SET(BASECLOUDS ${CLOUDS}/baseClasses)
+SET(DERIVEDCLOUDS ${CLOUDS}/derived)
+SET(KINEMATICPARCEL ${DERIVEDPARCELS}/basicKinematicParcel)
+SET(KINEMATICCOLLIDINGPARCEL  ${DERIVEDPARCELS}/basicKinematicCollidingParcel)
+SET(THERMOPARCEL  ${DERIVEDPARCELS}/basicThermoParcel)
+SET(REACTINGPARCEL  ${DERIVEDPARCELS}/basicReactingParcel)
+SET(REACTINGMPPARCEL  ${DERIVEDPARCELS}/basicReactingMultiphaseParcel)
+SET(KINEMATICMPPICPARCEL  ${DERIVEDPARCELS}/basicKinematicMPPICParcel)
+SET(KINEMATICINJECTION  ${workDir}/submodels/Kinematic/InjectionModel)
+SET(THERMOINJECTION  ${workDir}/submodels/Thermodynamic/InjectionModel)
+SET(REACTINGMPINJECTION  ${workDir}/submodels/ReactingMultiphase/InjectionModel)
+SET(REACTINGINJECTION  ${workDir}/submodels/Reacting/InjectionModel)
+SET(MPPICCORRECTIONLIMITING  ${workDir}/submodels/MPPIC/CorrectionLimitingMethods)
+SET(MPPICPARTICLESTRESS  ${workDir}/submodels/MPPIC/ParticleStressModels)
+SET(MPPICCORRECTIONLIMITING  ${workDir}/submodels/MPPIC/CorrectionLimitingMethods)
+SET(MPPICTIMESCALE  ${workDir}/submodels/MPPIC/TimeScaleModels)
 
-
+SET(SOURCES 
 ${BASECLOUDS}/kinematicCloud/kinematicCloud.C
 ${BASECLOUDS}/thermoCloud/thermoCloud.C
 ${BASECLOUDS}/reactingCloud/reactingCloud.C
@@ -161,14 +143,24 @@ ${CMAKE_CURRENT_SOURCE_DIR}/clouds/Templates/KinematicCloud/cloudSolution/cloudS
 ${workDir}/submodels/MPPIC/AveragingMethods/makeAveragingMethods.C
 )
 
+add_library(dfLagrangianIntermediate SHARED ${SOURCES})
+
 
 # dynamic link
-target_link_libraries(${PROJECT_NAME} $ENV{FOAM_LIBBIN}/libcompressibleTransportModels.so libregionModels.so
-libfiniteVolume.so libmeshTools.so liblagrangian.so libdistributionModels.so libincompressibleTransportModels.so libdynamicFvMesh.so libsampling.so
+target_link_libraries(${PROJECT_NAME} ${OpenFOAM_LIB_DIR}/libcompressibleTransportModels.so 
+libregionModels.so
+libfiniteVolume.so 
+libmeshTools.so 
+liblagrangian.so 
+libdistributionModels.so 
+libincompressibleTransportModels.so 
+libdynamicFvMesh.so 
+libsampling.so
 libmeshTools.so
 )
 
-target_link_libraries(${PROJECT_NAME} dfCompressibleTurbulenceModels
+target_link_libraries(${PROJECT_NAME} 
+dfCompressibleTurbulenceModels
 dfCanteraMixture
 dfChemistryModel
 dfFluidThermophysicalModels
@@ -177,12 +169,12 @@ dfSLGThermo
 dfSurfaceFilmModels
 )
 
-target_link_libraries(${PROJECT_NAME} ${CANTERA_ROOT}/lib/libcantera_shared.so.2)
+target_link_libraries(${PROJECT_NAME} ${CANTERA_ROOT}/lib/libcantera.so.2)
 
 
 
 install(TARGETS ${PROJECT_NAME}
     LIBRARY DESTINATION lib
-PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
-GROUP_READ GROUP_WRITE GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
-    )
+    PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+    GROUP_READ GROUP_WRITE GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+)

@@ -91,7 +91,7 @@ add_executable(${PROJECT_NAME} ${PROJECT_SOURCE_DIR}/df0DFoam.C)
 target_link_libraries(${PROJECT_NAME} 
     $ENV{FOAM_LIBBIN}/libfiniteVolume.so libmeshTools.so libcompressibleTransportModels.so 
     libturbulenceModels.so libsampling.so libOpenFOAM.so libdynamicFvMesh.so
-    ${CANTERA_ROOT}/lib/libcantera_shared.so.2
+    ${CANTERA_ROOT}/lib/libcantera.so.2
     ${DF_ROOT}/lib/libdfChemistryModel.so
     ${DF_ROOT}/lib/libdfCanteraMixture.so
     ${DF_ROOT}/lib/libdfFluidThermophysicalModels.so

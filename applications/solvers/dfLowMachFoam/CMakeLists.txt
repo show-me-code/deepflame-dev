@@ -139,18 +139,19 @@ endif()
 
 target_link_libraries(${PROJECT_NAME} $ENV{FOAM_LIBBIN}/libfiniteVolume.so libmeshTools.so libcompressibleTransportModels.so libturbulenceModels.so libsampling.so libOpenFOAM.so )
 
-target_link_libraries(${PROJECT_NAME} ${CANTERA_ROOT}/lib/libcantera_shared.so.2)
+target_link_libraries(${PROJECT_NAME} ${CANTERA_ROOT}/lib/libcantera.so.2)
 
 target_link_libraries(${PROJECT_NAME} 
-  dfCanteraMixture
-  dfChemistryModel
-  dfFluidThermophysicalModels
-  dfCombustionModels
+  ${DF_ROOT}/lib/libdfCanteraMixture.so
+  ${DF_ROOT}/lib/libdfChemistryModel.so
+  ${DF_ROOT}/lib/libdfFluidThermophysicalModels.so
+  ${DF_ROOT}/lib/libdfCombustionModels.so
 )
-link_directories(${OpenFOAM_LIB_DIR} ${OpenFOAM_LIB_DIR}/dummy)
+link_directories(${OpenFOAM_LIB_DIR} ${OpenFOAM_LIB_DIR}/$ENV{FOAM_MPI})
 
 
 target_link_libraries(${PROJECT_NAME} 
+${OpenFOAM_LIB_DIR}/$ENV{FOAM_MPI}/libPstream.so
 ${MPI_LIBRARIES}
 )
 

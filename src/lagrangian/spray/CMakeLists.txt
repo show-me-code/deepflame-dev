@@ -1,26 +1,8 @@
-project(dfLagrangianSpray
-LANGUAGES CXX)
-#set the options for the shared library
-set(LINK_FLAGS  "-fuse-ld=bfd -shared -Xlinker --add-needed -Xlinker --no-as-needed")
-
-#set the link options
-set(CMAKE_SHARED_LINKER_FLAGS "${LINK_FLAGS}")
-set(CMAKE_EXE_LINKER_FLAGS "${LINK_FLAGS}")
-
-
-SET(CMAKE_C_COMPILER g++)
-set(PATH_LIB_OPENMPI "openmpi-system")  # Foundation version
-set(DEFINITIONS_COMPILE "-std=c++11 -m64 -Dlinux64 -DWM_ARCH_OPTION=64 
--DWM_DP -DWM_LABEL_SIZE=32 -Wall -Wextra -Wold-style-cast -Wnon-virtual-dtor 
--Wno-unused-parameter -Wno-invalid-offsetof -Wno-attributes -O3  
--DNoRepository -ftemplate-depth-100 -std=c++14 
--Wno-unused-variable -Wno-unused-but-set-variable -Wno-old-style-cast -DOMPI_SKIP_MPICXX  
--pthread
--fPIC -c")
-
+project(dfLagrangianSpray LANGUAGES CXX)
 
 # Compiling configure
-add_definitions("${DEFINITIONS_COMPILE}")
+add_definitions("${SHARED_COMPILE_OPTION}")
+
 include_directories(
     ${OpenFOAM_SRC}/lagrangian/basic/lnInclude 
     ${dflagrangianinter_inc} 
@@ -35,7 +17,7 @@ include_directories(
     ${dfthermophysicalprop_inc} 
     ${OpenFOAM_SRC}/thermophysicalModels/thermophysicalProperties/lnInclude 
     ${dfthermophysicalslg_inc} 
-    $ENV{CANTERA_ROOT}/include
+    ${CANTERA_ROOT}/include
     ${dfcantera_inc} 
     ${OpenFOAM_SRC}/TurbulenceModels/turbulenceModels/lnInclude 
     ${OpenFOAM_SRC}/TurbulenceModels/incompressible/lnInclude 
@@ -51,21 +33,27 @@ include_directories(
 )
 
 
-set(SPRAYPARCEL ${CMAKE_CURRENT_SOURCE_DIR}/parcels/derived/basicSprayParcel)
+SET(SPRAYPARCEL ${CMAKE_CURRENT_SOURCE_DIR}/parcels/derived/basicSprayParcel)
 
-
-add_library(dfLagrangianSpray SHARED
-
+SET(SOURCES
 ${CMAKE_CURRENT_SOURCE_DIR}/clouds/baseClasses/sprayCloud/sprayCloud.C
-
 ${SPRAYPARCEL}/defineBasicSprayParcel.C
 ${SPRAYPARCEL}/makeBasicSprayParcelSubmodels.C
 )
 
+add_library(dfLagrangianSpray SHARED ${SOURCES})
+
 
 # dynamic link
-target_link_libraries(${PROJECT_NAME} $ENV{FOAM_LIBBIN}/libcompressibleTransportModels.so libturbulenceModels.so
-libfiniteVolume.so libmeshTools.so liblagrangian.so libdistributionModels.so libincompressibleTransportModels.so libdynamicFvMesh.so libsampling.so
+target_link_libraries(${PROJECT_NAME} ${OpenFOAM_LIB_DIR}/libcompressibleTransportModels.so 
+libturbulenceModels.so
+libfiniteVolume.so 
+libmeshTools.so 
+liblagrangian.so 
+libdistributionModels.so 
+libincompressibleTransportModels.so 
+libdynamicFvMesh.so 
+libsampling.so
 )
 
 target_link_libraries(${PROJECT_NAME} dfCompressibleTurbulenceModels
@@ -77,7 +65,7 @@ dfSLGThermo
 dfLagrangianTurbulence
 )
 
-target_link_libraries(${PROJECT_NAME} ${CANTERA_ROOT}/lib/libcantera_shared.so.2)
+target_link_libraries(${PROJECT_NAME} ${CANTERA_ROOT}/lib/libcantera.so.2)
 
 
 
