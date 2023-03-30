@@ -148,18 +148,18 @@ target_link_libraries(${PROJECT_NAME} $ENV{FOAM_LIBBIN}/libfiniteVolume.so libme
 
 target_link_libraries(${PROJECT_NAME} ${CANTERA_ROOT}/lib/libcantera_shared.so.2)
 
-target_link_libraries(${PROJECT_NAME} ${DF_ROOT}/lib/libdfCanteraMixture.so
-${CMAKE_INSTALL_PREFIX}/lib/libdfChemistryModel.so
-${CMAKE_INSTALL_PREFIX}/lib/libdfCanteraMixture.so
-${CMAKE_INSTALL_PREFIX}/lib/libdfFluidThermophysicalModels.so
-${CMAKE_INSTALL_PREFIX}/lib/libdfCombustionModels.so
-${CMAKE_INSTALL_PREFIX}/lib/libdfLagrangianIntermediate.so
-${CMAKE_INSTALL_PREFIX}/lib/libdfLagrangianTurbulence.so
-${CMAKE_INSTALL_PREFIX}/lib/libdfLagrangianSpray.so
-${CMAKE_INSTALL_PREFIX}/lib/libdfThermophysicalProperties.so
-${CMAKE_INSTALL_PREFIX}/lib/libdfCompressibleTurbulenceModels.so
-${CMAKE_INSTALL_PREFIX}/lib/libdfSLGThermo.so
-${CMAKE_INSTALL_PREFIX}/lib/libdfSurfaceFilmModels.so
+target_link_libraries(${PROJECT_NAME}
+  ${CMAKE_INSTALL_PREFIX}/lib/libdfChemistryModel.so
+  ${CMAKE_INSTALL_PREFIX}/lib/libdfCanteraMixture.so
+  ${CMAKE_INSTALL_PREFIX}/lib/libdfFluidThermophysicalModels.so
+  ${CMAKE_INSTALL_PREFIX}/lib/libdfCombustionModels.so
+  ${CMAKE_INSTALL_PREFIX}/lib/libdfLagrangianIntermediate.so
+  ${CMAKE_INSTALL_PREFIX}/lib/libdfLagrangianTurbulence.so
+  ${CMAKE_INSTALL_PREFIX}/lib/libdfLagrangianSpray.so
+  ${CMAKE_INSTALL_PREFIX}/lib/libdfThermophysicalProperties.so
+  ${CMAKE_INSTALL_PREFIX}/lib/libdfCompressibleTurbulenceModels.so
+  ${CMAKE_INSTALL_PREFIX}/lib/libdfSLGThermo.so
+  ${CMAKE_INSTALL_PREFIX}/lib/libdfSurfaceFilmModels.so
 )
 
 link_directories(${OpenFOAM_LIB_DIR} ${OpenFOAM_LIB_DIR}/$ENV{FOAM_MPI} $ENV{WM_THIRD_PARTY_DIR}/platforms/linux64GccDPInt32/lib/openmpi-system)
