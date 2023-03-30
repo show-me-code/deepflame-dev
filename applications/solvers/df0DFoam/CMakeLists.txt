@@ -2,26 +2,42 @@ cmake_minimum_required(VERSION 3.5)
 project(df0DFoam LANGUAGES CXX)
 FIND_PACKAGE(MPI REQUIRED)
 
-message(STATUS "MPI include path is " ${MPI_INCLUDE_PATH})
-message(STATUS "MPI libraries " ${MPI_LIBRARIES})
-
-
 # Check valid OpenFOAM
 if(DEFINED ENV{WM_PROJECT_DIR})
 	MESSAGE(STATUS "OpenFOAM: " $ENV{WM_PROJECT_DIR})
 else()
 	message(FATAL_ERROR "OpenFOAM is not sourced")
 endif(DEFINED ENV{WM_PROJECT_DIR})
-set(OpenFOAM_VERSION $ENV{WM_PROJECT_VERSION}) 
-set(OpenFOAM_DIR $ENV{WM_PROJECT_DIR})
-set(OpenFOAM_LIB_DIR $ENV{FOAM_LIBBIN})
-set(OpenFOAM_SRC $ENV{FOAM_SRC})
 
-set(DF_ROOT $ENV{DF_ROOT})
-set(DF_SRC ${DF_ROOT}/src)
-set(SRC_ORIG ${DF_ROOT}/src_orig)
+if(DEFINED ENV{CANTERA_ROOT})
+	MESSAGE(STATUS "libcantera: " $ENV{CANTERA_ROOT})
+  SET(CANTERA_ROOT $ENV{CANTERA_ROOT})
+else()
+	message(FATAL_ERROR "libcantera directory is not specified")
+endif(DEFINED ENV{CANTERA_ROOT}) 
 
+# define variables
+SET(OpenFOAM_LIB_DIR $ENV{FOAM_LIBBIN})
+SET(OpenFOAM_SRC $ENV{FOAM_SRC})
 
+SET(DF_ROOT $ENV{DF_ROOT})
+SET(DF_SRC ${DF_ROOT}/src)
+SET(SRC_ORIG ${DF_ROOT}/src_orig)
+
+# set compilation options
+SET(CMAKE_EXE_LINKER_FLAGS "-fuse-ld=bfd -Xlinker --add-needed -Xlinker --no-as-needed")
+
+SET(CMAKE_C_COMPILER g++)
+SET(PATH_LIB_OPENMPI "openmpi-system")  # Foundation version
+SET(EXE_COMPILE_OPTION "-std=c++11 -m64 -Dlinux64 -DWM_ARCH_OPTION=64 
+-DWM_DP -DWM_LABEL_SIZE=32 -Wall -Wextra -Wold-style-cast -Wnon-virtual-dtor 
+-Wno-unused-parameter -Wno-invalid-offsetof -Wno-attributes -O3  
+-DNoRepository -ftemplate-depth-100 -std=c++14 
+-Wno-unused-variable -Wno-unused-but-set-variable -Wno-old-style-cast -DOMPI_SKIP_MPICXX  
+-pthread -fPIC")
+add_definitions("${EXE_COMPILE_OPTION}")
+
+# add header files
 FUNCTION(R_SEARCH search_path return_list)
     FILE(GLOB_RECURSE new_list ${search_path}/*.H)
     SET(dir_list "")
@@ -31,10 +47,7 @@ FUNCTION(R_SEARCH search_path return_list)
     ENDFOREACH()
     LIST(REMOVE_DUPLICATES dir_list)
     SET(${return_list} ${dir_list} PARENT_SCOPE)
-ENDFUNCTION(R_SEARCH)
-
-
-       
+ENDFUNCTION(R_SEARCH)  
 
 R_SEARCH(${DF_SRC}/dfCombustionModels dfcombustion_inc)
 R_SEARCH(${DF_SRC}/dfCanteraMixture dfcantera_inc)
@@ -50,53 +63,10 @@ R_SEARCH(${DF_SRC}/TurbulenceModels dfturbulence_inc)
 R_SEARCH(${DF_SRC}/dynamicMesh dfnewdynamic_inc)
 R_SEARCH(${DF_SRC}/dynamicFvMesh dffvdynamic_inc)
 
-
-# Check valid libcantera
-if(DEFINED ENV{CANTERA_ROOT})
-	MESSAGE(STATUS "libcantera: " $ENV{CANTERA_ROOT})
-  set(CANTERA_ROOT $ENV{CANTERA_ROOT})
-else()
-	message(FATAL_ERROR "libcantera directory is not specified")
-endif(DEFINED ENV{CANTERA_ROOT}) 
-
-
-
 include_directories(
-                    ${OpenFOAM_SRC}/finiteVolume/lnInclude
-                   
-                    ${OpenFOAM_SRC}/OSspecific/POSIX/lnInclude
-                    ${OpenFOAM_SRC}/OpenFOAM/lnInclude
-                    )
-
-
-link_directories(${OpenFOAM_LIB_DIR} ${OpenFOAM_LIB_DIR}/dummy )
-
-set(CMAKE_INSTALL_PREFIX ${DF_ROOT})
-
-#set the options for the shared library
-set(LINK_FLAGS  "-fuse-ld=bfd -Xlinker --add-needed -Xlinker --no-as-needed")
-
-#set the link options
-set(CMAKE_SHARED_LINKER_FLAGS "${LINK_FLAGS}")
-set(CMAKE_EXE_LINKER_FLAGS "${LINK_FLAGS}")
-
-
-SET(CMAKE_C_COMPILER g++)
-set(PATH_LIB_OPENMPI "openmpi-system")  # Foundation version
-set(DEFINITIONS_COMPILE "-std=c++11 -m64 -Dlinux64 -DWM_ARCH_OPTION=64 
--DWM_DP -DWM_LABEL_SIZE=32 -Wall -Wextra -Wold-style-cast -Wnon-virtual-dtor 
--Wno-unused-parameter -Wno-invalid-offsetof -Wno-attributes -O3  
--DNoRepository -ftemplate-depth-100 -std=c++14 
--Wno-unused-variable -Wno-unused-but-set-variable -Wno-old-style-cast -DOMPI_SKIP_MPICXX  
--pthread -fPIC")
-
-
-# Compiling configure
-add_definitions("${DEFINITIONS_COMPILE}")
-
-FIND_PACKAGE(MPI REQUIRED)
-
-include_directories(
+    ${OpenFOAM_SRC}/finiteVolume/lnInclude
+    ${OpenFOAM_SRC}/OSspecific/POSIX/lnInclude
+    ${OpenFOAM_SRC}/OpenFOAM/lnInclude
     ${OpenFOAM_SRC}/transportModels/compressible/lnInclude 
     ${OpenFOAM_SRC}/thermophysicalModels/basic/lnInclude 
     ${OpenFOAM_SRC}/TurbulenceModels/turbulenceModels/lnInclude 
@@ -115,9 +85,20 @@ include_directories(
     ${PROJECT_SOURCE_DIR}
 )
 
-
+# add execution
 add_executable(${PROJECT_NAME} ${PROJECT_SOURCE_DIR}/df0DFoam.C)
 
+target_link_libraries(${PROJECT_NAME} 
+    $ENV{FOAM_LIBBIN}/libfiniteVolume.so libmeshTools.so libcompressibleTransportModels.so 
+    libturbulenceModels.so libsampling.so libOpenFOAM.so libdynamicFvMesh.so
+    ${CANTERA_ROOT}/lib/libcantera_shared.so.2
+    ${DF_ROOT}/lib/libdfChemistryModel.so
+    ${DF_ROOT}/lib/libdfCanteraMixture.so
+    ${DF_ROOT}/lib/libdfFluidThermophysicalModels.so
+    ${DF_ROOT}/lib/libdfCombustionModels.so
+    $ENV{FOAM_LIBBIN}/openmpi-system/libPstream.so
+    ${MPI_LIBRARIES}
+)
 
 if(DEFINED ENV{PYTHON_INC_DIR})
   add_definitions(-DUSE_PYTORCH)
@@ -131,30 +112,6 @@ if(DEFINED ENV{PYTHON_INC_DIR})
   message(STATUS "pybind libraries" ${Python_LIBRARIES})
 endif()
 
-
-target_link_libraries(${PROJECT_NAME} $ENV{FOAM_LIBBIN}/libfiniteVolume.so libmeshTools.so libcompressibleTransportModels.so libturbulenceModels.so libsampling.so libOpenFOAM.so libdynamicFvMesh.so)
-
-target_link_libraries(${PROJECT_NAME} ${CANTERA_ROOT}/lib/libcantera_shared.so.2)
-
-target_link_libraries(${PROJECT_NAME} ${DF_ROOT}/lib/libdfCanteraMixture.so
-${DF_ROOT}/lib/libdfChemistryModel.so
-${DF_ROOT}/lib/libdfCanteraMixture.so
-${DF_ROOT}/lib/libdfFluidThermophysicalModels.so
-${DF_ROOT}/lib/libdfCombustionModels.so
-)
-link_directories(${OpenFOAM_LIB_DIR} ${OpenFOAM_LIB_DIR}/dummy)
-
-
-target_link_libraries(${PROJECT_NAME} 
-$ENV{FOAM_LIBBIN}/openmpi-system/libPstream.so
-${MPI_LIBRARIES}
-)
-
-
-#set_target_properties(${PROJECT_NAME}
-#     PROPERTIES
-#     LINK_OPTIONS "-Xlinker --add-needed -Xlinker --no-as-needed"
-#     )
-
-
+# install
+set(CMAKE_INSTALL_PREFIX ${DF_ROOT})
 install(TARGETS ${PROJECT_NAME} DESTINATION bin)

@@ -18,7 +18,7 @@ add_library(dfCanteraMixture SHARED
 )
 
 #set the options for the shared library
-set(LINK_FLAGS  "-fuse-ld=bfd -shared -Xlinker --add-needed -Xlinker --no-as-needed")
+set(CMAKE_SHARED_LINKER_FLAGS  "-fuse-ld=bfd -shared -Xlinker --add-needed -Xlinker --no-as-needed")
 
 #set the link options
 set(CMAKE_SHARED_LINKER_FLAGS "${LINK_FLAGS}")
