@@ -24,11 +24,15 @@ The deep learning algorithms and models used in the DeepFlame tutorial examples 
 Detailed guide for installation and tutorials is available on [our documentation website](https://deepflame.deepmodeling.com).
 
 ## Features
-New features as of 2023/03/01:
-- New load balancing algorithm
-- Add support for solving chemical source term simultaneously on GPU (DNN) and CPU (CVODE)
+New in v1.1.0 (2023/03/31):
 - Add FGM model
+- Add GPU-compatible linear solver [AmgX](https://github.com/NVIDIA/AMGX) (adopt from [petsc4Foam](https://develop.openfoam.com/modules/external-solver) and [FOAM2CSR](https://gitlab.hpc.cineca.it/openfoam/foam2csr))
+- Add new load balancing algorithm
+- Add support for solving chemical source term simultaneously on GPU (DNN) and CPU (CVODE)
+- Add support for compilation using CMake
+- Improve DNN solving procedure when using pure CPU
 - Reconstruct dfChemistryModel 
+- Update chemical and mixing time scale models in PaSR combustion model
 
 New in v1.0.0 (2022/11/15):
 - Add support for the parallel computation of DNN using libtorch on multiple GPUs 
