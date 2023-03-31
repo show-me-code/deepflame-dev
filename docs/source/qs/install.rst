@@ -163,3 +163,38 @@ Beforing using AMGX, run:
 
 
 If you want to use AMGX, you will need to add configuration files for AMGX for each euqation under ``system`` folder and name them in the pattern of ``amgxpOptions``, ``amgxUOptions`` . Please refer to the AMGX official website to find out detailed instructions. 
+
+
+**4. If you wish to install DeepFlame with CMake**
+
+.. Note:: This is still under developement.
+
+You will need to follow the same procedures to install prerequisites and configure DeepFlame.
+
+.. code-block:: bash
+    
+    cd deepflame-dev
+    . configure.sh --use_pytorch
+    source ./bashrc
+
+
+After this, first install libraries:
+
+.. code-block:: bash
+
+    cd $DF_ROOT
+    cmake -B build
+    cd build
+    make install
+
+Now if go to ``$DF_ROOT/lib``, libraries should be ready. 
+Compilition of solvers are separated. Choose the solver you want to use and then go to the directory and build it. For example,
+
+
+.. code-block:: bash
+
+    cd $DF_ROOT/applications/solvers/dfLowMachFoam
+    cmake -B build
+    cd build
+    make install
+
