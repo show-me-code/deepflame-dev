@@ -35,6 +35,7 @@ intersphinx_disabled_domains = ['std']
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = 'sphinx_rtd_theme'
+html_logo = 'DeepFlameLOGO.jpg'
 
 
 # -- Options for EPUB output
