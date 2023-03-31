@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 project(df0DFoam LANGUAGES CXX)
 FIND_PACKAGE(MPI REQUIRED)
 
-# Check valid OpenFOAM
+# Check valid thirdParty
 if(DEFINED ENV{WM_PROJECT_DIR})
 	MESSAGE(STATUS "OpenFOAM: " $ENV{WM_PROJECT_DIR})
 else()
