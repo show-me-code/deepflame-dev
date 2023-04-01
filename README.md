@@ -26,7 +26,7 @@ Detailed guide for installation and tutorials is available on [our documentation
 ## Features
 New in v1.1.0 (2023/03/31):
 - Add FGM model
-- Add GPU-compatible linear solver [AmgX](https://github.com/NVIDIA/AMGX) (adopt from [petsc4Foam](https://develop.openfoam.com/modules/external-solver) and [FOAM2CSR](https://gitlab.hpc.cineca.it/openfoam/foam2csr))
+- Add GPU-compatible linear solver [AmgX](https://github.com/NVIDIA/AMGX) (adopted from [petsc4Foam](https://develop.openfoam.com/modules/external-solver) and [FOAM2CSR](https://gitlab.hpc.cineca.it/openfoam/foam2csr))
 - Add new load balancing algorithm
 - Add support for solving chemical source term simultaneously on GPU (DNN) and CPU (CVODE)
 - Add support for compilation using CMake
