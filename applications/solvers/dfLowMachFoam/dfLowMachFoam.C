@@ -59,6 +59,8 @@ Description
 #include "basicThermo.H"
 #include "CombustionModel.H"
 
+#include "dfMatrix.H"
+
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 int main(int argc, char *argv[])
@@ -96,6 +98,139 @@ int main(int argc, char *argv[])
         #include "compressibleCourantNo.H"
         #include "setInitialDeltaT.H"
     }
+
+    #include "createdfSolver.H"
+
+//     double time_permutate_Field_Variable_CPU=0;
+// double time_permutate_Field_Variable_GPU=0;
+// double time_construct_Mesh_Variable=0;
+// double time_construct_Field_Variable=0;
+// start = std::clock(); // start construct Mesh Variable
+// // extract mesh variable from OpenFoam
+// const labelUList& owner = mesh.owner();
+// const labelUList& neighbour = mesh.neighbour();
+// int num_cells = mesh.nCells();
+// int num_surfaces = neighbour.size();
+// double rdelta_t = 1/1e-6;
+
+// // initialize variables
+// // - the pre-permutated and post-permutated interpolation weight list
+// std::vector<double> h_weight_vec_init(2*num_surfaces),h_weight_vec(2*num_surfaces);
+// // - the pre-permutated and post-permutated flux (phi) list
+// std::vector<double> h_phi_vec_init(2*num_surfaces),h_phi_vec(2*num_surfaces);
+// // - the pre-permutated and post-permutated cell face vector list
+// std::vector<double> h_surface_vector_vec_init(2*num_surfaces*3),h_surface_vector_vec(2*num_surfaces*3);
+// // - the size of off-diagnal entries
+// int offDiag_bytes = 2*num_surfaces*sizeof(double);
+// // - the device pointer to rho_new, rho_old, velocity_old, pressure and volume list
+// double *d_rho_new = nullptr, *d_rho_old = nullptr, *d_velocity_old = nullptr, 
+// *d_pressure = nullptr, *d_volume = nullptr;
+// // - the device pointer to the pre-permutated and post-permutated interpolation weight list
+// double *d_weight_init = nullptr, *d_weight = nullptr;
+// // - the device pointer to the pre-permutated and post-permutated flux (phi) list
+// double *d_phi_init = nullptr, *d_phi = nullptr;
+// // - the device pointer to the pre-permutated and post-permutated cell face vector list
+// double *d_surface_vector_init = nullptr, *d_surface_vector = nullptr;
+// // - the device pointer to the permutated index list
+// int *d_permedIndex = NULL;
+// // - allocate memory on device
+// cudaMalloc((void **)&d_weight_init, offDiag_bytes);
+// cudaMalloc((void **)&d_surface_vector_init, 3*offDiag_bytes);
+// cudaMalloc((void **)&d_phi_init, offDiag_bytes);
+// cudaMalloc((void **)&d_weight, offDiag_bytes);
+// cudaMalloc((void **)&d_surface_vector, 3*offDiag_bytes);
+// cudaMalloc((void **)&d_phi, offDiag_bytes);
+// cudaMalloc((void **)&d_permedIndex, offDiag_bytes);
+
+// /************************construct mesh variables****************************/
+// // - h_csr_row_index & h_csr_diag_index
+// std::vector<int> h_mtxEntry_perRow_vec(num_cells);
+// std::vector<int> h_csr_diag_index_vec(num_cells);
+// std::vector<int> h_csr_row_index_vec(num_cells + 1, 0);
+
+// for (int faceI = 0; faceI < num_surfaces; faceI++)
+// {
+//     h_csr_diag_index_vec[neighbour[faceI]]++;
+//     h_mtxEntry_perRow_vec[neighbour[faceI]]++;
+//     h_mtxEntry_perRow_vec[owner[faceI]]++;
+// }
+// // - consider diagnal element in each row
+// std::transform(h_mtxEntry_perRow_vec.begin(), h_mtxEntry_perRow_vec.end(), h_mtxEntry_perRow_vec.begin(), [](int n)
+//     {return n + 1;});
+// // - construct h_csr_row_index & h_csr_diag_index
+// std::partial_sum(h_mtxEntry_perRow_vec.begin(), h_mtxEntry_perRow_vec.end(), h_csr_row_index_vec.begin()+1);
+// int *h_csr_row_index = h_csr_row_index_vec.data();
+// int *h_csr_diag_index = h_csr_diag_index_vec.data();
+
+// // - h_csr_col_index
+// std::vector<int> rowIndex(2*num_surfaces + num_cells), colIndex(2*num_surfaces + num_cells), diagIndex(num_cells);
+// std::iota(diagIndex.begin(), diagIndex.end(), 0);
+// // initialize the RowIndex (rowIndex of lower + upper + diagnal)
+// std::copy(&neighbour[0], &neighbour[0] + num_surfaces, rowIndex.begin());
+// std::copy(&owner[0], &owner[0] + num_surfaces, rowIndex.begin() + num_surfaces);
+// std::copy(diagIndex.begin(), diagIndex.end(), rowIndex.begin() + 2*num_surfaces);
+// // initialize the ColIndex (colIndex of lower + upper + diagnal)
+// std::copy(&owner[0], &owner[0] + num_surfaces, colIndex.begin());
+// std::copy(&neighbour[0], &neighbour[0] + num_surfaces, colIndex.begin() + num_surfaces);
+// std::copy(diagIndex.begin(), diagIndex.end(), colIndex.begin() + 2*num_surfaces);
+
+// // - construct hashTable for sorting
+// std::multimap<int,int> rowColPair;
+// for (int i = 0; i < 2*num_surfaces+num_cells; i++)
+// {
+//     rowColPair.insert(std::make_pair(rowIndex[i], colIndex[i]));
+// }
+// // - sort
+// std::vector<std::pair<int, int>> globalPerm(rowColPair.begin(), rowColPair.end());
+// std::sort(globalPerm.begin(), globalPerm.end(), []
+// (const std::pair<int, int>& pair1, const std::pair<int, int>& pair2){
+// if (pair1.first != pair2.first) {
+//     return pair1.first < pair2.first;
+// } else {
+//     return pair1.second < pair2.second;
+// }
+// });
+
+// std::vector<int> h_csr_col_index_vec;
+// std::transform(globalPerm.begin(), globalPerm.end(), std::back_inserter(h_csr_col_index_vec), []
+//     (const std::pair<int, int>& pair) {
+//     return pair.second;
+// });
+// int *h_csr_col_index = h_csr_col_index_vec.data();
+
+// /************************construct permutation list****************************/
+// std::vector<int> offdiagRowIndex(2*num_surfaces), permIndex(2*num_surfaces);
+// // - initialize the offdiagRowIndex (rowIndex of lower + rowIndex of upper)
+// std::copy(&neighbour[0], &neighbour[0] + num_surfaces, offdiagRowIndex.begin());
+// std::copy(&owner[0], &owner[0] + num_surfaces, offdiagRowIndex.begin() + num_surfaces);
+
+// // - initialize the permIndex (0, 1, ..., 2*num_surfaces)
+// std::iota(permIndex.begin(), permIndex.end(), 0);
+
+// // - construct hashTable for sorting
+// std::multimap<int,int> permutation;
+// for (int i = 0; i < 2*num_surfaces; i++)
+// {
+//     permutation.insert(std::make_pair(offdiagRowIndex[i], permIndex[i]));
+// }
+// // - sort 
+// std::vector<std::pair<int, int>> permPair(permutation.begin(), permutation.end());
+// std::sort(permPair.begin(), permPair.end(), []
+// (const std::pair<int, int>& pair1, const std::pair<int, int>& pair2){
+//     if (pair1.first != pair2.first) {
+//         return pair1.first < pair2.first;
+//     } else {
+//         return pair1.second < pair2.second;
+//     }
+// });
+// // - form permedIndex list
+// std::vector<int> permedIndex;
+// std::transform(permPair.begin(), permPair.end(), std::back_inserter(permedIndex), []
+//     (const std::pair<int, int>& pair) {
+//     return pair.second;
+// });
+// end = std::clock();// end construct Mesh Variable
+// time_construct_Mesh_Variable += double(end - start) / double(CLOCKS_PER_SEC);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
