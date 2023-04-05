@@ -59,6 +59,8 @@ Description
 #include "basicThermo.H"
 #include "CombustionModel.H"
 
+#include "dfMatrix.H"
+
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 int main(int argc, char *argv[])
@@ -96,6 +98,8 @@ int main(int argc, char *argv[])
         #include "compressibleCourantNo.H"
         #include "setInitialDeltaT.H"
     }
+
+    #include "createdfSolver.H"
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
