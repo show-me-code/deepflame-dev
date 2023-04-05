@@ -243,24 +243,6 @@ dfMatrix::dfMatrix(int num_surfaces, int num_cells, int num_boundary_faces, int 
 : num_cells(num_cells), num_faces(num_surfaces*2), num_surfaces(num_surfaces),
   num_boundary_faces(num_boundary_faces)
 {
-    // 
-    // h_A_csr_row_index = new int[csr_row_index_bytes];
-    // h_A_csr_col_index = new int[csr_col_index_bytes];
-    // h_A_csr_diag_index = new int[cell_index_bytes];
-    
-    // 
-    // double* h_rho_old = new double[cell_bytes];
-    // double* h_rho_new = new double[cell_bytes];
-    // double* h_volume = new double[cell_bytes];
-    // double* h_pressure = new double[cell_bytes];
-    // double* h_velocity_old = new double[cell_vec_bytes];
-    // double* h_weight = new double[face_bytes];
-    // double* h_weight_init = new double[face_bytes];
-    // double* h_phi = new double[face_bytes];
-    // double* h_phi_init = new double[face_bytes];
-    // double* h_face_vector = new double[face_vec_bytes];
-    // double* h_face_vector_init = new double[face_vec_bytes];
-
     // resize vector
     h_weight_vec_init.resize(num_faces);
     h_weight_vec.resize(num_faces);
