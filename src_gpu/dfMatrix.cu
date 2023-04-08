@@ -3,7 +3,7 @@
 __global__ void fvm_ddt_kernel(int num_cells, int num_faces, const double rdelta_t,
         const int* csr_row_index, const int* csr_diag_index,
         const double* rho_old, const double* rho_new, const double* volume, const double* velocity_old,
-        const double* A_csr_input, const double* b_input, double* A_csr_output, double* b_output) {
+        const double* A_csr_input, const double* b_input, double* A_csr_output, double* b_output, double* psi) {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index >= num_cells) return;
 
@@ -22,6 +22,10 @@ __global__ void fvm_ddt_kernel(int num_cells, int num_faces, const double rdelta
     b_output[num_cells * 0 + index] = b_input[num_cells * 0 + index] + ddt_part_term * velocity_old[index * 3 + 0];
     b_output[num_cells * 1 + index] = b_input[num_cells * 1 + index] + ddt_part_term * velocity_old[index * 3 + 1];
     b_output[num_cells * 2 + index] = b_input[num_cells * 2 + index] + ddt_part_term * velocity_old[index * 3 + 2];
+
+    psi[num_cells * 0 + index] = velocity_old[index * 3 + 0];
+    psi[num_cells * 1 + index] = velocity_old[index * 3 + 1];
+    psi[num_cells * 2 + index] = velocity_old[index * 3 + 2];
 }
 
 __global__ void fvm_div_internal(int num_cells, int num_faces,
@@ -239,11 +243,12 @@ __global__ void add_fvMatrix_kernel(int num_cells, int num_faces,
 // constructor (construct mesh variable)
 dfMatrix::dfMatrix(){}
 dfMatrix::dfMatrix(int num_surfaces, int num_cells, int num_boundary_faces, int & num_boundary_cells_output,
-    const int *neighbour, const int *owner, std::vector<int> boundary_cell_id_init)
-: num_cells(num_cells), num_faces(num_surfaces*2), num_surfaces(num_surfaces),
+    const int *neighbour, const int *owner, std::vector<int> boundary_cell_id_init, const std::string &modeStr,
+    const std::string &cfgFile)
+: num_cells(num_cells), num_faces(num_surfaces*2), num_surfaces(num_surfaces), num_iteration(0),
   num_boundary_faces(num_boundary_faces)
-{
-    // resize vector
+{   
+    // resize vectors
     h_weight_vec_init.resize(num_faces);
     h_weight_vec.resize(num_faces);
     h_phi_vec_init.resize(num_faces);
@@ -268,6 +273,10 @@ dfMatrix::dfMatrix(int num_surfaces, int num_cells, int num_boundary_faces, int 
     csr_col_index_bytes = (num_cells + num_faces) * sizeof(int);
     csr_value_bytes = (num_cells + num_faces) * sizeof(double);
     csr_value_vec_bytes = (num_cells + num_faces) * 3 * sizeof(double);
+
+    h_A_csr = new double[csr_value_vec_bytes];
+    h_b = new double[cell_vec_bytes];
+    h_psi = new double[cell_vec_bytes];
 
     /************************construct mesh variables****************************/
     /**
@@ -494,6 +503,7 @@ dfMatrix::dfMatrix(int num_surfaces, int num_cells, int num_boundary_faces, int 
 
     checkCudaErrors(cudaMalloc((void**)&d_A_csr, csr_value_vec_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_b, cell_vec_bytes));
+    checkCudaErrors(cudaMalloc((void**)&d_psi, cell_vec_bytes));
     total_bytes += (boundary_face_bytes + boundary_face_vec_bytes * 3);
 
     checkCudaErrors(cudaMalloc((void**)&d_turbSrc_A, csr_value_bytes));
@@ -512,6 +522,11 @@ dfMatrix::dfMatrix(int num_surfaces, int num_cells, int num_boundary_faces, int 
     checkCudaErrors(cudaMemcpyAsync(d_A_csr_diag_index, h_A_csr_diag_index, cell_index_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_cell_offset, h_boundary_cell_offset, (num_boundary_cells+1) * sizeof(int), cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_cell_id, h_boundary_cell_id, boundary_face_index_bytes, cudaMemcpyHostToDevice, stream));
+
+    // construct AmgXSolver
+    UxSolver = new AmgXSolver(modeStr, cfgFile);
+    UySolver = new AmgXSolver(modeStr, cfgFile);
+    UzSolver = new AmgXSolver(modeStr, cfgFile);
 }
 
 dfMatrix::~dfMatrix()
@@ -539,7 +554,7 @@ void dfMatrix::fvm_ddt(double *rho_old, double *rho_new, const double* volume,
     printf("CUDA kernel fvm_ddt launch with %d blocks of %d threads\n", blocks_per_grid, threads_per_block);
     fvm_ddt_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_faces, rdelta_t,
           d_A_csr_row_index, d_A_csr_diag_index,
-          d_rho_old, d_rho_new, d_volume, d_velocity_old, d_A_csr, d_b, d_A_csr, d_b);
+          d_rho_old, d_rho_new, d_volume, d_velocity_old, d_A_csr, d_b, d_A_csr, d_b, d_psi);
      // Synchronize stream
     checkCudaErrors(cudaStreamSynchronize(stream));
 }
@@ -680,9 +695,6 @@ void dfMatrix::add_fvMatrix(double* turbSrc_low, double* turbSrc_diag, double* t
 
 void dfMatrix::print()
 {
-    h_A_csr = new double[csr_value_vec_bytes];
-    h_b = new double[cell_vec_bytes];
-
     checkCudaErrors(cudaMemcpyAsync(h_A_csr, d_A_csr, csr_value_vec_bytes, cudaMemcpyDeviceToHost, stream));
     checkCudaErrors(cudaMemcpyAsync(h_b, d_b, cell_vec_bytes, cudaMemcpyDeviceToHost, stream));
 
@@ -694,7 +706,184 @@ void dfMatrix::print()
     
     for (int i = 0; i < num_cells * 3; i++)
         fprintf(stderr, "h_b[%d]: %.15lf\n", i, h_b[i]);
+
+    char *input_file = "of_output.txt";
+    FILE *fp = fopen(input_file, "rb+");
+    if (fp == NULL) {
+        fprintf(stderr, "Failed to open input file: %s!\n", input_file);
+    }
+    int readfile = 0;
+    double *of_b = new double[3*num_cells];
+    double *of_A = new double[2*num_surfaces + num_cells];
+    readfile = fread(of_b, num_cells * 3 * sizeof(double), 1, fp);
+    readfile = fread(of_A, (2*num_surfaces + num_cells) * sizeof(double), 1, fp);
+
+    std::vector<double> h_A_of_init_vec(num_cells+2*num_surfaces);
+    std::copy(of_A, of_A + num_cells+2*num_surfaces, h_A_of_init_vec.begin());
+
+    std::vector<double> h_A_of_vec_1mtx(2*num_surfaces + num_cells, 0);
+    for (int i = 0; i < 2*num_surfaces + num_cells; i++)
+    {
+        h_A_of_vec_1mtx[i] = h_A_of_init_vec[tmpPermutatedList[i]];
+    }
+    for (int i = 0; i < (2*num_surfaces + num_cells); i++)
+        fprintf(stderr, "h_A_of_vec_1mtx[%d]: %.15lf\n", i, h_A_of_vec_1mtx[i]);
+
+    std::vector<double> h_A_of_vec((2*num_surfaces + num_cells)*3);
+    for (int i =0; i < 3; i ++)
+    {
+        std::copy(h_A_of_vec_1mtx.begin(), h_A_of_vec_1mtx.end(), h_A_of_vec.begin()+i*(2*num_surfaces + num_cells));
+    }
+
+    // b
+    std::vector<double> h_b_of_init_vec(3*num_cells);
+    std::copy(of_b, of_b + 3*num_cells, h_b_of_init_vec.begin());
+    std::vector<double> h_b_of_vec;
+    for (int i = 0; i < 3*num_cells; i+=3)
+    {
+        h_b_of_vec.push_back(h_b_of_init_vec[i]);
+    }
+    // fill RHS_y
+    for (int i = 1; i < 3*num_cells; i+=3)
+    {
+        h_b_of_vec.push_back(h_b_of_init_vec[i]);
+    }
+    // fill RHS_z
+    for (int i = 2; i < 3*num_cells; i+=3)
+    {
+        h_b_of_vec.push_back(h_b_of_init_vec[i]);
+    }
+    for (int i = 0; i < 3*num_cells; i++)
+        fprintf(stderr, "h_b_of_vec[%d]: %.15lf\n", i, h_b_of_vec[i]);
 }
 
-void dfMatrix::solve(){}
+// void dfMatrix::solve(const std::string &cfgFile)
+// {
+//     // checkCudaErrors(cudaMemcpyAsync(h_A_csr, d_A_csr, csr_value_vec_bytes, cudaMemcpyDeviceToHost, stream));
+//     // checkCudaErrors(cudaMemcpyAsync(h_b, d_b, cell_vec_bytes, cudaMemcpyDeviceToHost, stream));
+//     checkCudaErrors(cudaMemcpyAsync(h_psi, d_psi, cell_vec_bytes, cudaMemcpyDeviceToHost, stream));
+//     /**
+//      * @brief initialize AmgXSolver
+//      */
+//     // - setMode
+    
+//     // - initAmgX(cfgFile)
+//     // initialize AmgX
+//     AMGX_SAFE_CALL(AMGX_initialize());
+//     // intialize AmgX plugings
+//     AMGX_SAFE_CALL(AMGX_initialize_plugins());
+//     // let AmgX to handle errors returned
+//     AMGX_SAFE_CALL(AMGX_install_signal_handler());
+//     // create an AmgX configure object
+//     AMGX_config_handle cfg = nullptr;
+//     AMGX_SAFE_CALL(AMGX_config_create_from_file(&cfg, cfgFile.c_str()));
+//     // let AmgX handle returned error codes internally
+//     AMGX_SAFE_CALL(AMGX_config_add_parameters(&cfg, "exception_handling=1"));
+//     // initialize rsrc to nullptr;
+//     AMGX_resources_handle rsrc = nullptr;
+//     // create an AmgX resource object, only the first instance is in charge
+//     // if (solver_instance_count == 1) 
+//     AMGX_resources_create_simple(&rsrc, cfg); // remember to set deviceID
 
+//     // create AmgX vector object for unknowns and RHS
+//     AMGX_vector_handle AmgXP = nullptr;
+//     AMGX_vector_handle AmgXRHS = nullptr;
+//     AMGX_Mode mode = AMGX_mode_dDDI;
+//     AMGX_vector_create(&AmgXP, rsrc, mode);
+//     AMGX_vector_create(&AmgXRHS, rsrc, mode);
+
+//     // create AmgX matrix object for unknowns and RHS
+//     AMGX_matrix_handle AmgXA = nullptr;
+//     AMGX_matrix_create(&AmgXA, rsrc, mode);
+
+//     // bind the matrix A to the solver
+//     AMGX_solver_handle solver = nullptr;
+//     AMGX_solver_create(&solver, rsrc, mode, cfg);   
+
+//     int ring;
+//     // obtain the default number of rings based on current configuration
+//     AMGX_config_get_default_number_of_rings(cfg, &ring);
+
+//     AMGX_matrix_upload_all(AmgXA, num_cells, (num_cells + num_faces), 1, 1, d_A_csr_row_index, d_A_csr_col_index,
+//         d_A_csr, nullptr);
+
+//     AMGX_solver_setup(solver, AmgXA);
+    
+
+//     // bind 
+//     AMGX_vector_bind(AmgXP, AmgXA);
+//     AMGX_vector_bind(AmgXP, AmgXA);
+
+//     // create an AmgX solver object
+
+//     /**
+//      * @brief amgx.initialiseMatrixComms(Amat);
+//      */
+
+//     /**
+//      * @brief amgx.setOperator
+//      */
+//     AMGX_vector_upload(AmgXRHS, num_cells, 1, d_b);
+//     AMGX_vector_upload(AmgXP, num_cells, 1, d_psi);
+
+//     // Solve
+//     AMGX_solver_solve(solver, AmgXRHS, AmgXP);
+//     AMGX_SOLVE_STATUS status;
+//     AMGX_solver_get_status(solver, &status);
+
+//     if (status != AMGX_SOLVE_SUCCESS)
+//     {
+//         fprintf(stderr, "AmgX solver failed to solve the system! "
+//                         "The error code is %d.\n",
+//                 status);
+//     }
+//     // Download data from device
+//     double * h_psi_solved;
+//     h_psi_solved = new double[cell_vec_bytes];
+//     AMGX_vector_download(AmgXP, h_psi_solved);
+//     for (int i = 0; i < num_cells; i++)
+//     {
+//         fprintf(stderr, "h_psi_solved[%d] = %lf\n", i, h_psi_solved[i]);
+//     }
+
+// }
+
+void dfMatrix::solve()
+{
+    // for (size_t i = 0; i < num_cells; i++)
+    //     fprintf(stderr, "h_velocity_old[%d]: (%.15lf, %.15lf, %.15lf)\n", i, h_velocity_old[3*i], 
+    //     h_velocity_old[3*i + 1], h_velocity_old[3*i + 2]);
+    // constructor AmgXSolver at first interation
+    int nNz = num_cells + num_faces; // matrix entries
+    if (num_iteration == 0) // first interation
+    {
+        printf("Initializing AmgX Linear Solver\n");
+        UxSolver->setOperator(num_cells, nNz, d_A_csr_row_index, d_A_csr_col_index, d_A_csr);
+        UySolver->setOperator(num_cells, nNz, d_A_csr_row_index, d_A_csr_col_index, d_A_csr + nNz);
+        UzSolver->setOperator(num_cells, nNz, d_A_csr_row_index, d_A_csr_col_index, d_A_csr + 2*nNz);
+    }
+    else
+    {
+        UxSolver->updateOperator(num_cells, nNz, d_A_csr);
+        UySolver->updateOperator(num_cells, nNz, d_A_csr + nNz);
+        UzSolver->updateOperator(num_cells, nNz, d_A_csr + 2*nNz);
+    }
+    UxSolver->solve(num_cells, d_psi, d_b);
+    UxSolver->solve(num_cells, d_psi + num_cells, d_b + num_cells);
+    UxSolver->solve(num_cells, d_psi + 2*num_cells, d_b + 2*num_cells);
+    num_iteration ++;
+
+    checkCudaErrors(cudaMemcpy(h_psi, d_psi, cell_vec_bytes, cudaMemcpyDeviceToHost));
+    // for (size_t i = 0; i < num_cells; i++)
+    //     fprintf(stderr, "h_velocity_after[%d]: (%.15lf, %.15lf, %.15lf)\n", i, h_psi[i], 
+    //     h_psi[num_cells + i], h_psi[num_cells*2 + i]);
+}
+void dfMatrix::updatePsi(double* Psi)
+{
+    for (size_t i = 0; i < num_cells; i++)
+    {
+        Psi[i*3] = h_psi[i];
+        Psi[i*3 + 1] = h_psi[num_cells + i];
+        Psi[i*3 + 2] = h_psi[num_cells*2 + i];
+    }
+}

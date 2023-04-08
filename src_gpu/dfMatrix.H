@@ -10,6 +10,8 @@
 #include <map>
 #include <iostream>
 
+#include "AmgXSolver.H"
+
 static const char *_cudaGetErrorEnum(cudaError_t error) {
   return cudaGetErrorName(error);
 }
@@ -126,23 +128,32 @@ private:
     size_t csr_value_vec_bytes;
 
     // extra matrix information
-    double *h_A_csr = nullptr, *h_b = nullptr;
-    double *d_A_csr = nullptr, *d_b = nullptr;
     double *d_turbSrc_A = nullptr, *d_turbSrc_b = nullptr;
     std::vector<double> h_turbSrc_init_mtx_vec, h_turbSrc_init_1mtx;
     std::vector<double> h_turbSrc_init_src_vec, h_turbSrc_src_vec;
     std::vector<int> tmpPermutatedList;
+
+    double *h_A_csr = nullptr, *h_b = nullptr, *h_psi = nullptr;
+    double *d_A_csr = nullptr, *d_b = nullptr, *d_psi = nullptr;
 
     /**
      * @brief cuda functions
      */
     cudaStream_t stream;
 
+    /**
+     * @brief AmgX functions
+     */
+    AmgXSolver* UxSolver = nullptr, *UySolver = nullptr, *UzSolver = nullptr;
+    int num_iteration;
+
+
 
 public:
     dfMatrix();
     dfMatrix(int num_surfaces, int num_cells, int num_boundary_faces, int &num_boundary_cells_output,
-    const int *neighbour, const int *owner, std::vector<int> boundary_cell_id_init);
+    const int *neighbour, const int *owner, std::vector<int> boundary_cell_id_init,
+    const std::string &modeStr, const std::string &cfgFile);
     ~dfMatrix();
 
     void print();
@@ -157,7 +168,9 @@ public:
 
     void add_fvMatrix(double* turbSrc_low, double* turbSrc_diag, double* turbSrc_upp, double* turbSrc_source);
 
+    void solve(const std::string &cfgFile);
     void solve();
+    void updatePsi(double* Psi);
 };
 
 #endif

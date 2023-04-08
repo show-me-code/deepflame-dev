@@ -7,14 +7,20 @@ tmp<fvVectorMatrix> tUEqn
 );
 fvVectorMatrix& UEqn = tUEqn.ref();
 
-UEqn.relax();
+fvVectorMatrix turb_source
+(
+    turbulence->divDevRhoReff(U)
+);
 
-if (pimple.momentumPredictor())
-{
-    solve(UEqn == -fvc::grad(p));
 
-    K = 0.5*magSqr(U);
-}
+// UEqn.relax();
+
+// if (pimple.momentumPredictor())
+// {
+//     solve(UEqn == -fvc::grad(p));
+
+//     K = 0.5*magSqr(U);
+// }
 
 
 int offset = 0;
@@ -44,13 +50,13 @@ forAll(U.boundaryField(), patchi)
 
     offset += patchSize;
 }
-fvVectorMatrix turb_source
-(
-    turbulence->divDevRhoReff(U)
-);
 
 UEqn_GPU.fvm_ddt(&rho.oldTime()[0], &rho[0], &mesh.V()[0], &U.oldTime()[0][0]);
 UEqn_GPU.fvm_div(&mesh.surfaceInterpolation::weights()[0], &phi[0], ueqn_internalCoeffs_init, ueqn_boundaryCoeffs_init);
 UEqn_GPU.fvc_grad(&mesh.Sf()[0][0], &p[0], boundary_face_vector_init, boundary_pressure_init);
 UEqn_GPU.add_fvMatrix(&turb_source.lower()[0], &turb_source.diag()[0], &turb_source.upper()[0], &turb_source.source()[0][0]);
-UEqn_GPU.print();
+// UEqn_GPU.print();
+UEqn_GPU.solve();
+UEqn_GPU.updatePsi(&U[0][0]);
+K = 0.5*magSqr(U);
+
