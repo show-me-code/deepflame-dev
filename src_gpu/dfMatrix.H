@@ -93,7 +93,9 @@ private:
     double *h_internal_coeffs = nullptr, *h_boundary_coeffs = nullptr,
     *h_boundary_pressure = nullptr, *h_boundary_face_vector = nullptr,
     *d_internal_coeffs = nullptr, *d_boundary_coeffs = nullptr,
-    *d_boundary_pressure = nullptr, *d_boundary_face_vector = nullptr;
+    *d_internal_coeffs_init = nullptr, *d_boundary_coeffs_init = nullptr,
+    *d_boundary_pressure = nullptr, *d_boundary_face_vector = nullptr,
+    *d_boundary_pressure_init = nullptr;
     std::vector<int> boundPermutationList;
     std::vector<double> ueqn_internalCoeffs, ueqn_boundaryCoeffs;
     std::vector<double> boundary_face_vector;
@@ -102,6 +104,8 @@ private:
     // - the device pointer to the permutated index list
     std::vector<int> permedIndex;
     int *d_permedIndex=nullptr;
+    int *d_bouPermedIndex = nullptr;
+
 
     // bytesize
     // - bytes of diagnal entries
@@ -113,6 +117,7 @@ private:
      // - bytes of diagnal index
     size_t face_bytes;
     size_t face_vec_bytes;
+    size_t face_index_bytes;
 
     size_t boundary_cell_bytes;
     size_t boundary_cell_vec_bytes;
@@ -129,10 +134,11 @@ private:
     size_t csr_value_vec_bytes;
 
     // extra matrix information
-    double *d_turbSrc_A = nullptr, *d_turbSrc_b = nullptr;
+    double *d_turbSrc_A = nullptr, *d_turbSrc_b = nullptr, *d_turbSrc_A_init = nullptr;
     std::vector<double> h_turbSrc_init_mtx_vec, h_turbSrc_init_1mtx;
     std::vector<double> h_turbSrc_init_src_vec, h_turbSrc_src_vec;
     std::vector<int> tmpPermutatedList;
+    int * d_tmpPermutatedList = nullptr;
 
     double *h_A_csr = nullptr, *h_b = nullptr, *h_psi = nullptr;
     double *d_A_csr = nullptr, *d_b = nullptr, *d_psi = nullptr;
@@ -165,9 +171,9 @@ public:
     void fvm_ddt(double *rho_old, double *rho_new, double* vector_old);
 
     void fvm_div(double* phi, std::vector<double> ueqn_internalCoeffs_init,
-    std::vector<double> ueqn_boundaryCoeffs_init);
+    std::vector<double> ueqn_boundaryCoeffs_init, std::vector<double> boundary_pressure_init);
 
-    void fvc_grad(double* pressure, std::vector<double> boundary_pressure_init);
+    void fvc_grad(double* pressure);
 
     void add_fvMatrix(double* turbSrc_low, double* turbSrc_diag, double* turbSrc_upp, double* turbSrc_source);
 
