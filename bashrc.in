@@ -13,3 +13,7 @@ export DF_APPBIN=pwd/bin
 export DF_LIBBIN=pwd/lib
 export PATH=$DF_APPBIN:$PATH
 export LD_LIBRARY_PATH=$DF_LIBBIN:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=$DF_ROOT/src_gpu/build:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/home/runze/AmgX/AMGX/build:$LD_LIBRARY_PATH
+export AMGX_DIR=/home/runze/AmgX/AMGX
+

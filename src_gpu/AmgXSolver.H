@@ -19,6 +19,7 @@
 // STL
 # include <string>
 # include <vector>
+# include <ctime>
 
 // AmgX
 # include <amgx_c.h>

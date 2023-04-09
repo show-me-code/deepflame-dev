@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <map>
 #include <iostream>
+#include <ctime>
 
 #include "AmgXSolver.H"
 
@@ -147,24 +148,26 @@ private:
     AmgXSolver* UxSolver = nullptr, *UySolver = nullptr, *UzSolver = nullptr;
     int num_iteration;
 
+    double time_monitor_CPU, time_monitor_GPU;
+
 
 
 public:
     dfMatrix();
     dfMatrix(int num_surfaces, int num_cells, int num_boundary_faces, int &num_boundary_cells_output,
-    const int *neighbour, const int *owner, std::vector<int> boundary_cell_id_init,
+    const int *neighbour, const int *owner, const double* volume, const double* weight, const double* face_vector, 
+    std::vector<double> boundary_face_vector_init, std::vector<int> boundary_cell_id_init, 
     const std::string &modeStr, const std::string &cfgFile);
     ~dfMatrix();
 
-    void print();
+    void checkValue(bool print);
 
-    void fvm_ddt(double *rho_old, double *rho_new, const double* volume, double* vector_old);
+    void fvm_ddt(double *rho_old, double *rho_new, double* vector_old);
 
-    void fvm_div(const double* weight, double* phi, std::vector<double> ueqn_internalCoeffs_init,
+    void fvm_div(double* phi, std::vector<double> ueqn_internalCoeffs_init,
     std::vector<double> ueqn_boundaryCoeffs_init);
 
-    void fvc_grad(const double* face_vector, double* pressure, std::vector<double> boundary_face_vector_init,
-    std::vector<double> boundary_pressure_init);
+    void fvc_grad(double* pressure, std::vector<double> boundary_pressure_init);
 
     void add_fvMatrix(double* turbSrc_low, double* turbSrc_diag, double* turbSrc_upp, double* turbSrc_source);
 

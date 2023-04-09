@@ -1,4 +1,15 @@
 #include "dfMatrix.H"
+
+void checkVectorEqual(int count, double* basevec, double* vec, double max_relative_error) {
+    for (size_t i = 0; i < count; ++i)
+    {
+        double abs_diff = fabs(basevec[i] - vec[i]);
+        double rel_diff = fabs(basevec[i] - vec[i]) / fabs(basevec[i]);
+        if (abs_diff > 1e-16 && rel_diff > max_relative_error)
+            fprintf(stderr, "mismatch index %d, cpu data: %.16lf, gpu data: %.16lf, relative error: %.16lf\n", i, basevec[i], vec[i], rel_diff);
+    }
+}
+
 // kernel functions
 __global__ void fvm_ddt_kernel(int num_cells, int num_faces, const double rdelta_t,
         const int* csr_row_index, const int* csr_diag_index,
@@ -235,18 +246,19 @@ __global__ void add_fvMatrix_kernel(int num_cells, int num_faces,
       A_csr_output[csr_dim * 1 + i] = A_csr_input[csr_dim * 1 + i] + A_entry;
       A_csr_output[csr_dim * 2 + i] = A_csr_input[csr_dim * 2 + i] + A_entry;
     }
-    b_output[num_cells * 0 + index] = b_input[num_cells * 0 + index] + turbSrc_b[num_cells * 0 + index];
-    b_output[num_cells * 1 + index] = b_input[num_cells * 1 + index] + turbSrc_b[num_cells * 1 + index];
-    b_output[num_cells * 2 + index] = b_input[num_cells * 2 + index] + turbSrc_b[num_cells * 2 + index];
+    b_output[num_cells * 0 + index] = b_input[num_cells * 0 + index] + turbSrc_b[index * 3 + 0];
+    b_output[num_cells * 1 + index] = b_input[num_cells * 1 + index] + turbSrc_b[index * 3 + 1];
+    b_output[num_cells * 2 + index] = b_input[num_cells * 2 + index] + turbSrc_b[index * 3 + 2];
 }
 
 // constructor (construct mesh variable)
 dfMatrix::dfMatrix(){}
 dfMatrix::dfMatrix(int num_surfaces, int num_cells, int num_boundary_faces, int & num_boundary_cells_output,
-    const int *neighbour, const int *owner, std::vector<int> boundary_cell_id_init, const std::string &modeStr,
+    const int *neighbour, const int *owner, const double* volume, const double* weight, const double* face_vector, 
+    std::vector<double> boundary_face_vector_init, std::vector<int> boundary_cell_id_init, const std::string &modeStr, 
     const std::string &cfgFile)
 : num_cells(num_cells), num_faces(num_surfaces*2), num_surfaces(num_surfaces), num_iteration(0),
-  num_boundary_faces(num_boundary_faces)
+  num_boundary_faces(num_boundary_faces), h_volume(volume), time_monitor_CPU(0.), time_monitor_GPU(0.)
 {   
     // resize vectors
     h_weight_vec_init.resize(num_faces);
@@ -473,6 +485,29 @@ dfMatrix::dfMatrix(int num_surfaces, int num_cells, int num_boundary_faces, int 
         return pair.second;
     });
 
+    // copy and permutate cell variables
+    std::copy(weight, weight + num_surfaces, h_weight_vec_init.begin());
+    std::copy(weight, weight + num_surfaces, h_weight_vec_init.begin() + num_surfaces);
+    std::copy(face_vector, face_vector + 3*num_surfaces, h_face_vector_vec_init.begin());
+    std::copy(face_vector, face_vector + 3*num_surfaces, h_face_vector_vec_init.begin() + 3*num_surfaces);
+    for (int i = 0; i < num_faces; i++)
+    {
+        h_weight_vec[i] = h_weight_vec_init[permedIndex[i]];
+        h_face_vector_vec[i*3] = h_face_vector_vec_init[3*permedIndex[i]];
+        h_face_vector_vec[i*3+1] = h_face_vector_vec_init[3*permedIndex[i]+1];
+        h_face_vector_vec[i*3+2] = h_face_vector_vec_init[3*permedIndex[i]+2];
+    }
+    h_weight = h_weight_vec.data();
+    h_face_vector = h_face_vector_vec.data();
+
+    for (int i = 0; i < num_boundary_faces; i++)
+    {
+        boundary_face_vector[3*i] = boundary_face_vector_init[3*boundPermutationList[i]];
+        boundary_face_vector[3*i+1] = boundary_face_vector_init[3*boundPermutationList[i]+1];
+        boundary_face_vector[3*i+2] = boundary_face_vector_init[3*boundPermutationList[i]+2];
+    }
+    h_boundary_face_vector = boundary_face_vector.data();
+
     /************************allocate memory on device****************************/
     int total_bytes = 0;
 
@@ -523,6 +558,11 @@ dfMatrix::dfMatrix(int num_surfaces, int num_cells, int num_boundary_faces, int 
     checkCudaErrors(cudaMemcpyAsync(d_boundary_cell_offset, h_boundary_cell_offset, (num_boundary_cells+1) * sizeof(int), cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_cell_id, h_boundary_cell_id, boundary_face_index_bytes, cudaMemcpyHostToDevice, stream));
 
+    checkCudaErrors(cudaMemcpyAsync(d_volume, h_volume, cell_bytes, cudaMemcpyHostToDevice, stream));
+    checkCudaErrors(cudaMemcpyAsync(d_weight, h_weight, face_bytes, cudaMemcpyHostToDevice, stream));
+    checkCudaErrors(cudaMemcpyAsync(d_face_vector, h_face_vector, face_vec_bytes, cudaMemcpyHostToDevice, stream));
+    checkCudaErrors(cudaMemcpyAsync(d_boundary_face_vector, h_boundary_face_vector, boundary_face_vec_bytes, cudaMemcpyHostToDevice, stream));
+
     // construct AmgXSolver
     UxSolver = new AmgXSolver(modeStr, cfgFile);
     UySolver = new AmgXSolver(modeStr, cfgFile);
@@ -533,19 +573,17 @@ dfMatrix::~dfMatrix()
 {
 }
 
-void dfMatrix::fvm_ddt(double *rho_old, double *rho_new, const double* volume, 
-    double* vector_old)
+void dfMatrix::fvm_ddt(double *rho_old, double *rho_new, double* vector_old)
 {
+    clock_t start = std::clock();
     // copy cell variables directly
     h_rho_new = rho_new;
     h_rho_old = rho_old;
-    h_volume = volume;
     h_velocity_old = vector_old;
     
     // Copy the host input array in host memory to the device input array in device memory
     checkCudaErrors(cudaMemcpyAsync(d_rho_old, h_rho_old, cell_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_rho_new, h_rho_new, cell_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_volume, h_volume, cell_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_velocity_old, h_velocity_old, cell_vec_bytes, cudaMemcpyHostToDevice, stream));
 
     // launch cuda kernel
@@ -555,25 +593,22 @@ void dfMatrix::fvm_ddt(double *rho_old, double *rho_new, const double* volume,
     fvm_ddt_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_faces, rdelta_t,
           d_A_csr_row_index, d_A_csr_diag_index,
           d_rho_old, d_rho_new, d_volume, d_velocity_old, d_A_csr, d_b, d_A_csr, d_b, d_psi);
-     // Synchronize stream
-    checkCudaErrors(cudaStreamSynchronize(stream));
+    clock_t end = std::clock();
+    time_monitor_GPU += double(end - start) / double(CLOCKS_PER_SEC);
 }
 
-void dfMatrix::fvm_div(const double* weight, double* phi, std::vector<double> ueqn_internalCoeffs_init,
+void dfMatrix::fvm_div(double* phi, std::vector<double> ueqn_internalCoeffs_init,
     std::vector<double> ueqn_boundaryCoeffs_init)
 {
     // copy and permutate face variables
+    clock_t start = std::clock();
     std::copy(phi, phi + num_surfaces, h_phi_vec_init.begin());
     std::copy(phi, phi + num_surfaces, h_phi_vec_init.begin() + num_surfaces);
-    std::copy(weight, weight + num_surfaces, h_weight_vec_init.begin());
-    std::copy(weight, weight + num_surfaces, h_weight_vec_init.begin() + num_surfaces);
 
     for (int i = 0; i < num_faces; i++)
     {
-        h_weight_vec[i] = h_weight_vec_init[permedIndex[i]];
         h_phi_vec[i] = h_phi_vec_init[permedIndex[i]];
     }
-    h_weight = h_weight_vec.data();
     h_phi = h_phi_vec.data();
 
     // copy and permutate boundary variable
@@ -588,9 +623,11 @@ void dfMatrix::fvm_div(const double* weight, double* phi, std::vector<double> ue
     }
     h_internal_coeffs = ueqn_internalCoeffs.data();
     h_boundary_coeffs = ueqn_boundaryCoeffs.data();
+    clock_t end = std::clock();
+    time_monitor_CPU += double(end - start) / double(CLOCKS_PER_SEC);
 
+    start = std::clock();
     // Copy the host input array in host memory to the device input array in device memory
-    checkCudaErrors(cudaMemcpyAsync(d_weight, h_weight, face_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_phi, h_phi, face_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_internal_coeffs, h_internal_coeffs, boundary_face_vec_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_coeffs, h_boundary_coeffs, boundary_face_vec_bytes, cudaMemcpyHostToDevice, stream));
@@ -606,46 +643,29 @@ void dfMatrix::fvm_div(const double* weight, double* phi, std::vector<double> ue
           d_A_csr_row_index, d_A_csr_diag_index,
           d_boundary_cell_offset, d_boundary_cell_id,
           d_internal_coeffs, d_boundary_coeffs, d_A_csr, d_b, d_A_csr, d_b);
-
-    // Synchronize stream
-    checkCudaErrors(cudaStreamSynchronize(stream));
+    end = std::clock();
+    time_monitor_GPU += double(end - start) / double(CLOCKS_PER_SEC);
 }
 
-void dfMatrix::fvc_grad(const double* face_vector, double* pressure, std::vector<double> boundary_face_vector_init,
-    std::vector<double> boundary_pressure_init)
+void dfMatrix::fvc_grad(double* pressure, std::vector<double> boundary_pressure_init)
 {
     // copy cell variables directly
+    clock_t start = std::clock();
     h_pressure = pressure;
-
-    // copy and permutate face variables
-    std::copy(face_vector, face_vector + 3*num_surfaces, h_face_vector_vec_init.begin());
-    std::copy(face_vector, face_vector + 3*num_surfaces, h_face_vector_vec_init.begin() + 3*num_surfaces);
-    for (int i = 0; i < num_faces; i++)
-    {
-        h_face_vector_vec[i*3] = h_face_vector_vec_init[3*permedIndex[i]];
-        h_face_vector_vec[i*3+1] = h_face_vector_vec_init[3*permedIndex[i]+1];
-        h_face_vector_vec[i*3+2] = h_face_vector_vec_init[3*permedIndex[i]+2];
-    }
-    h_face_vector = h_face_vector_vec.data();
-
     // copy and permutate boundary variable
     for (int i = 0; i < num_boundary_faces; i++)
     {
-        boundary_face_vector[3*i] = boundary_face_vector_init[3*boundPermutationList[i]];
-        boundary_face_vector[3*i+1] = boundary_face_vector_init[3*boundPermutationList[i]+1];
-        boundary_face_vector[3*i+2] = boundary_face_vector_init[3*boundPermutationList[i]+2];
         boundary_pressure[i] = boundary_pressure_init[boundPermutationList[i]];
     }
-    h_boundary_face_vector = boundary_face_vector.data();
     h_boundary_pressure = boundary_pressure.data();
+    clock_t end = std::clock();
+    time_monitor_CPU += double(end - start) / double(CLOCKS_PER_SEC);
 
     // Copy the host input array in host memory to the device input array in device memory
-    checkCudaErrors(cudaMemcpyAsync(d_face_vector, h_face_vector, face_vec_bytes, cudaMemcpyHostToDevice, stream));
+    start = std::clock();
     checkCudaErrors(cudaMemcpyAsync(d_pressure, h_pressure, cell_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_pressure, h_boundary_pressure, boundary_face_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_boundary_face_vector, h_boundary_face_vector, boundary_face_vec_bytes, cudaMemcpyHostToDevice, stream));
-
-    
+        
     // launch cuda kernel
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
@@ -656,14 +676,14 @@ void dfMatrix::fvc_grad(const double* face_vector, double* pressure, std::vector
     fvc_grad_boundary_face<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_boundary_cells,
           d_boundary_cell_offset, d_boundary_cell_id,
           d_boundary_face_vector, d_boundary_pressure, d_b, d_b);
-    
-    // Synchronize stream
-    checkCudaErrors(cudaStreamSynchronize(stream));
+    end = std::clock();
+    time_monitor_GPU += double(end - start) / double(CLOCKS_PER_SEC);
 }
 
 void dfMatrix::add_fvMatrix(double* turbSrc_low, double* turbSrc_diag, double* turbSrc_upp, double* turbSrc_source)
 {
     // copy and permutate matrix variables
+    clock_t start = std::clock();
     std::copy(turbSrc_low, turbSrc_low + num_surfaces, h_turbSrc_init_mtx_vec.begin());
     std::copy(turbSrc_diag, turbSrc_diag + num_cells, h_turbSrc_init_mtx_vec.begin() + num_surfaces);
     std::copy(turbSrc_upp, turbSrc_upp + num_surfaces, h_turbSrc_init_mtx_vec.begin() + num_surfaces + num_cells);
@@ -671,41 +691,35 @@ void dfMatrix::add_fvMatrix(double* turbSrc_low, double* turbSrc_diag, double* t
     // permutate
     for (int i = 0; i < num_cells+2*num_surfaces; i++)
         h_turbSrc_init_1mtx[i] = h_turbSrc_init_mtx_vec[tmpPermutatedList[i]];
-    // fill RHS_x
-    for (int i = 0; i < 3*num_cells; i+=3)
-        h_turbSrc_src_vec.push_back(h_turbSrc_init_src_vec[i]);
-    // fill RHS_y
-    for (int i = 1; i < 3*num_cells; i+=3)
-        h_turbSrc_src_vec.push_back(h_turbSrc_init_src_vec[i]);
-    // fill RHS_z
-    for (int i = 2; i < 3*num_cells; i+=3)
-        h_turbSrc_src_vec.push_back(h_turbSrc_init_src_vec[i]); 
 
+    clock_t end = std::clock();
+    time_monitor_CPU += double(end - start) / double(CLOCKS_PER_SEC);
     // Copy the host input array in host memory to the device input array in device memory
+    start = std::clock();
     checkCudaErrors(cudaMemcpyAsync(d_turbSrc_A, h_turbSrc_init_1mtx.data(), csr_value_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_turbSrc_b, h_turbSrc_src_vec.data(), cell_vec_bytes, cudaMemcpyHostToDevice, stream));
+    checkCudaErrors(cudaMemcpyAsync(d_turbSrc_b, h_turbSrc_init_src_vec.data(), cell_vec_bytes, cudaMemcpyHostToDevice, stream));
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
     add_fvMatrix_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_faces,
           d_A_csr_row_index, d_turbSrc_A, d_turbSrc_b, d_A_csr, d_b, d_A_csr, d_b);
-    
-    // Synchronize stream
-    checkCudaErrors(cudaStreamSynchronize(stream));
+    end = std::clock();
+    time_monitor_GPU += double(end - start) / double(CLOCKS_PER_SEC);
 }
 
-void dfMatrix::print()
+void dfMatrix::checkValue(bool print)
 {
     checkCudaErrors(cudaMemcpyAsync(h_A_csr, d_A_csr, csr_value_vec_bytes, cudaMemcpyDeviceToHost, stream));
     checkCudaErrors(cudaMemcpyAsync(h_b, d_b, cell_vec_bytes, cudaMemcpyDeviceToHost, stream));
 
     // Synchronize stream
     checkCudaErrors(cudaStreamSynchronize(stream));
-
-    for (int i = 0; i < (2*num_surfaces + num_cells); i++)
-        fprintf(stderr, "h_A_csr[%d]: %.15lf\n", i, h_A_csr[i]);
-    
-    for (int i = 0; i < num_cells * 3; i++)
-        fprintf(stderr, "h_b[%d]: %.15lf\n", i, h_b[i]);
+    if (print)
+    {
+        for (int i = 0; i < (2*num_surfaces + num_cells); i++)
+            fprintf(stderr, "h_A_csr[%d]: %.15lf\n", i, h_A_csr[i]);
+        for (int i = 0; i < num_cells * 3; i++)
+            fprintf(stderr, "h_b[%d]: %.15lf\n", i, h_b[i]);
+    }
 
     char *input_file = "of_output.txt";
     FILE *fp = fopen(input_file, "rb+");
@@ -726,8 +740,6 @@ void dfMatrix::print()
     {
         h_A_of_vec_1mtx[i] = h_A_of_init_vec[tmpPermutatedList[i]];
     }
-    for (int i = 0; i < (2*num_surfaces + num_cells); i++)
-        fprintf(stderr, "h_A_of_vec_1mtx[%d]: %.15lf\n", i, h_A_of_vec_1mtx[i]);
 
     std::vector<double> h_A_of_vec((2*num_surfaces + num_cells)*3);
     for (int i =0; i < 3; i ++)
@@ -753,100 +765,21 @@ void dfMatrix::print()
     {
         h_b_of_vec.push_back(h_b_of_init_vec[i]);
     }
-    for (int i = 0; i < 3*num_cells; i++)
-        fprintf(stderr, "h_b_of_vec[%d]: %.15lf\n", i, h_b_of_vec[i]);
+
+    if (print)
+    {
+        for (int i = 0; i < (2*num_surfaces + num_cells); i++)
+            fprintf(stderr, "h_A_of_vec_1mtx[%d]: %.15lf\n", i, h_A_of_vec_1mtx[i]);
+        for (int i = 0; i < 3*num_cells; i++)
+            fprintf(stderr, "h_b_of_vec[%d]: %.15lf\n", i, h_b_of_vec[i]);
+    }
+
+    // check
+    fprintf(stderr, "check of h_A_csr\n");
+    checkVectorEqual(2*num_surfaces + num_cells, h_A_of_vec_1mtx.data(), h_A_csr, 1e-5);
+    fprintf(stderr, "check of h_b\n");
+    checkVectorEqual(3*num_cells, h_b_of_vec.data(), h_b, 1e-5);
 }
-
-// void dfMatrix::solve(const std::string &cfgFile)
-// {
-//     // checkCudaErrors(cudaMemcpyAsync(h_A_csr, d_A_csr, csr_value_vec_bytes, cudaMemcpyDeviceToHost, stream));
-//     // checkCudaErrors(cudaMemcpyAsync(h_b, d_b, cell_vec_bytes, cudaMemcpyDeviceToHost, stream));
-//     checkCudaErrors(cudaMemcpyAsync(h_psi, d_psi, cell_vec_bytes, cudaMemcpyDeviceToHost, stream));
-//     /**
-//      * @brief initialize AmgXSolver
-//      */
-//     // - setMode
-    
-//     // - initAmgX(cfgFile)
-//     // initialize AmgX
-//     AMGX_SAFE_CALL(AMGX_initialize());
-//     // intialize AmgX plugings
-//     AMGX_SAFE_CALL(AMGX_initialize_plugins());
-//     // let AmgX to handle errors returned
-//     AMGX_SAFE_CALL(AMGX_install_signal_handler());
-//     // create an AmgX configure object
-//     AMGX_config_handle cfg = nullptr;
-//     AMGX_SAFE_CALL(AMGX_config_create_from_file(&cfg, cfgFile.c_str()));
-//     // let AmgX handle returned error codes internally
-//     AMGX_SAFE_CALL(AMGX_config_add_parameters(&cfg, "exception_handling=1"));
-//     // initialize rsrc to nullptr;
-//     AMGX_resources_handle rsrc = nullptr;
-//     // create an AmgX resource object, only the first instance is in charge
-//     // if (solver_instance_count == 1) 
-//     AMGX_resources_create_simple(&rsrc, cfg); // remember to set deviceID
-
-//     // create AmgX vector object for unknowns and RHS
-//     AMGX_vector_handle AmgXP = nullptr;
-//     AMGX_vector_handle AmgXRHS = nullptr;
-//     AMGX_Mode mode = AMGX_mode_dDDI;
-//     AMGX_vector_create(&AmgXP, rsrc, mode);
-//     AMGX_vector_create(&AmgXRHS, rsrc, mode);
-
-//     // create AmgX matrix object for unknowns and RHS
-//     AMGX_matrix_handle AmgXA = nullptr;
-//     AMGX_matrix_create(&AmgXA, rsrc, mode);
-
-//     // bind the matrix A to the solver
-//     AMGX_solver_handle solver = nullptr;
-//     AMGX_solver_create(&solver, rsrc, mode, cfg);   
-
-//     int ring;
-//     // obtain the default number of rings based on current configuration
-//     AMGX_config_get_default_number_of_rings(cfg, &ring);
-
-//     AMGX_matrix_upload_all(AmgXA, num_cells, (num_cells + num_faces), 1, 1, d_A_csr_row_index, d_A_csr_col_index,
-//         d_A_csr, nullptr);
-
-//     AMGX_solver_setup(solver, AmgXA);
-    
-
-//     // bind 
-//     AMGX_vector_bind(AmgXP, AmgXA);
-//     AMGX_vector_bind(AmgXP, AmgXA);
-
-//     // create an AmgX solver object
-
-//     /**
-//      * @brief amgx.initialiseMatrixComms(Amat);
-//      */
-
-//     /**
-//      * @brief amgx.setOperator
-//      */
-//     AMGX_vector_upload(AmgXRHS, num_cells, 1, d_b);
-//     AMGX_vector_upload(AmgXP, num_cells, 1, d_psi);
-
-//     // Solve
-//     AMGX_solver_solve(solver, AmgXRHS, AmgXP);
-//     AMGX_SOLVE_STATUS status;
-//     AMGX_solver_get_status(solver, &status);
-
-//     if (status != AMGX_SOLVE_SUCCESS)
-//     {
-//         fprintf(stderr, "AmgX solver failed to solve the system! "
-//                         "The error code is %d.\n",
-//                 status);
-//     }
-//     // Download data from device
-//     double * h_psi_solved;
-//     h_psi_solved = new double[cell_vec_bytes];
-//     AMGX_vector_download(AmgXP, h_psi_solved);
-//     for (int i = 0; i < num_cells; i++)
-//     {
-//         fprintf(stderr, "h_psi_solved[%d] = %lf\n", i, h_psi_solved[i]);
-//     }
-
-// }
 
 void dfMatrix::solve()
 {
@@ -854,6 +787,13 @@ void dfMatrix::solve()
     //     fprintf(stderr, "h_velocity_old[%d]: (%.15lf, %.15lf, %.15lf)\n", i, h_velocity_old[3*i], 
     //     h_velocity_old[3*i + 1], h_velocity_old[3*i + 2]);
     // constructor AmgXSolver at first interation
+    // Synchronize stream
+    checkCudaErrors(cudaStreamSynchronize(stream));
+    printf("CPU Time (copy&permutate)  = %.6lf s\n", time_monitor_CPU);
+    printf("GPU Time                   = %.6lf s\n", time_monitor_GPU);
+    time_monitor_CPU = 0;
+    time_monitor_GPU = 0;
+
     int nNz = num_cells + num_faces; // matrix entries
     if (num_iteration == 0) // first interation
     {
@@ -869,8 +809,8 @@ void dfMatrix::solve()
         UzSolver->updateOperator(num_cells, nNz, d_A_csr + 2*nNz);
     }
     UxSolver->solve(num_cells, d_psi, d_b);
-    UxSolver->solve(num_cells, d_psi + num_cells, d_b + num_cells);
-    UxSolver->solve(num_cells, d_psi + 2*num_cells, d_b + 2*num_cells);
+    UySolver->solve(num_cells, d_psi + num_cells, d_b + num_cells);
+    UzSolver->solve(num_cells, d_psi + 2*num_cells, d_b + 2*num_cells);
     num_iteration ++;
 
     checkCudaErrors(cudaMemcpy(h_psi, d_psi, cell_vec_bytes, cudaMemcpyDeviceToHost));
