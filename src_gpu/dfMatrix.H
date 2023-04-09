@@ -9,6 +9,9 @@
 #include <algorithm>
 #include <map>
 #include <iostream>
+#include <ctime>
+
+#include "AmgXSolver.H"
 
 static const char *_cudaGetErrorEnum(cudaError_t error) {
   return cudaGetErrorName(error);
@@ -90,7 +93,9 @@ private:
     double *h_internal_coeffs = nullptr, *h_boundary_coeffs = nullptr,
     *h_boundary_pressure = nullptr, *h_boundary_face_vector = nullptr,
     *d_internal_coeffs = nullptr, *d_boundary_coeffs = nullptr,
-    *d_boundary_pressure = nullptr, *d_boundary_face_vector = nullptr;
+    *d_internal_coeffs_init = nullptr, *d_boundary_coeffs_init = nullptr,
+    *d_boundary_pressure = nullptr, *d_boundary_face_vector = nullptr,
+    *d_boundary_pressure_init = nullptr;
     std::vector<int> boundPermutationList;
     std::vector<double> ueqn_internalCoeffs, ueqn_boundaryCoeffs;
     std::vector<double> boundary_face_vector;
@@ -99,6 +104,8 @@ private:
     // - the device pointer to the permutated index list
     std::vector<int> permedIndex;
     int *d_permedIndex=nullptr;
+    int *d_bouPermedIndex = nullptr;
+
 
     // bytesize
     // - bytes of diagnal entries
@@ -110,6 +117,7 @@ private:
      // - bytes of diagnal index
     size_t face_bytes;
     size_t face_vec_bytes;
+    size_t face_index_bytes;
 
     size_t boundary_cell_bytes;
     size_t boundary_cell_vec_bytes;
@@ -126,38 +134,52 @@ private:
     size_t csr_value_vec_bytes;
 
     // extra matrix information
-    double *h_A_csr = nullptr, *h_b = nullptr;
-    double *d_A_csr = nullptr, *d_b = nullptr;
-    double *d_turbSrc_A = nullptr, *d_turbSrc_b = nullptr;
+    double *d_turbSrc_A = nullptr, *d_turbSrc_b = nullptr, *d_turbSrc_A_init = nullptr;
     std::vector<double> h_turbSrc_init_mtx_vec, h_turbSrc_init_1mtx;
     std::vector<double> h_turbSrc_init_src_vec, h_turbSrc_src_vec;
     std::vector<int> tmpPermutatedList;
+    int * d_tmpPermutatedList = nullptr;
+
+    double *h_A_csr = nullptr, *h_b = nullptr, *h_psi = nullptr;
+    double *d_A_csr = nullptr, *d_b = nullptr, *d_psi = nullptr;
 
     /**
      * @brief cuda functions
      */
     cudaStream_t stream;
 
+    /**
+     * @brief AmgX functions
+     */
+    AmgXSolver* UxSolver = nullptr, *UySolver = nullptr, *UzSolver = nullptr;
+    int num_iteration;
+
+    double time_monitor_CPU, time_monitor_GPU;
+
+
 
 public:
     dfMatrix();
     dfMatrix(int num_surfaces, int num_cells, int num_boundary_faces, int &num_boundary_cells_output,
-    const int *neighbour, const int *owner, std::vector<int> boundary_cell_id_init);
+    const int *neighbour, const int *owner, const double* volume, const double* weight, const double* face_vector, 
+    std::vector<double> boundary_face_vector_init, std::vector<int> boundary_cell_id_init, 
+    const std::string &modeStr, const std::string &cfgFile);
     ~dfMatrix();
 
-    void print();
+    void checkValue(bool print);
 
-    void fvm_ddt(double *rho_old, double *rho_new, const double* volume, double* vector_old);
+    void fvm_ddt(double *rho_old, double *rho_new, double* vector_old);
 
-    void fvm_div(const double* weight, double* phi, std::vector<double> ueqn_internalCoeffs_init,
-    std::vector<double> ueqn_boundaryCoeffs_init);
+    void fvm_div(double* phi, std::vector<double> ueqn_internalCoeffs_init,
+    std::vector<double> ueqn_boundaryCoeffs_init, std::vector<double> boundary_pressure_init);
 
-    void fvc_grad(const double* face_vector, double* pressure, std::vector<double> boundary_face_vector_init,
-    std::vector<double> boundary_pressure_init);
+    void fvc_grad(double* pressure);
 
     void add_fvMatrix(double* turbSrc_low, double* turbSrc_diag, double* turbSrc_upp, double* turbSrc_source);
 
+    void solve(const std::string &cfgFile);
     void solve();
+    void updatePsi(double* Psi);
 };
 
 #endif

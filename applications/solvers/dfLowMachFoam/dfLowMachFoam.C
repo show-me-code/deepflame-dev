@@ -83,13 +83,18 @@ int main(int argc, char *argv[])
     #include "createRhoUfIfPresent.H"
 
     double time_monitor_flow=0;
+    double time_monitor_UEqn=0;
+    double time_monitor_UEqn_mtxAssembly=0;
+    double time_monitor_UEqn_Solve=0;
+    double time_monitor_UEqn_sum=0;
     double time_monitor_chem=0;
     double time_monitor_Y=0;
     double time_monitor_E=0;
     double time_monitor_corrThermo=0;
     double time_monitor_corrDiff=0;
+    double time_monitor_CPU=0;
     label timeIndex = 0;
-    clock_t start, end;
+    clock_t start, end, start1, end1, start2, end2;
 
     turbulence->validate();
 
@@ -99,7 +104,12 @@ int main(int argc, char *argv[])
         #include "setInitialDeltaT.H"
     }
 
+    start1 = std::clock();
     #include "createdfSolver.H"
+    end1 = std::clock();
+    // time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    // time_monitor_UEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    // double time_UEqn_initial = time_monitor_UEqn;
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -146,7 +156,7 @@ int main(int argc, char *argv[])
             {
                 #include "rhoEqn.H"
             }
-
+            
             start = std::clock();
             #include "UEqn.H"
             end = std::clock();
@@ -199,6 +209,7 @@ int main(int argc, char *argv[])
         rho = thermo.rho();
 
         runTime.write();
+        time_monitor_UEqn_sum += time_monitor_UEqn;
 
         Info << "output time index " << runTime.timeIndex() << endl;
 
@@ -209,11 +220,28 @@ int main(int argc, char *argv[])
         Info<< "Energy Equations           = " << time_monitor_E << " s" << endl;
         Info<< "thermo & Trans Properties  = " << time_monitor_corrThermo << " s" << endl;
         Info<< "Diffusion Correction Time  = " << time_monitor_corrDiff << " s" << endl;
+        Info<< "UEqn Time                  = " << time_monitor_UEqn << " s" << endl;
+        Info<< "UEqn Time assamble Mtx     = " << time_monitor_UEqn_mtxAssembly << " s" << endl;
+        Info<< "UEqn Time solve            = " << time_monitor_UEqn_Solve << " s" << endl;
+        // Info<< "UEqn sum Time              = " << time_monitor_UEqn_sum << " s" << endl;
+        // Info<< "UEqn sum Time - overhead   = " << time_monitor_UEqn_sum - time_UEqn_initial << " s" << endl;
         Info<< "sum Time                   = " << (time_monitor_chem + time_monitor_Y + time_monitor_flow + time_monitor_E + time_monitor_corrThermo + time_monitor_corrDiff) << " s" << endl;
+        Info<< "CPU Time (get turb souce)  = " << time_monitor_CPU << " s" << endl;
         Info<< "============================================"<<nl<< endl;
 
         Info<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
             << "  ClockTime = " << runTime.elapsedClockTime() << " s" << endl;
+        time_monitor_UEqn = 0;
+        time_monitor_UEqn_mtxAssembly = 0;
+        time_monitor_UEqn_Solve = 0;
+        time_monitor_chem = 0;
+        time_monitor_Y = 0;
+        time_monitor_E = 0;
+        time_monitor_flow = 0;
+        time_monitor_corrThermo = 0;
+        time_monitor_corrDiff = 0;
+        time_monitor_CPU = 0;
+
 #ifdef USE_PYTORCH
         if (log_ && torch_)
         {

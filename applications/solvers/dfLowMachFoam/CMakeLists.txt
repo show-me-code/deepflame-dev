@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.5)
 project(dfLowMachFoam LANGUAGES CXX)
 FIND_PACKAGE(MPI REQUIRED)
+FIND_PACKAGE(OpenMP REQUIRED)
+FIND_PACKAGE(CUDA REQUIRED)
 
 # Check valid thirdParty
 if(DEFINED ENV{WM_PROJECT_DIR})
@@ -26,6 +28,8 @@ SET(SRC_ORIG $ENV{SRC_ORIG})
 
 # set compilation options
 SET(CMAKE_EXE_LINKER_FLAGS "-fuse-ld=bfd -Xlinker --add-needed -Xlinker --no-as-needed")
+SET (CMAKE_C_FLAGS ${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS})
+SET (CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS})
 
 SET(CMAKE_C_COMPILER g++)
 SET(PATH_LIB_OPENMPI "openmpi-system")  # Foundation version
@@ -83,6 +87,9 @@ include_directories(
     ${CANTERA_ROOT}/include 
     ${MPI_INCLUDE_PATH}
     ${PROJECT_SOURCE_DIR}
+    ${CUDA_INCLUDE_DIRS}
+    /home/runze/AmgX/AMGX/include
+    /home/runze/deepflame-dev/src_gpu
 )
 
 # add execution
@@ -98,6 +105,9 @@ target_link_libraries(${PROJECT_NAME}
     ${DF_ROOT}/lib/libdfCombustionModels.so
     $ENV{FOAM_LIBBIN}/openmpi-system/libPstream.so
     ${MPI_LIBRARIES}
+    ${CUDA_LIBRARIES}
+    /home/runze/AmgX/AMGX/build/libamgxsh.so
+    /home/runze/deepflame-dev/src_gpu/build/libdfMatrix.so
 )
 
 if(DEFINED ENV{PYTHON_INC_DIR})
