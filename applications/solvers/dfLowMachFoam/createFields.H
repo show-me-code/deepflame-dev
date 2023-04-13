@@ -79,9 +79,11 @@ autoPtr<CombustionModel<basicThermo>> combustion
 Info<< "end Creating reaction model\n" << endl;
 
 
-//const word combModelName(combustion->type());
 const word combModelName(mesh.objectRegistry::lookupObject<IOdictionary>("combustionProperties").lookup("combustionModel"));
 Info << "Combustion Model Name is confirmed as "<< combModelName << endl;
+
+const word turbName(mesh.objectRegistry::lookupObject<IOdictionary>("turbulenceProperties").lookup("simulationType"));
+Info << "Turbulence Model Name is confirmed as "<< turbName << endl;
 
 dfChemistryModel<basicThermo>* chemistry = combustion->chemistry();
 PtrList<volScalarField>& Y = chemistry->Y();
