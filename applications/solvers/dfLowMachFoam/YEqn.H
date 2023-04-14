@@ -53,25 +53,51 @@ time_monitor_corrDiff += double(end - start) / double(CLOCKS_PER_SEC);
         if (i != inertIndex)
         {
             tmp<volScalarField> DEff = chemistry->rhoD(i) + turbulence->mut()/Sct;
-            fvScalarMatrix YiEqn
-            (
-                fvm::ddt(rho, Yi)
-              + mvConvection->fvmDiv(phi, Yi)
-              + mvConvection->fvmDiv(phiUc, Yi)
-             ==
+
+            if (turbName == "laminar")
+            {
+                fvScalarMatrix YiEqn
                 (
-                    splitting
-                ?   fvm::laplacian(DEff(), Yi)
-                :  (fvm::laplacian(DEff(), Yi) + combustion->R(Yi))
-                )
-            );
+                    fvm::ddt(rho, Yi)
+                +   mvConvection->fvmDiv(phi, Yi)
+                +   mvConvection->fvmDiv(phiUc, Yi)
+                ==
+                    (
+                        splitting
+                    ?   fvm::laplacian(DEff(), Yi)
+                    :  (fvm::laplacian(DEff(), Yi) + combustion->R(Yi))
+                    )
+                );
 
-            YiEqn.relax();
+                YiEqn.relax();
 
-            YiEqn.solve("Yi");
+                YiEqn.solve("Yi");
 
-            Yi.max(0.0);
-            Yt += Yi;
+                Yi.max(0.0);
+                Yt += Yi;
+            }
+            else
+            {
+                fvScalarMatrix YiEqn
+                (
+                    fvm::ddt(rho, Yi)
+                +   mvConvection->fvmDiv(phi, Yi)
+                ==
+                    (
+                        splitting
+                    ?   fvm::laplacian(DEff(), Yi)
+                    :  (fvm::laplacian(DEff(), Yi) + combustion->R(Yi))
+                    )
+                );
+                
+                YiEqn.relax();
+
+                YiEqn.solve("Yi");
+
+                Yi.max(0.0);
+                Yt += Yi;
+            }
+
         }
     }
 

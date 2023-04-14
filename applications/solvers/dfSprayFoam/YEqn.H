@@ -32,28 +32,56 @@ const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
         if (i != inertIndex)
         {
             tmp<volScalarField> DEff = chemistry->rhoD(i) + turbulence->mut()/Sct;
-            fvScalarMatrix YEqn
-            (
-                fvm::ddt(rho, Yi)
-              + mvConvection->fvmDiv(phi, Yi)
-              - fvm::laplacian(DEff(), Yi)
-              + mvConvection->fvmDiv(phiUc, Yi)
-             ==
-                parcels.SYi(i, Yi)
-              + combustion->R(Yi)
-              //+ fvOptions(rho, Yi)
-            );
+            
+            if ( turbName == "laminar")
+            {
+                fvScalarMatrix YEqn
+                (
+                    fvm::ddt(rho, Yi)
+                + mvConvection->fvmDiv(phi, Yi)
+                - fvm::laplacian(DEff(), Yi)
+                + mvConvection->fvmDiv(phiUc, Yi)
+                ==
+                    parcels.SYi(i, Yi)
+                + combustion->R(Yi)
+                //+ fvOptions(rho, Yi)
+                );
 
-            YEqn.relax();
+                YEqn.relax();
 
-            //fvOptions.constrain(YEqn);
+                //fvOptions.constrain(YEqn);
 
-            YEqn.solve("Yi");
+                YEqn.solve("Yi");
 
-            //fvOptions.correct(Yi);
+                //fvOptions.correct(Yi);
 
-            Yi.max(0.0);
-            Yt += Yi;
+                Yi.max(0.0);
+                Yt += Yi;
+            }
+            else
+            {
+                fvScalarMatrix YEqn
+                (
+                    fvm::ddt(rho, Yi)
+                + mvConvection->fvmDiv(phi, Yi)
+                - fvm::laplacian(DEff(), Yi)
+                ==
+                    parcels.SYi(i, Yi)
+                + combustion->R(Yi)
+                //+ fvOptions(rho, Yi)
+                );
+
+                YEqn.relax();
+
+                //fvOptions.constrain(YEqn);
+
+                YEqn.solve("Yi");
+
+                //fvOptions.correct(Yi);
+
+                Yi.max(0.0);
+                Yt += Yi;
+            }
         }
     }
 
