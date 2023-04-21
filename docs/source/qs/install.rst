@@ -55,25 +55,19 @@ If you compiled from source following the `official guide <https://openfoam.org/
 
     source $HOME/OpenFOAM/OpenFOAM-7/etc/bashrc
 
-To source the bashrc file automatically when opening your terminal, open the .bashrc file in the user’s home directory in an editor, e.g. by typing in a terminal window
+To source the bashrc file automatically when opening your terminal, type
 
 .. code-block:: bash
 
-    vim ~/.bashrc
-
-copy 
-
-.. code-block:: bash
-
-    source /opt/openfoam7/etc/bashrc 
+    echo "source /opt/openfoam7/etc/bashrc" >> ~/.bashrc
 
 or
 
 .. code-block:: bash
 
-    source $HOME/OpenFOAM/OpenFOAM-7/etc/bashrc
+     echo "source $HOME/OpenFOAM/OpenFOAM-7/etc/bashrc" >> ~/.bashrc
     
-to the end of ~/.bashrc file and save it. Then source the bashrc file by:
+Then source the bashrc file by:
 
 .. code-block:: bash
 
