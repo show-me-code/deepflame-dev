@@ -54,10 +54,11 @@ time_monitor_corrDiff += double(end - start) / double(CLOCKS_PER_SEC);
         {
             tmp<volScalarField> DEff = chemistry->rhoD(i) + turbulence->mut()/Sct;
 
-            if (turbName == "laminar")
-            {
-                fvScalarMatrix YiEqn
+            fvScalarMatrix YiEqn
                 (
+                    (turbName == "laminar")
+                    ?
+                    (
                     fvm::ddt(rho, Yi)
                 +   mvConvection->fvmDiv(phi, Yi)
                 +   mvConvection->fvmDiv(phiUc, Yi)
@@ -67,19 +68,9 @@ time_monitor_corrDiff += double(end - start) / double(CLOCKS_PER_SEC);
                     ?   fvm::laplacian(DEff(), Yi)
                     :  (fvm::laplacian(DEff(), Yi) + combustion->R(Yi))
                     )
-                );
-
-                YiEqn.relax();
-
-                YiEqn.solve("Yi");
-
-                Yi.max(0.0);
-                Yt += Yi;
-            }
-            else
-            {
-                fvScalarMatrix YiEqn
-                (
+                    )
+                    :
+                    (
                     fvm::ddt(rho, Yi)
                 +   mvConvection->fvmDiv(phi, Yi)
                 ==
@@ -88,15 +79,17 @@ time_monitor_corrDiff += double(end - start) / double(CLOCKS_PER_SEC);
                     ?   fvm::laplacian(DEff(), Yi)
                     :  (fvm::laplacian(DEff(), Yi) + combustion->R(Yi))
                     )
+                    )
                 );
-                
-                YiEqn.relax();
 
-                YiEqn.solve("Yi");
+            YiEqn.relax();
 
-                Yi.max(0.0);
-                Yt += Yi;
-            }
+            YiEqn.solve("Yi");
+
+            Yi.max(0.0);
+            Yt += Yi;
+            
+            
 
         }
     }
