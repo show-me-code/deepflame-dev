@@ -211,8 +211,9 @@ Foam::scalar Foam::CanteraMixture::THE
     const scalar& T
 ) const
 {
-    CanteraGas_->setState_HP(h, p);
-    return CanteraGas_->temperature();
+    // In DeepFlame temperature field is updated in correctThermo()
+    // so there is no need to update T in this function
+    return T;
 }
 
 Foam::scalar Foam::CanteraMixture::Hc() const
