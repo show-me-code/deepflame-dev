@@ -117,7 +117,8 @@ public:
             const scalar& T
         ) const
         {
-            return CanteraGas_->meanMolecularWeight()/CanteraGas_->RT();
+            // for ideal gas, psi = CanteraGas_->density()/p = 1/RT
+            return CanteraGas_->density()/p;
         }
 
         scalar mu
