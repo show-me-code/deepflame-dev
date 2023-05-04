@@ -20,9 +20,13 @@ forAll(mesh.boundary(), patchi)
 }
 int num_boundary_cells;
 
-dfMatrix UEqn_GPU(num_surfaces, num_cells, num_boundary_faces, num_boundary_cells, &neighbour[0], &owner[0], &mesh.V()[0], &mesh.surfaceInterpolation::weights()[0], 
-&mesh.Sf()[0][0], boundary_face_vector_init, boundaryCellIndex, "dDDI", "/home/runze/deepflame-dev/examples/dfLowMachFoam/threeD_reactingTGV/H2/cvodeIntegrator/system/amgxUOptions");
+string settingPath;
+settingPath = CanteraTorchProperties.subDict("AmgxSettings").lookupOrDefault("UEqnSettingPath", string(""));
 
-std::vector<double> ueqn_internalCoeffs_init(3*num_boundary_faces), ueqn_boundaryCoeffs_init(3*num_boundary_faces);
-std::vector<double> boundary_pressure_init(num_boundary_faces);
-// std::vector<double> boundary_face_vector_init(3*num_boundary_faces);
+dfMatrix UEqn_GPU(num_surfaces, num_cells, num_boundary_faces, num_boundary_cells, &neighbour[0], &owner[0], &mesh.V()[0], &mesh.surfaceInterpolation::weights()[0], 
+&mesh.Sf()[0][0], boundary_face_vector_init, boundaryCellIndex, "dDDI", settingPath);
+
+double *ueqn_internalCoeffs_init, *ueqn_boundaryCoeffs_init, *boundary_pressure_init;
+cudaMallocHost(&ueqn_internalCoeffs_init, 3*num_boundary_faces*sizeof(double));
+cudaMallocHost(&ueqn_boundaryCoeffs_init, 3*num_boundary_faces*sizeof(double));
+cudaMallocHost(&boundary_pressure_init, num_boundary_faces*sizeof(double));
