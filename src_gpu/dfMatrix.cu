@@ -298,11 +298,19 @@ dfMatrix::dfMatrix(int num_surfaces, int num_cells, int num_boundary_faces, int 
 : num_cells(num_cells), num_faces(num_surfaces*2), num_surfaces(num_surfaces), num_iteration(0),
   num_boundary_faces(num_boundary_faces), h_volume(volume), time_monitor_CPU(0.), time_monitor_GPU(0.)
 {   
-    // resize vectors
+    // 
+    unsigned int flags = 0;
+    checkCudaErrors(cudaGetDeviceFlags(&flags));
+    flags |= cudaDeviceScheduleYield;
+    checkCudaErrors(cudaSetDeviceFlags(flags));
+    
+    // initialize vectors
+    // allocate field vector in pin memory
+    cudaMallocHost(&h_phi_init, num_faces * sizeof(double));
+    // h_phi_vec_init.assign(h_phi_init, h_phi_init + num_faces);
+
     h_weight_vec_init.resize(num_faces);
     h_weight_vec.resize(num_faces);
-    h_phi_vec_init.resize(num_faces);
-    h_phi_vec.resize(num_faces);
     h_face_vector_vec_init.resize(num_faces*3);
     h_face_vector_vec.resize(num_faces*3);
     h_turbSrc_init_mtx_vec.resize(num_faces + num_cells);
@@ -325,9 +333,11 @@ dfMatrix::dfMatrix(int num_surfaces, int num_cells, int num_boundary_faces, int 
     csr_value_bytes = (num_cells + num_faces) * sizeof(double);
     csr_value_vec_bytes = (num_cells + num_faces) * 3 * sizeof(double);
 
-    h_A_csr = new double[csr_value_vec_bytes];
-    h_b = new double[cell_vec_bytes];
-    h_psi = new double[cell_vec_bytes];
+    h_A_csr = new double[(num_cells + num_faces) * 3];
+    // h_b = new double[num_cells * 3];
+    // h_psi = new double[num_cells * 3];
+    cudaMallocHost(&h_b, cell_vec_bytes);
+    cudaMallocHost(&h_psi, cell_vec_bytes);
 
     /************************construct mesh variables****************************/
     /**
@@ -646,31 +656,32 @@ void dfMatrix::fvm_ddt(double *rho_old, double *rho_new, double* vector_old)
     fvm_ddt_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_faces, rdelta_t,
           d_A_csr_row_index, d_A_csr_diag_index,
           d_rho_old, d_rho_new, d_volume, d_velocity_old, d_A_csr, d_b, d_A_csr, d_b, d_psi);
+    
     clock_t end = std::clock();
     time_monitor_GPU += double(end - start) / double(CLOCKS_PER_SEC);
 }
 
-void dfMatrix::fvm_div(double* phi, std::vector<double> ueqn_internalCoeffs_init,
-    std::vector<double> ueqn_boundaryCoeffs_init, std::vector<double> boundary_pressure_init)
+void dfMatrix::fvm_div(double* phi, double* ueqn_internalCoeffs_init,
+    double* ueqn_boundaryCoeffs_init, double* boundary_pressure_init)
 {
     // copy and permutate face variables
     clock_t start = std::clock();
-    std::copy(phi, phi + num_surfaces, h_phi_vec_init.begin());
-    std::copy(phi, phi + num_surfaces, h_phi_vec_init.begin() + num_surfaces);
-
+    std::copy(phi, phi + num_surfaces, h_phi_init);
+    std::copy(phi, phi + num_surfaces, h_phi_init + num_surfaces);
+    
     clock_t end = std::clock();
     time_monitor_CPU += double(end - start) / double(CLOCKS_PER_SEC);
 
     start = std::clock();
-    checkCudaErrors(cudaMemcpyAsync(d_phi_init, h_phi_vec_init.data(), face_bytes, cudaMemcpyHostToDevice, stream));
+    checkCudaErrors(cudaMemcpyAsync(d_phi_init, h_phi_init, face_bytes, cudaMemcpyHostToDevice, stream));
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_faces + threads_per_block - 1) / threads_per_block;
     offdiagPermutation<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_faces, d_permedIndex, d_phi_init, d_phi);
 
     // copy and permutate boundary variable
-    checkCudaErrors(cudaMemcpyAsync(d_internal_coeffs_init, ueqn_internalCoeffs_init.data(), boundary_face_vec_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_boundary_coeffs_init, ueqn_boundaryCoeffs_init.data(), boundary_face_vec_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_boundary_pressure_init, boundary_pressure_init.data(), boundary_face_bytes, cudaMemcpyHostToDevice, stream));
+    checkCudaErrors(cudaMemcpyAsync(d_internal_coeffs_init, ueqn_internalCoeffs_init, boundary_face_vec_bytes, cudaMemcpyHostToDevice, stream));
+    checkCudaErrors(cudaMemcpyAsync(d_boundary_coeffs_init, ueqn_boundaryCoeffs_init, boundary_face_vec_bytes, cudaMemcpyHostToDevice, stream));
+    checkCudaErrors(cudaMemcpyAsync(d_boundary_pressure_init, boundary_pressure_init, boundary_face_bytes, cudaMemcpyHostToDevice, stream));
     blocks_per_grid = (num_boundary_faces + threads_per_block - 1) / threads_per_block;
     boundaryPermutation<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_faces, d_bouPermedIndex, d_internal_coeffs_init, d_boundary_coeffs_init,
           d_boundary_pressure_init, d_internal_coeffs, d_boundary_coeffs, d_boundary_pressure);
@@ -826,11 +837,16 @@ void dfMatrix::solve()
     //     h_velocity_old[3*i + 1], h_velocity_old[3*i + 2]);
     // constructor AmgXSolver at first interation
     // Synchronize stream
+    // checkCudaErrors(cudaMemcpyAsync(h_b, d_b, cell_vec_bytes, cudaMemcpyDeviceToHost, stream));
+    // checkCudaErrors(cudaMemcpyAsync(h_psi, d_psi, cell_vec_bytes, cudaMemcpyDeviceToHost, stream));
+
     checkCudaErrors(cudaStreamSynchronize(stream));
     printf("CPU Time (copy&permutate)  = %.6lf s\n", time_monitor_CPU);
     printf("GPU Time                   = %.6lf s\n", time_monitor_GPU);
     time_monitor_CPU = 0;
     time_monitor_GPU = 0;
+
+    // nvtxRangePush("solve");
 
     int nNz = num_cells + num_faces; // matrix entries
     if (num_iteration == 0) // first interation
@@ -851,7 +867,7 @@ void dfMatrix::solve()
     UzSolver->solve(num_cells, d_psi + 2*num_cells, d_b + 2*num_cells);
     num_iteration ++;
 
-    checkCudaErrors(cudaMemcpy(h_psi, d_psi, cell_vec_bytes, cudaMemcpyDeviceToHost));
+    checkCudaErrors(cudaMemcpyAsync(h_psi, d_psi, cell_vec_bytes, cudaMemcpyDeviceToHost));
     // for (size_t i = 0; i < num_cells; i++)
     //     fprintf(stderr, "h_velocity_after[%d]: (%.15lf, %.15lf, %.15lf)\n", i, h_psi[i], 
     //     h_psi[num_cells + i], h_psi[num_cells*2 + i]);

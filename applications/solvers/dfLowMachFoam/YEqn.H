@@ -1,5 +1,5 @@
 start = std::clock();
-
+cudaSetDevice(0);
 hDiffCorrFlux = Zero;
 diffAlphaD = Zero;
 sumYDiffError = Zero;
@@ -14,6 +14,11 @@ tmp<fv::convectionScheme<scalar>> mvConvection
         mesh.divScheme("div(phi,Yi_h)")
     )
 );
+// start1 = std::clock();
+// std::thread t(&dfMatrix::solve, &UEqn_GPU);
+// end1 = std::clock();
+// time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+// time_monitor_UEqn_Solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
 forAll(Y, i)
 {
@@ -80,4 +85,5 @@ time_monitor_corrDiff += double(end - start) / double(CLOCKS_PER_SEC);
 
     end = std::clock();
     time_monitor_Y += double(end - start) / double(CLOCKS_PER_SEC);
+    cudaSetDevice(0);
 }

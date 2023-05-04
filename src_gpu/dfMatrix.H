@@ -3,7 +3,9 @@
 
 #include <stdio.h>
 #include <unistd.h>
+#include "cuda_profiler_api.h"
 #include <cuda_runtime.h>
+#include "nvtx3/nvToolsExt.h"
 #include <vector>
 #include <numeric>
 #include <algorithm>
@@ -12,6 +14,7 @@
 #include <ctime>
 
 #include "AmgXSolver.H"
+# include <amgx_c.h>
 
 static const char *_cudaGetErrorEnum(cudaError_t error) {
   return cudaGetErrorName(error);
@@ -147,7 +150,6 @@ private:
      * @brief cuda functions
      */
     cudaStream_t stream;
-
     /**
      * @brief AmgX functions
      */
@@ -170,14 +172,13 @@ public:
 
     void fvm_ddt(double *rho_old, double *rho_new, double* vector_old);
 
-    void fvm_div(double* phi, std::vector<double> ueqn_internalCoeffs_init,
-    std::vector<double> ueqn_boundaryCoeffs_init, std::vector<double> boundary_pressure_init);
+    void fvm_div(double* phi, double* ueqn_internalCoeffs_init,
+    double* ueqn_boundaryCoeffs_init, double* boundary_pressure_init);
 
     void fvc_grad(double* pressure);
 
     void add_fvMatrix(double* turbSrc_low, double* turbSrc_diag, double* turbSrc_upp, double* turbSrc_source);
 
-    void solve(const std::string &cfgFile);
     void solve();
     void updatePsi(double* Psi);
 };

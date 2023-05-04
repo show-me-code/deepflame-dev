@@ -60,6 +60,8 @@ Description
 #include "CombustionModel.H"
 
 #include "dfMatrix.H"
+#include <cuda_runtime.h>
+#include <thread>
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -69,6 +71,11 @@ int main(int argc, char *argv[])
     pybind11::scoped_interpreter guard{};//start python interpreter
 #endif
     #include "postProcess.H"
+
+    unsigned int flags = 0;
+    checkCudaErrors(cudaGetDeviceFlags(&flags));
+    flags |= cudaDeviceScheduleYield;
+    checkCudaErrors(cudaSetDeviceFlags(flags));
 
     // #include "setRootCaseLists.H"
     #include "listOptions.H"
@@ -93,6 +100,7 @@ int main(int argc, char *argv[])
     double time_monitor_corrThermo=0;
     double time_monitor_corrDiff=0;
     double time_monitor_CPU=0;
+    double time_monitor_UinE=0;
     label timeIndex = 0;
     clock_t start, end, start1, end1, start2, end2;
 
@@ -227,6 +235,7 @@ int main(int argc, char *argv[])
         // Info<< "UEqn sum Time - overhead   = " << time_monitor_UEqn_sum - time_UEqn_initial << " s" << endl;
         Info<< "sum Time                   = " << (time_monitor_chem + time_monitor_Y + time_monitor_flow + time_monitor_E + time_monitor_corrThermo + time_monitor_corrDiff) << " s" << endl;
         Info<< "CPU Time (get turb souce)  = " << time_monitor_CPU << " s" << endl;
+        Info<< "UEqn time in EEqn          = " << time_monitor_UinE << " s" << endl;
         Info<< "============================================"<<nl<< endl;
 
         Info<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
@@ -241,6 +250,7 @@ int main(int argc, char *argv[])
         time_monitor_corrThermo = 0;
         time_monitor_corrDiff = 0;
         time_monitor_CPU = 0;
+        time_monitor_UinE = 0;
 
 #ifdef USE_PYTORCH
         if (log_ && torch_)
