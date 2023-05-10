@@ -66,6 +66,8 @@ private:
     std::vector<double> h_phi_vec_init, h_phi_vec;
     // - the pre-permutated and post-permutated cell face vector list
     std::vector<double> h_face_vector_vec_init, h_face_vector_vec;
+    std::vector<double> h_face_vec_init, h_face_vec;
+    std::vector<double> h_deltaCoeffs_vec_init, h_deltaCoeffs_vec;
     // - the host pointer to rho_new, rho_old, velocity_old, pressure and volume list
     double *h_rho_new = nullptr, *h_rho_old = nullptr, *h_velocity_old = nullptr, 
     *h_pressure = nullptr;
@@ -76,6 +78,8 @@ private:
     double *h_phi_init = nullptr, *h_phi = nullptr;
     // - the host pointer to the pre-permutated and post-permutated cell face vector list
     double *h_face_vector_init = nullptr, *h_face_vector = nullptr;
+    double *h_face_init = nullptr, *h_face = nullptr;
+    double *h_deltaCoeffs_init = nullptr, *h_deltaCoeffs = nullptr;
     // - the device pointer to rho_new, rho_old, velocity_old, pressure and volume list
     double *d_rho_new = nullptr, *d_rho_old = nullptr, *d_velocity_old = nullptr, 
     *d_pressure = nullptr, *d_volume = nullptr;
@@ -85,6 +89,8 @@ private:
     double *d_phi_init = nullptr, *d_phi = nullptr;
     // - the device pointer to the pre-permutated and post-permutated cell face vector list
     double *d_face_vector_init = nullptr, *d_face_vector = nullptr;
+    double *d_face_init = nullptr, *d_face = nullptr;
+    double *d_deltaCoeffs_init = nullptr, *d_deltaCoeffs = nullptr;
 
     double rdelta_t = 1/1e-6;
 
@@ -95,14 +101,24 @@ private:
     int *h_boundary_cell_id = nullptr, *d_boundary_cell_id = nullptr;
     double *h_internal_coeffs = nullptr, *h_boundary_coeffs = nullptr,
     *h_boundary_pressure = nullptr, *h_boundary_face_vector = nullptr,
+    *h_boundary_face = nullptr, *d_boundary_face = nullptr,
+    *h_boundary_deltaCoeffs = nullptr, *d_boundary_deltaCoeffs = nullptr, 
     *d_internal_coeffs = nullptr, *d_boundary_coeffs = nullptr,
     *d_internal_coeffs_init = nullptr, *d_boundary_coeffs_init = nullptr,
+    *d_laplac_internal_coeffs = nullptr, *d_laplac_boundary_coeffs = nullptr,
+    *d_laplac_internal_coeffs_init = nullptr, *d_laplac_boundary_coeffs_init = nullptr,
     *d_boundary_pressure = nullptr, *d_boundary_face_vector = nullptr,
-    *d_boundary_pressure_init = nullptr;
+    *d_boundary_pressure_init = nullptr,
+    *d_boundary_velocity = nullptr, *d_boundary_velocity_init = nullptr,
+    *d_boundary_nuEff = nullptr, *d_boundary_nuEff_init = nullptr,
+    *d_boundary_rho = nullptr, *d_boundary_rho_init = nullptr;
+
     std::vector<int> boundPermutationList;
     std::vector<double> ueqn_internalCoeffs, ueqn_boundaryCoeffs;
     std::vector<double> boundary_face_vector;
     std::vector<double> boundary_pressure;
+    std::vector<double> boundary_face;
+    std::vector<double> boundary_deltaCoeffs;
 
     // - the device pointer to the permutated index list
     std::vector<int> permedIndex;
@@ -158,24 +174,38 @@ private:
 
     double time_monitor_CPU, time_monitor_GPU;
 
+    double* d_grad = nullptr; 
+    double* d_grad_boundary = nullptr, *d_grad_boundary_init = nullptr;
+    double* d_nuEff = nullptr;
+
 
 
 public:
     dfMatrix();
     dfMatrix(int num_surfaces, int num_cells, int num_boundary_faces, int &num_boundary_cells_output,
-    const int *neighbour, const int *owner, const double* volume, const double* weight, const double* face_vector, 
-    std::vector<double> boundary_face_vector_init, std::vector<int> boundary_cell_id_init, 
-    const std::string &modeStr, const std::string &cfgFile);
+    const int *neighbour, const int *owner, const double* volume, const double* weight, const double* face_vector, const double* face, const double* deltaCoeffs,
+    std::vector<double> boundary_face_vector_init, std::vector<double> boundary_face_init, std::vector<double> boundary_deltaCoeffs_init,
+    std::vector<int> boundary_cell_id_init, const std::string &modeStr, const std::string &cfgFile);
     ~dfMatrix();
 
     void checkValue(bool print);
 
     void fvm_ddt(double *rho_old, double *rho_new, double* vector_old);
 
-    void fvm_div(double* phi, double* ueqn_internalCoeffs_init,
-    double* ueqn_boundaryCoeffs_init, double* boundary_pressure_init);
+    void fvm_div(double* phi, double* ueqn_internalCoeffs_init, double* ueqn_boundaryCoeffs_init,
+    double* ueqn_laplac_internalCoeffs_init, double* ueqn_laplac_boundaryCoeffs_init,
+    double* boundary_pressure_init, double* boundary_velocity_init,
+    double* boundary_nuEff_init, double* boundary_rho_init);
 
     void fvc_grad(double* pressure);
+
+    void fvc_grad_vector(std::vector<double> tmp_boundary_gradU, const double *ref_gradU);
+
+    void divDevRhoReff(const double *ref_grad_T);
+
+    void fvc_div_tensor(const double *nuEff, double *of_ref_boundary, double *of_ref_grad, double *of_ref_div);
+
+    void fvm_laplacian();
 
     void add_fvMatrix(double* turbSrc_low, double* turbSrc_diag, double* turbSrc_upp, double* turbSrc_source);
 
