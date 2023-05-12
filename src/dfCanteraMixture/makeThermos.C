@@ -24,9 +24,11 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "basicThermo.H"
-#include "psiThermo.H"
+// #include "psiThermo.H"
+#include "rhoThermo.H"
 #include "CanteraMixture.H"
-#include "hePsiThermo.H"
+// #include "hePsiThermo.H"
+#include "heRhoThermo.H"
 #include "addToRunTimeSelectionTable.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -71,7 +73,8 @@ namespace Foam
     addThermoPhysicsThermo(fluidThermo, CThermo##Mixture##ThermoPhys)
 
 
-makeThermoPhysicsThermos(hePsiThermo, CanteraMixture, psiThermo);
+// makeThermoPhysicsThermos(hePsiThermo, CanteraMixture, psiThermo);
+makeThermoPhysicsThermos(heRhoThermo, CanteraMixture, rhoThermo);
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

@@ -2,8 +2,10 @@
 
 Info<< "Reading thermophysical properties\n" << endl;
 
-psiThermo* pThermo = new hePsiThermo<psiThermo, CanteraMixture>(mesh, word::null);
-psiThermo& thermo = *pThermo;
+// psiThermo* pThermo = new hePsiThermo<psiThermo, CanteraMixture>(mesh, word::null);
+// psiThermo& thermo = *pThermo;
+rhoThermo* pThermo = new heRhoThermo<rhoThermo, CanteraMixture>(mesh, word::null);
+rhoThermo& thermo = *pThermo;
 
 //move from creatFieldRefs.H to createFields.H
 //p needed to be created before e

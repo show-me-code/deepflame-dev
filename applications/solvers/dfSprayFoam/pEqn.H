@@ -3,6 +3,10 @@ rho = max(rho, rhoMin);
 rho = min(rho, rhoMax);
 rho.relax();
 
+// Thermodynamic density needs to be updated by psi*d(p) after the
+// pressure solution
+const volScalarField psip0(psi*p);
+
 volScalarField rAU(1.0/UEqn.A());
 surfaceScalarField rhorAUf("rhorAUf", fvc::interpolate(rho*rAU));
 volVectorField HbyA(constrainHbyA(rAU*UEqn.H(), U, p));
@@ -93,6 +97,7 @@ else
 p.relax();
 
 // Recalculate density from the relaxed pressure
+thermo.correctRho(psi*p - psip0);
 rho = thermo.rho();
 rho = max(rho, rhoMin);
 rho = min(rho, rhoMax);

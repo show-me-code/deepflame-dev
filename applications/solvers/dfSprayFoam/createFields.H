@@ -1,7 +1,8 @@
 #include "readGravitationalAcceleration.H"
 
 Info<< "Reading thermophysical properties\n" << endl;
-fluidThermo* pThermo = new hePsiThermo<psiThermo, CanteraMixture>(mesh, word::null);
+// fluidThermo* pThermo = new hePsiThermo<psiThermo, CanteraMixture>(mesh, word::null);
+fluidThermo* pThermo = new heRhoThermo<rhoThermo, CanteraMixture>(mesh, word::null);
 fluidThermo& thermo = *pThermo;
 thermo.validate(args.executable(), "ha");
 

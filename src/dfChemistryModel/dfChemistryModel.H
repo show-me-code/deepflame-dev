@@ -62,7 +62,8 @@ SourceFiles
 #include "scalarField.H"
 #include "volFields.H"
 #include "hashedWordList.H"
-#include "psiThermo.H"
+// #include "psiThermo.H"
+#include "rhoThermo.H"
 #include "physicoChemicalConstants.H" // for R
 #include "ChemistryProblem.H"
 #include "ChemistrySolution.H"
@@ -121,7 +122,7 @@ public IOdictionary
         volScalarField& alpha_;
         volScalarField& T_;
         const volScalarField& p_;
-        const volScalarField& rho_;
+        volScalarField& rho_;
         volScalarField& mu_;
         volScalarField& psi_;
         // heat release rate, [J/m^3/s]
