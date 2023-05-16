@@ -121,6 +121,15 @@ public:
             return CanteraGas_->density()/p;
         }
 
+        scalar rho
+        (
+            const scalar& p,
+            const scalar& T
+        ) const
+        {
+            return CanteraGas_->density();
+        }
+
         scalar mu
         (
             const scalar& p,

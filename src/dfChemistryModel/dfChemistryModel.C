@@ -67,9 +67,12 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
     alpha_(const_cast<volScalarField&>(thermo.alpha())),
     T_(thermo.T()),
     p_(thermo.p()),
-    rho_(mesh_.objectRegistry::lookupObject<volScalarField>("rho")),
-    mu_(const_cast<volScalarField&>(dynamic_cast<psiThermo&>(thermo).mu()())),
-    psi_(const_cast<volScalarField&>(dynamic_cast<psiThermo&>(thermo).psi())),
+    // rho_(mesh_.objectRegistry::lookupObject<volScalarField>("rho")),
+    rho_(const_cast<volScalarField&>(dynamic_cast<rhoThermo&>(thermo).rho())),
+    // mu_(const_cast<volScalarField&>(dynamic_cast<psiThermo&>(thermo).mu()())),
+    // psi_(const_cast<volScalarField&>(dynamic_cast<psiThermo&>(thermo).psi())),
+    mu_(const_cast<volScalarField&>(dynamic_cast<rhoThermo&>(thermo).mu()())),
+    psi_(const_cast<volScalarField&>(dynamic_cast<rhoThermo&>(thermo).psi())),
     Qdot_
     (
         IOobject
@@ -385,6 +388,8 @@ void Foam::dfChemistryModel<ThermoType>::correctThermo()
 
         psi_[celli] = mixture_.psi(p_[celli],T_[celli]);
 
+        rho_[celli] = mixture_.rho(p_[celli],T_[celli]);
+
         mu_[celli] = mixture_.CanteraTransport()->viscosity(); // Pa-s
 
         alpha_[celli] = mixture_.CanteraTransport()->thermalConductivity()/(CanteraGas_->cp_mass()); // kg/(m*s)
@@ -418,7 +423,7 @@ void Foam::dfChemistryModel<ThermoType>::correctThermo()
 
     const volScalarField::Boundary& pBf = p_.boundaryField();
 
-    const volScalarField::Boundary& rhoBf = rho_.boundaryField();
+    volScalarField::Boundary& rhoBf = rho_.boundaryFieldRef();
 
     volScalarField::Boundary& TBf = T_.boundaryFieldRef();
 
@@ -433,7 +438,7 @@ void Foam::dfChemistryModel<ThermoType>::correctThermo()
     forAll(T_.boundaryField(), patchi)
     {
         const fvPatchScalarField& pp = pBf[patchi];
-        const fvPatchScalarField& prho = rhoBf[patchi];
+        fvPatchScalarField& prho = rhoBf[patchi];
         fvPatchScalarField& pT = TBf[patchi];
         fvPatchScalarField& ppsi = psiBf[patchi];
         fvPatchScalarField& ph = hBf[patchi];
@@ -453,6 +458,8 @@ void Foam::dfChemistryModel<ThermoType>::correctThermo()
                 ph[facei] = CanteraGas_->enthalpy_mass();
 
                 ppsi[facei] = mixture_.psi(pp[facei],pT[facei]);
+
+                prho[facei] = mixture_.rho(pp[facei],pT[facei]);
 
                 pmu[facei] = mixture_.CanteraTransport()->viscosity();
 
@@ -494,6 +501,8 @@ void Foam::dfChemistryModel<ThermoType>::correctThermo()
                 pT[facei] = CanteraGas_->temperature();
 
                 ppsi[facei] = mixture_.psi(pp[facei],pT[facei]);
+
+                prho[facei] = mixture_.rho(pp[facei],pT[facei]);
 
                 pmu[facei] = mixture_.CanteraTransport()->viscosity();
 

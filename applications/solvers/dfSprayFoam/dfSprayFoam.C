@@ -31,7 +31,8 @@ Description
 \*---------------------------------------------------------------------------*/
 #include "dfChemistryModel.H"
 #include "CanteraMixture.H"
-#include "hePsiThermo.H"
+// #include "hePsiThermo.H"
+#include "heRhoThermo.H"
 #include "turbulentFluidThermoModel.H"
 
 #ifdef USE_PYTORCH

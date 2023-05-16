@@ -44,7 +44,8 @@ Foam::combustionModels::baseFGM<ReactionThermo>::baseFGM
     combustion_(this->coeffs().lookupOrDefault("combustion", false)),
     solveEnthalpy_(this->coeffs().lookupOrDefault("solveEnthalpy", false)),
     flameletT_(this->coeffs().lookupOrDefault("flameletT", false)),
-    psi_(const_cast<volScalarField&>(dynamic_cast<psiThermo&>(thermo).psi())),
+    // psi_(const_cast<volScalarField&>(dynamic_cast<psiThermo&>(thermo).psi())),
+    psi_(const_cast<volScalarField&>(dynamic_cast<rhoThermo&>(thermo).psi())),
     Wt_ 
     (
         IOobject

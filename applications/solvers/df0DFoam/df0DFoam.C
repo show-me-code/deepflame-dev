@@ -27,7 +27,8 @@ Description
 \*---------------------------------------------------------------------------*/
 #include "dfChemistryModel.H"
 #include "CanteraMixture.H"
-#include "hePsiThermo.H"
+// #include "hePsiThermo.H"
+#include "heRhoThermo.H"
 
 #ifdef USE_PYTORCH
 #include <pybind11/embed.h>
