@@ -1,6 +1,5 @@
 // Solve the Momentum equation
-// start1 = std::clock();
-// Info << "U_of = " << U << endl;
+start1 = std::clock();
 tmp<fvVectorMatrix> tUEqn
 (
     fvm::ddt(rho, U) + fvm::div(phi, U)
@@ -8,6 +7,10 @@ tmp<fvVectorMatrix> tUEqn
   == -fvc::grad(p)
 );
 fvVectorMatrix& UEqn = tUEqn.ref();
+
+end1 = std::clock();
+// time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+// time_monitor_UEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
 const tmp<volTensorField> tgradU(fvc::grad(U));
 const volTensorField& gradU = tgradU();
@@ -26,9 +29,6 @@ forAll(U.boundaryField(), patchi)
     tmp_boundary_gradU.insert(tmp_boundary_gradU.end(), &pSf[0][0], &pSf[0][0]+9*patchSize);
 }
 
-// end1 = std::clock();
-// time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
-// time_monitor_UEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
 // start1 = std::clock();
 // fvVectorMatrix turb_source
@@ -48,7 +48,6 @@ forAll(U.boundaryField(), patchi)
 
 //     K = 0.5*magSqr(U);
 // }
-// Info << "U_of = " << U << endl;
 // end1 = std::clock();
 // time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
 // time_monitor_UEqn_Solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
@@ -106,6 +105,11 @@ forAll(U.boundaryField(), patchi)
 
     offset += patchSize;
 }
+end1 = std::clock();
+end2 = std::clock();
+time_monitor_CPU += double(end2 - start2) / double(CLOCKS_PER_SEC);
+time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+time_monitor_UEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
 // test boundary of of output 
 FILE *fp = NULL;
@@ -114,13 +118,18 @@ fp = fopen(input_file, "rb+");
 double *of_ref_boundary = new double[9*num_boundary_faces];
 int readfile = 0;
 offset = 0;
-
 forAll(U.boundaryField(), patchi)
 {
     int patchSize = U.boundaryField()[patchi].size();
     readfile = fread(of_ref_boundary+9*offset, sizeof(double), patchSize*9, fp);
     offset += patchSize;
 }
+
+char *input_file0 = "of_ref_fvc_grad_T_boundary.txt";
+fp = fopen(input_file0, "rb+");
+double *of_ref_fvc_grad_T_boundary = new double[9*num_boundary_faces];
+readfile = fread(of_ref_fvc_grad_T_boundary, sizeof(double), 9*num_boundary_faces, fp);
+
 char *input_file1 = "of_ref_fvc_grad.txt";
 fp = fopen(input_file1, "rb+");
 double *of_ref_grad = new double[9*num_cells];
@@ -136,8 +145,7 @@ fp = fopen(input_file3, "rb+");
 double *of_ref_div = new double[3*num_cells];
 readfile = fread(of_ref_div, sizeof(double), 3*num_cells, fp);
 
-end2 = std::clock();
-time_monitor_CPU += double(end2 - start2) / double(CLOCKS_PER_SEC);
+start1 = std::clock();
 
 UEqn_GPU.fvm_div(&phi[0], ueqn_internalCoeffs_init, ueqn_boundaryCoeffs_init, 
 ueqn_laplac_internalCoeffs_init, ueqn_laplac_boundaryCoeffs_init, 
@@ -146,39 +154,50 @@ boundary_pressure_init, boundary_velocity_init, boundary_nuEff_init, boundary_rh
 UEqn_GPU.fvc_grad(&p[0]);
 
 UEqn_GPU.fvc_grad_vector(tmp_boundary_gradU, &gradU[0][0]);
-UEqn_GPU.divDevRhoReff(of_ref_grad_T);
+UEqn_GPU.divDevRhoReff(of_ref_grad_T, of_ref_fvc_grad_T_boundary);
 UEqn_GPU.fvc_div_tensor(&nuEff[0], of_ref_boundary, of_ref_grad, of_ref_div);
 UEqn_GPU.fvm_laplacian();
+end1 = std::clock();
+time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+time_monitor_UEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
-start2 = std::clock();
-fvVectorMatrix turb_source
-(
-    turbulence->divDevRhoReff(U)
-);
-end2 = std::clock();
-time_monitor_CPU += double(end2 - start2) / double(CLOCKS_PER_SEC);
+
+// start2 = std::clock();
+// fvVectorMatrix turb_source
+// (
+//     turbulence->divDevRhoReff(U)
+// );
+// end2 = std::clock();
+// time_monitor_CPU += double(end2 - start2) / double(CLOCKS_PER_SEC);
 
 // UEqn_GPU.add_fvMatrix(&turb_source.lower()[0], &turb_source.diag()[0], &turb_source.upper()[0], &turb_source.source()[0][0]);
-end1 = std::clock();
-time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
-time_monitor_UEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
+// end1 = std::clock();
+// time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+// time_monitor_UEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
+// check value
+// if (pimple.momentumPredictor())
+// {
+//     solve(UEqn);
+
+//     K = 0.5*magSqr(U);
+// }
 // UEqn_GPU.checkValue(false);
 
-start1 = std::clock();
-// std::thread t(&dfMatrix::solve, &UEqn_GPU);
-UEqn_GPU.solve();
-end1 = std::clock();
-time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
-time_monitor_UEqn_Solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
+// start1 = std::clock();
+// // // std::thread t(&dfMatrix::solve, &UEqn_GPU);
+// UEqn_GPU.solve();
+// end1 = std::clock();
+// time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+// time_monitor_UEqn_Solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
-start1 = std::clock();
-// t.join();
-UEqn_GPU.updatePsi(&U[0][0]);
-K = 0.5*magSqr(U);
-end1 = std::clock();
-time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
-time_monitor_UEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
-time_monitor_CPU += double(end1 - start1) / double(CLOCKS_PER_SEC);
-// Info << "U_amgx = " << U << endl;
+// start1 = std::clock();
+// // // t.join();
+// // UEqn_GPU.updatePsi(&U[0][0]);
+// K = 0.5*magSqr(U);
+// end1 = std::clock();
+// time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+// time_monitor_UEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
+// time_monitor_CPU += double(end1 - start1) / double(CLOCKS_PER_SEC);
+// // Info << "U_amgx = " << U << endl;
 

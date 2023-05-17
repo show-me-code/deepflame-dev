@@ -1,6 +1,8 @@
 import re
+import sys
 
-filename = "20.multiThreads"
+filename = sys.argv[1]
+print(filename)
 time_dict = {}
 is_first_time = {}
 

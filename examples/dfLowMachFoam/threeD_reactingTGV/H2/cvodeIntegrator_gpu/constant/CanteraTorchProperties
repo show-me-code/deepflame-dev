@@ -42,7 +42,7 @@ TorchSettings
 
 AmgxSettings
 {
-    UEqnSettingPath "/home/runze/deepflame-dev/examples/dfLowMachFoam/threeD_reactingTGV/H2/cvodeIntegrator/system/amgxUOptions";
+    UEqnSettingPath "/home/runze/GPU/deepflame-dev/examples/dfLowMachFoam/threeD_reactingTGV/H2/cvodeIntegrator_gpu/system/amgxUOptions";
 }
 
 loadbalancing

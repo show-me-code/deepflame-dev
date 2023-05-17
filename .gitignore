@@ -71,3 +71,5 @@ lib/
 bin/
 .vscode/
 result/
+*result*
+*profile*

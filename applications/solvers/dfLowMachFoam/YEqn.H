@@ -26,6 +26,13 @@ forAll(Y, i)
 }
 const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
 
+start1 = std::clock();
+// // std::thread t(&dfMatrix::solve, &UEqn_GPU);
+UEqn_GPU.solve();
+end1 = std::clock();
+time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+time_monitor_UEqn_Solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
+
 //MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
 label flag_mpi_init;
 MPI_Initialized(&flag_mpi_init);
