@@ -185,6 +185,8 @@ class baseFGM
 
     //- fluid density
      volScalarField& rho_;
+    //- fluid density
+     volScalarField& rho_inRhoThermo_;
 
     //- fluid pressure
     const volScalarField& p_;
