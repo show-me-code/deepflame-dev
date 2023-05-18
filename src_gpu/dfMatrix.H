@@ -173,7 +173,7 @@ private:
     int num_iteration;
 
     double time_monitor_CPU;
-    double time_monitor_GPU_kernel, time_monitor_GPU_memcpy;
+    double time_monitor_GPU_kernel, time_monitor_GPU_memcpy, time_monitor_GPU_memcpy_test;
 
     double* d_grad = nullptr; 
     double* d_grad_boundary = nullptr, *d_grad_boundary_init = nullptr;
@@ -200,11 +200,11 @@ public:
 
     void fvc_grad(double* pressure);
 
-    void fvc_grad_vector(std::vector<double> tmp_boundary_gradU, const double *ref_gradU);
+    void fvc_grad_vector();
 
-    void divDevRhoReff(const double *ref_grad_T, const double *ref_grad_T_boundary);
+    void divDevRhoReff();
 
-    void fvc_div_tensor(const double *nuEff, double *of_ref_boundary, double *of_ref_grad, double *of_ref_div);
+    void fvc_div_tensor(const double *nuEff);
 
     void fvm_laplacian();
 

@@ -63,6 +63,8 @@ Description
 #include <cuda_runtime.h>
 #include <thread>
 
+#define GPUSolver_
+
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 int main(int argc, char *argv[])
