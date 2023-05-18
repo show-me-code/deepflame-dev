@@ -1252,7 +1252,7 @@ void dfMatrix::fvm_div(double* phi, double* ueqn_internalCoeffs_init, double* ue
 
     start = std::clock();
     checkCudaErrors(cudaMemcpyAsync(d_phi_init, h_phi_init, num_surfaces*sizeof(double), cudaMemcpyHostToDevice, stream));
-    // checkCudaErrors(cudaMemcpyAsync(d_phi_init + num_surfaces, d_phi_init, num_surfaces*sizeof(double), cudaMemcpyDeviceToDevice, stream));
+    checkCudaErrors(cudaMemcpyAsync(d_phi_init + num_surfaces, d_phi_init, num_surfaces*sizeof(double), cudaMemcpyDeviceToDevice, stream));
     end = std::clock();
     time_monitor_GPU_memcpy_test += double(end - start) / double(CLOCKS_PER_SEC);
 
