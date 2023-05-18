@@ -63,11 +63,11 @@ class CanteraMixture
     // Private Data
 
         IOdictionary CanteraTorchProperties_;
-        const word CanteraMechanismFile_;
+        const string CanteraMechanismFile_;
         std::shared_ptr<Cantera::Solution> CanteraSolution_;
         std::shared_ptr<Cantera::ThermoPhase> CanteraGas_;
         word transportModelName_;
-        std::shared_ptr<Cantera::Transport> CanteraTransport_;
+        Cantera::Transport* CanteraTransport_;
         hashedWordList species_;
         PtrList<volScalarField> Y_;
         const volScalarField& Tref_;
@@ -227,7 +227,7 @@ public:
 
         std::shared_ptr<Cantera::Solution> CanteraSolution() {return CanteraSolution_;}
 
-        std::shared_ptr<Cantera::Transport> CanteraTransport() {return CanteraTransport_;}
+        Cantera::Transport* CanteraTransport() {return CanteraTransport_;}
 
         const word& transportModelName() {return transportModelName_;}
 
