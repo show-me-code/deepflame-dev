@@ -14,11 +14,6 @@ tmp<fv::convectionScheme<scalar>> mvConvection
         mesh.divScheme("div(phi,Yi_h)")
     )
 );
-// start1 = std::clock();
-// std::thread t(&dfMatrix::solve, &UEqn_GPU);
-// end1 = std::clock();
-// time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
-// time_monitor_UEqn_Solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
 forAll(Y, i)
 {
@@ -26,12 +21,14 @@ forAll(Y, i)
 }
 const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
 
-start1 = std::clock();
-// // std::thread t(&dfMatrix::solve, &UEqn_GPU);
-UEqn_GPU.solve();
-end1 = std::clock();
-time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
-time_monitor_UEqn_Solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
+#ifdef GPUSolver_
+    start1 = std::clock();
+    // // std::thread t(&dfMatrix::solve, &UEqn_GPU);
+    UEqn_GPU.solve();
+    end1 = std::clock();
+    time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_UEqn_Solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
+#endif
 
 //MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
 label flag_mpi_init;
