@@ -15,15 +15,15 @@ end1 = std::clock();
 #endif
 
 #ifdef CPUSolver_
-// UEqn.relax();
-start1 = std::clock();
-if (pimple.momentumPredictor())
-{
-    solve(UEqn);
+    // UEqn.relax();
+    start1 = std::clock();
+    if (pimple.momentumPredictor())
+    {
+        solve(UEqn);
 
-    K = 0.5*magSqr(U);
-}
-end1 = std::clock();
+        K = 0.5*magSqr(U);
+    }
+    end1 = std::clock();
     time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_UEqn_Solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
 #endif
@@ -101,7 +101,7 @@ end1 = std::clock();
     boundary_pressure_init, boundary_velocity_init, boundary_nuEff_init, boundary_rho_init);
     UEqn_GPU.fvc_grad(&p[0]);
     UEqn_GPU.fvc_grad_vector();
-    UEqn_GPU.divDevRhoReff();
+    UEqn_GPU.dev2T();
     UEqn_GPU.fvc_div_tensor(&nuEff[0]);
     UEqn_GPU.fvm_laplacian();
     end1 = std::clock();

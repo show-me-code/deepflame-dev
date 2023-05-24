@@ -59,7 +59,7 @@ Description
 #include "basicThermo.H"
 #include "CombustionModel.H"
 
-#include "dfMatrix.H"
+#include "dfUEqn.H"
 #include <cuda_runtime.h>
 #include <thread>
 
