@@ -19,7 +19,6 @@
         time_monitor_UEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
         time_monitor_CPU += double(end1 - start1) / double(CLOCKS_PER_SEC);
     #endif
-
     fvScalarMatrix EEqn
     (
         fvm::ddt(rho, he) + fvm::div(phi, he)
