@@ -101,7 +101,7 @@ end1 = std::clock();
     boundary_pressure_init, boundary_velocity_init, boundary_nuEff_init, boundary_rho_init);
     UEqn_GPU.fvc_grad(&p[0]);
     UEqn_GPU.fvc_grad_vector();
-    UEqn_GPU.divDevRhoReff();
+    UEqn_GPU.dev2T();
     UEqn_GPU.fvc_div_tensor(&nuEff[0]);
     UEqn_GPU.fvm_laplacian();
     end1 = std::clock();
