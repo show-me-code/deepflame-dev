@@ -60,6 +60,7 @@ Description
 #include "CombustionModel.H"
 
 #include "dfUEqn.H"
+#include "dfRhoEqn.H"
 #include <cuda_runtime.h>
 #include <thread>
 

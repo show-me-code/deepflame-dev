@@ -18,7 +18,7 @@ include_directories(
     $ENV{AMGX_DIR}/include
 )
 
-add_library(${PROJECT_NAME} SHARED dfUEqn.cu AmgXSolver.cu)
+add_library(${PROJECT_NAME} SHARED dfUEqn.cu dfRhoEqn.cu AmgXSolver.cu)
 
 target_link_libraries(${PROJECT_NAME}
     ${MPI_LIBRARIES}

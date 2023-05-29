@@ -29,7 +29,7 @@ void check(T result, char const *const func, const char *const file,
 
 #define checkCudaErrors(val) check((val), #val, __FILE__, __LINE__)
 
-void checkVectorEqual(int count, const double* basevec, double* vec, double max_relative_error) {
+inline void checkVectorEqual(int count, const double* basevec, double* vec, double max_relative_error) {
     for (size_t i = 0; i < count; ++i)
     {
         double abs_diff = fabs(basevec[i] - vec[i]);
@@ -110,6 +110,7 @@ struct dfMatrixDataBase
     *d_laplac_internal_coeffs_init = nullptr, *d_laplac_boundary_coeffs_init = nullptr,
     *d_boundary_pressure = nullptr, *d_boundary_face_vector = nullptr,
     *d_boundary_pressure_init = nullptr,
+    *d_boundary_phi = nullptr, *d_boundary_phi_init = nullptr, 
     *d_boundary_velocity = nullptr, *d_boundary_velocity_init = nullptr,
     *d_boundary_nuEff = nullptr, *d_boundary_nuEff_init = nullptr,
     *d_boundary_rho = nullptr, *d_boundary_rho_init = nullptr;
@@ -167,10 +168,7 @@ struct dfMatrixDataBase
      * @brief cuda functions
      */
     cudaStream_t stream;
-    /**
-     * @brief AmgX functions
-     */
-    AmgXSolver* UxSolver = nullptr, *UySolver = nullptr, *UzSolver = nullptr;
+
     int num_iteration;
 
     double time_monitor_CPU;
@@ -191,6 +189,7 @@ struct dfMatrixDataBase
     {
         // allocate field pointer in pin memory
         cudaMallocHost(&h_phi_init, num_faces * sizeof(double));
+        cudaMallocHost(&h_rho_old, num_cells * sizeof(double));
 
         h_weight_vec_init.resize(num_faces);
         h_weight_vec.resize(num_faces);
@@ -478,6 +477,8 @@ struct dfMatrixDataBase
 
         checkCudaErrors(cudaMalloc((void**)&d_boundary_pressure_init, boundary_face_bytes));
         checkCudaErrors(cudaMalloc((void**)&d_boundary_pressure, boundary_face_bytes));
+        checkCudaErrors(cudaMalloc((void**)&d_boundary_phi_init, boundary_face_bytes));
+        checkCudaErrors(cudaMalloc((void**)&d_boundary_phi, boundary_face_bytes));
         checkCudaErrors(cudaMalloc((void**)&d_boundary_velocity_init, boundary_face_vec_bytes));
         checkCudaErrors(cudaMalloc((void**)&d_boundary_velocity, boundary_face_vec_bytes));
         checkCudaErrors(cudaMalloc((void**)&d_boundary_face_vector, boundary_face_vec_bytes));
@@ -495,7 +496,7 @@ struct dfMatrixDataBase
         checkCudaErrors(cudaMalloc((void**)&d_boundary_nuEff_init, boundary_face_bytes));
         checkCudaErrors(cudaMalloc((void**)&d_boundary_rho, boundary_face_bytes));
         checkCudaErrors(cudaMalloc((void**)&d_boundary_rho_init, boundary_face_bytes));
-        total_bytes += (boundary_face_bytes*8 + boundary_face_vec_bytes * 11);
+        total_bytes += (boundary_face_bytes*10 + boundary_face_vec_bytes * 11);
 
         // checkCudaErrors(cudaMalloc((void**)&d_A_csr, csr_value_vec_bytes));
         // checkCudaErrors(cudaMalloc((void**)&d_b, cell_vec_bytes));

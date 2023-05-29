@@ -30,7 +30,7 @@ end1 = std::clock();
 
 #ifdef GPUSolver_
     start1 = std::clock();
-    UEqn_GPU.fvm_ddt(&rho.oldTime()[0], &rho[0], &U.oldTime()[0][0]);
+    UEqn_GPU.fvm_ddt(&U.oldTime()[0][0]);
     start2 = std::clock();
     int offset = 0;
     const tmp<volScalarField> nuEff_tmp(turbulence->nuEff());
@@ -69,24 +69,6 @@ end1 = std::clock();
         memcpy(boundary_nuEff_init+offset, &patchNuEff[0], patchSize*sizeof(double));
         // boundary rho
         memcpy(boundary_rho_init+offset, &patchRho[0], patchSize*sizeof(double));
-
-        // // only need to construct once
-        // std::copy(&ueqn_internalCoeffs_vec[0][0], &ueqn_internalCoeffs_vec[0][0]+3*patchSize, ueqn_internalCoeffs_init + 3*offset);
-        // // need to construct every time step
-        // std::copy(&ueqn_boundaryCoeffs_vec[0][0], &ueqn_boundaryCoeffs_vec[0][0]+3*patchSize, ueqn_boundaryCoeffs_init + 3*offset);
-        // // laplacian internalCoeffs
-        // std::copy(&ueqn_laplac_internalCoeffs_vec[0][0], &ueqn_laplac_internalCoeffs_vec[0][0]+3*patchSize, ueqn_laplac_internalCoeffs_init + 3*offset);
-        // // laplacian boundaryCoeffs
-        // std::copy(&ueqn_laplac_boundaryCoeffs_vec[0][0], &ueqn_laplac_boundaryCoeffs_vec[0][0]+3*patchSize, ueqn_laplac_boundaryCoeffs_init + 3*offset);
-        // // boundary pressure
-        // std::copy(&patchP[0], &patchP[0]+patchSize, boundary_pressure_init+offset);
-        // // boundary velocity
-        // std::copy(&patchU[0][0], &patchU[0][0]+3*patchSize, boundary_velocity_init+3*offset);
-        // // boundary nuEff
-        // std::copy(&patchNuEff[0], &patchNuEff[0]+patchSize, boundary_nuEff_init+offset);
-        // // boundary rho
-        // std::copy(&patchRho[0], &patchRho[0]+patchSize, boundary_rho_init+offset);
-
         offset += patchSize;
     }
     end1 = std::clock();
@@ -97,8 +79,8 @@ end1 = std::clock();
 
     start1 = std::clock();
     UEqn_GPU.fvm_div(&phi[0], ueqn_internalCoeffs_init, ueqn_boundaryCoeffs_init, 
-    ueqn_laplac_internalCoeffs_init, ueqn_laplac_boundaryCoeffs_init, 
-    boundary_pressure_init, boundary_velocity_init, boundary_nuEff_init, boundary_rho_init);
+        ueqn_laplac_internalCoeffs_init, ueqn_laplac_boundaryCoeffs_init, 
+        boundary_pressure_init, boundary_velocity_init, boundary_nuEff_init, boundary_rho_init);
     UEqn_GPU.fvc_grad(&p[0]);
     UEqn_GPU.fvc_grad_vector();
     UEqn_GPU.dev2T();
