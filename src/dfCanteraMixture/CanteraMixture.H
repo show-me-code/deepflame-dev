@@ -39,6 +39,7 @@ SourceFiles
 #include "cantera/zerodim.h"
 #include "cantera/transport.h"
 #include "cantera/thermo/IdealGasPhase.h"
+#include "cantera/kinetics.h"
 #include "IOdictionary.H"
 #include "fvMesh.H"
 #include "word.H"
