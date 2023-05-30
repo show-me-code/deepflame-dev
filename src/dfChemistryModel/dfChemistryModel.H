@@ -109,10 +109,10 @@ public IOdictionary
         PtrList<volScalarField> hai_;
         // species chemistry enthalpy, [J/kg]
         scalarList hc_;
+        // mole fraction
+        mutable scalarList c_;          
         // temp mass fraction
         mutable scalarList yTemp_;
-        // mole fraction
-        mutable scalarList c_;  
         // temp mass diffusion coefficients
         mutable scalarList dTemp_;
         // temp H/RT
