@@ -93,6 +93,7 @@ public IOdictionary
         ThermoType& thermo_;
         CanteraMixture& mixture_;
         std::shared_ptr<Cantera::ThermoPhase> CanteraGas_;
+        std::shared_ptr<Cantera::Kinetics> CanteraKinetics_;
         const fvMesh& mesh_;
         Switch chemistry_;
 
@@ -110,6 +111,8 @@ public IOdictionary
         scalarList hc_;
         // temp mass fraction
         mutable scalarList yTemp_;
+        // mole fraction
+        mutable scalarList c_;  
         // temp mass diffusion coefficients
         mutable scalarList dTemp_;
         // temp H/RT
@@ -283,6 +286,12 @@ public:
 
         //- Return access to chemical source terms [kg/m^3/s]
         volScalarField::Internal& RR(const label i) {return RR_[i];}
+
+        virtual tmp<volScalarField::Internal> calculateRR
+        (
+            const label reactionI,
+            const label speciei
+        ) const;
 
         //- Return the heat release rate [J/m/s^3]
         const volScalarField& Qdot() const
