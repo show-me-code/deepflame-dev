@@ -51,6 +51,7 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
     thermo_(thermo),
     mixture_(dynamic_cast<CanteraMixture&>(thermo)),
     CanteraGas_(mixture_.CanteraGas()),
+    CanteraKinetics_(mixture_.CanteraKinetics()),
     mesh_(thermo.p().mesh()),
     chemistry_(lookup("chemistry")),
     relTol_(this->subDict("odeCoeffs").lookupOrDefault("relTol",1e-9)),
