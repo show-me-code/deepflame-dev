@@ -108,9 +108,7 @@ public IOdictionary
         // species absolute enthalpy, [J/kg]
         PtrList<volScalarField> hai_;
         // species chemistry enthalpy, [J/kg]
-        scalarList hc_;
-        // mole fraction
-        mutable scalarList c_;          
+        scalarList hc_;         
         // temp mass fraction
         mutable scalarList yTemp_;
         // temp mass diffusion coefficients
@@ -287,7 +285,7 @@ public:
         //- Return access to chemical source terms [kg/m^3/s]
         volScalarField::Internal& RR(const label i) {return RR_[i];}
 
-        virtual tmp<volScalarField::Internal> calculateRR
+        tmp<volScalarField::Internal> calculateRR
         (
             const label reactionI,
             const label speciei
