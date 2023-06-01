@@ -740,9 +740,6 @@ Foam::dfChemistryModel<ThermoType>::calculateRR
   
     volScalarField::Internal& RR = tRR.ref();
 	
-   // mole fraction
-    mutable scalarList c[mixture_.nSpecies()]; 
-	
     doublereal netRate[mixture_.nReactions()];
     doublereal X[mixture_.nSpecies()];
 
@@ -756,13 +753,8 @@ Foam::dfChemistryModel<ThermoType>::calculateRR
         {
             const scalar Yi = Y_[i][celli];
 
-            c[i] = rhoi*Yi/CanteraGas_->molecularWeight(i);
+            X[i] = rhoi*Yi/CanteraGas_->molecularWeight(i);
         }
-
-	for(label i=0; i<mixture_.nSpecies(); i++)
-	{
-	    X[i] = c[i];
-	}
 
 	CanteraGas_->setState_TPX(Ti, pi, X);
 
