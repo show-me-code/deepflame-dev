@@ -62,11 +62,13 @@ Description
 #include "dfUEqn.H"
 #include "dfYEqn.H"
 #include "dfRhoEqn.H"
+#include "dfEEqn.H"
 #include <cuda_runtime.h>
 #include <thread>
 #include "upwind.H"
 
 #define GPUSolver_
+//#define CPUSolver_
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -99,6 +101,10 @@ int main(int argc, char *argv[])
     double time_monitor_UEqn_mtxAssembly=0;
     double time_monitor_UEqn_Solve=0;
     double time_monitor_UEqn_sum=0;
+    double time_monitor_EEqn=0;
+    double time_monitor_EEqn_mtxAssembly=0;
+    double time_monitor_EEqn_Solve=0;
+    double time_monitor_EEqn_sum=0;
     double time_monitor_chem=0;
     double time_monitor_Y=0;
     double time_monitor_E=0;
