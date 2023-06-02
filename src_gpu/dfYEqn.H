@@ -35,10 +35,9 @@ public:
 
     void checkValue(bool print, char *filename);
 
-    void correctVelocity(std::vector<double *> Y_new, std::vector<double *> boundary_Y_init, std::vector<const double *> rhoD_GPU,
-                         const double *phiUcRef, double *boundary_sumYDiffError_ref, double *phiUcBouRef);
+    void correctVelocity(std::vector<double *> Y_new, std::vector<double *> boundary_Y_init, std::vector<const double *> rhoD_GPU);
 
-    void upwindWeight(double *refWeight);
+    void upwindWeight();
 
     void fvm_ddt(std::vector<double *> Y_old);
 

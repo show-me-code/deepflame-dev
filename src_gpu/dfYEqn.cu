@@ -501,30 +501,14 @@ dfYEqn::dfYEqn(dfMatrixDataBase &dataBase, const std::string &modeStr, const std
     }
 }
 
-void dfYEqn::upwindWeight(double *refWeight)
+void dfYEqn::upwindWeight()
 {
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_faces + threads_per_block - 1) / threads_per_block;
     getUpwindWeight<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_faces, dataBase_.d_phi, dataBase_.d_weight_upwind);
-
-#ifdef _CHECK_
-    double *h_refWeight_init = new double[num_faces];
-    double *h_refWeight = new double[num_faces];
-    double *h_weight_upwind = new double[num_faces];
-    cudaMemcpy(h_weight_upwind, dataBase_.d_weight_upwind, num_faces * sizeof(double), cudaMemcpyDeviceToHost);
-    memcpy(h_refWeight_init, refWeight, num_surfaces * sizeof(double));
-    memcpy(h_refWeight_init + num_surfaces, refWeight, num_surfaces * sizeof(double));
-    for (size_t i = 0; i < num_faces; i++)
-        h_refWeight[i] = h_refWeight_init[dataBase_.permedIndex[i]];
-    for (size_t i = 0; i < num_faces; i++)
-        printf("h_weight_upwind[%d] = %lf\n", i, h_weight_upwind[i]);
-    for (size_t i = 0; i < num_faces; i++)
-        printf("h_refWeight[%d] = %lf\n", i, h_refWeight[i]);
-#endif
 }
 
-void dfYEqn::correctVelocity(std::vector<double *> Y_new, std::vector<double *> boundary_Y_init, std::vector<const double *> rhoD_GPU,
-                             const double *phiUcRef, double *boundary_sumYDiffError_ref, double *phiUcBouRef)
+void dfYEqn::correctVelocity(std::vector<double *> Y_new, std::vector<double *> boundary_Y_init, std::vector<const double *> rhoD_GPU)
 {
     // initialize variables in each time step
     checkCudaErrors(cudaMemsetAsync(d_sumYDiffError, 0, 3 * cell_bytes, stream));
@@ -568,55 +552,6 @@ void dfYEqn::correctVelocity(std::vector<double *> Y_new, std::vector<double *> 
     blocks_per_grid = (num_boundary_faces + threads_per_block - 1) / threads_per_block;
     calculate_phiUc_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_faces, dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id,
                                                                                 dataBase_.d_boundary_face_vector, d_sumYDiffError_boundary, d_phiUc_boundary);
-
-#ifdef _CHECK_
-    checkCudaErrors(cudaStreamSynchronize(stream));
-    double *h_sumYDiffError = new double[num_cells * 3];
-    double *h_phiUc = new double[num_faces];
-    double *h_phiUc_ref_init = new double[num_faces];
-    double *h_phiUc_ref = new double[num_faces];
-    double *h_sumYDiffError_boundary = new double[num_boundary_faces * 3];
-    double *h_sumYDiffError_boundary_gpu = new double[num_boundary_faces * 3];
-    double *h_phiUc_boundary = new double[num_boundary_faces];
-    double *h_phiUc_boundary_gpu = new double[num_boundary_faces];
-
-    memcpy(h_phiUc_ref_init, phiUcRef, num_surfaces * sizeof(double));
-    memcpy(h_phiUc_ref_init + num_surfaces, phiUcRef, num_surfaces * sizeof(double));
-    for (int i = 0; i < num_faces; i++)
-    {
-        h_phiUc_ref[i] = h_phiUc_ref_init[dataBase_.permedIndex[i]];
-    }
-    for (int i = 0; i < num_boundary_faces; i++)
-    {
-        h_sumYDiffError_boundary[3 * i] = boundary_sumYDiffError_ref[3 * dataBase_.boundPermutationList[i]];
-        h_sumYDiffError_boundary[3 * i + 1] = boundary_sumYDiffError_ref[3 * dataBase_.boundPermutationList[i] + 1];
-        h_sumYDiffError_boundary[3 * i + 2] = boundary_sumYDiffError_ref[3 * dataBase_.boundPermutationList[i] + 2];
-        h_phiUc_boundary[i] = phiUcBouRef[dataBase_.boundPermutationList[i]];
-    }
-    cudaMemcpy(h_sumYDiffError, d_sumYDiffError, num_cells * sizeof(double) * 3, cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_phiUc, d_phiUc, num_faces * sizeof(double), cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_sumYDiffError_boundary_gpu, d_sumYDiffError_boundary, 3 * num_boundary_faces * sizeof(double), cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_phiUc_boundary_gpu, d_phiUc_boundary, num_boundary_faces * sizeof(double), cudaMemcpyDeviceToHost);
-    // for (size_t i = 0; i < num_cells; i++)
-    //     printf("h_sumYDiffError[%d] = (%e, %e, %e)\n", i, h_sumYDiffError[num_cells * 0 + i],
-    //            h_sumYDiffError[num_cells * 1 + i], h_sumYDiffError[num_cells * 2 + i]);
-    // for (size_t i = 0; i < num_faces; i++)
-    //     printf("phiUc[%d] = %e\n", i, h_phiUc[i]);
-    // for (size_t i = 0; i < num_faces; i++)
-    //     printf("phiUcof[%d] = %e\n", i, h_phiUc_ref[i]);
-    for (int i = 0; i < num_boundary_faces; i++)
-    {
-        // printf("boundary_sumYDiffError_of[%d] = (%e, %e, %e)\n", i, h_sumYDiffError_boundary[3 * i],
-        //        h_sumYDiffError_boundary[3 * i + 1], h_sumYDiffError_boundary[3 * i + 2]);
-        printf("boundary_phiUc_of[%d] = %e\n", i, h_phiUc_boundary[i]);
-    }
-    for (int i = 0; i < num_boundary_faces; i++)
-    {
-        // printf("boundary_phiUc_gpu[%d] = (%e, %e, %e)\n", i, h_sumYDiffError_boundary_gpu[3 * i],
-        //        h_sumYDiffError_boundary_gpu[3 * i + 1], h_sumYDiffError_boundary_gpu[3 * i + 2]);
-        printf("boundary_phiUc_gpu[%d] = %e\n", i, h_phiUc_boundary_gpu[i]);
-    }
-#endif
 }
 
 void dfYEqn::fvm_ddt(std::vector<double *> Y_old)
