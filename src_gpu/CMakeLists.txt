@@ -18,14 +18,19 @@ include_directories(
     $ENV{AMGX_DIR}/include
 )
 
-add_library(${PROJECT_NAME} SHARED dfUEqn.cu dfRhoEqn.cu AmgXSolver.cu)
+add_library(${PROJECT_NAME} 
+    SHARED 
+        dfUEqn.cu 
+        dfRhoEqn.cu 
+        dfYEqn.cu
+        AmgXSolver.cu)
 
 target_link_libraries(${PROJECT_NAME}
     ${MPI_LIBRARIES}
     ${CUDA_LIBRARIES}
     ${LIBAMGXSH}
 )
-
+target_compile_options(dfMatrix PUBLIC -g)
 option(DFMATRIX_ENABLE_DETAILED_DEBUG "Enable detailed debug build" OFF)
 if (DFMATRIX_ENABLE_DETAILED_DEBUG)
     target_compile_definitions(${PROJECT_NAME} PRIVATE DEBUG)

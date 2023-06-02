@@ -60,9 +60,11 @@ Description
 #include "CombustionModel.H"
 
 #include "dfUEqn.H"
+#include "dfYEqn.H"
 #include "dfRhoEqn.H"
 #include <cuda_runtime.h>
 #include <thread>
+#include "upwind.H"
 
 #define GPUSolver_
 
