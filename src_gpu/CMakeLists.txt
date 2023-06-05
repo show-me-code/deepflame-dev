@@ -23,6 +23,7 @@ add_library(${PROJECT_NAME}
         dfUEqn.cu 
         dfRhoEqn.cu 
         dfYEqn.cu
+        dfEEqn.cu
         AmgXSolver.cu)
 
 target_link_libraries(${PROJECT_NAME}
