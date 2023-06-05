@@ -96,6 +96,7 @@ int main(int argc, char *argv[])
     #include "createFields.H"
     #include "createRhoUfIfPresent.H"
 
+    bool doSync = true;
     double time_monitor_flow=0;
     double time_monitor_UEqn=0;
     double time_monitor_UEqn_mtxAssembly=0;
@@ -103,6 +104,9 @@ int main(int argc, char *argv[])
     double time_monitor_UEqn_sum=0;
     double time_monitor_EEqn=0;
     double time_monitor_EEqn_mtxAssembly=0;
+    double time_monitor_EEqn_mtxAssembly_CPU_Prepare;
+    double time_monitor_EEqn_mtxAssembly_GPU_Prepare;
+    double time_monitor_EEqn_mtxAssembly_GPU_Run;
     double time_monitor_EEqn_Solve=0;
     double time_monitor_EEqn_sum=0;
     double time_monitor_chem=0;
@@ -229,6 +233,7 @@ int main(int argc, char *argv[])
 
         runTime.write();
         time_monitor_UEqn_sum += time_monitor_UEqn;
+        time_monitor_EEqn_sum += time_monitor_EEqn;
 
         Info << "output time index " << runTime.timeIndex() << endl;
 
@@ -244,6 +249,12 @@ int main(int argc, char *argv[])
         Info<< "UEqn Time solve            = " << time_monitor_UEqn_Solve << " s" << endl;
         // Info<< "UEqn sum Time              = " << time_monitor_UEqn_sum << " s" << endl;
         // Info<< "UEqn sum Time - overhead   = " << time_monitor_UEqn_sum - time_UEqn_initial << " s" << endl;
+        Info<< "EEqn Time                  = " << time_monitor_EEqn << " s" << endl;
+        Info<< "EEqn Time assamble Mtx     = " << time_monitor_EEqn_mtxAssembly << " s" << endl;
+        Info<< "EEqn assamble(CPU prepare) = " << time_monitor_EEqn_mtxAssembly_CPU_Prepare << " s" << endl;
+        Info<< "EEqn assamble(GPU prepare) = " << time_monitor_EEqn_mtxAssembly_GPU_Prepare << " s" << endl;
+        Info<< "EEqn assamble(GPU run)     = " << time_monitor_EEqn_mtxAssembly_GPU_Run << " s" << endl;
+        Info<< "EEqn Time solve            = " << time_monitor_EEqn_Solve << " s" << endl;
         Info<< "sum Time                   = " << (time_monitor_chem + time_monitor_Y + time_monitor_flow + time_monitor_E + time_monitor_corrThermo + time_monitor_corrDiff) << " s" << endl;
         Info<< "CPU Time (get turb souce)  = " << time_monitor_CPU << " s" << endl;
         Info<< "UEqn time in EEqn          = " << time_monitor_UinE << " s" << endl;
@@ -254,6 +265,12 @@ int main(int argc, char *argv[])
         time_monitor_UEqn = 0;
         time_monitor_UEqn_mtxAssembly = 0;
         time_monitor_UEqn_Solve = 0;
+        time_monitor_EEqn = 0;
+        time_monitor_EEqn_mtxAssembly = 0;
+        time_monitor_EEqn_mtxAssembly_CPU_Prepare = 0;
+        time_monitor_EEqn_mtxAssembly_GPU_Prepare = 0;
+        time_monitor_EEqn_mtxAssembly_GPU_Run = 0;
+        time_monitor_EEqn_Solve = 0;
         time_monitor_chem = 0;
         time_monitor_Y = 0;
         time_monitor_E = 0;

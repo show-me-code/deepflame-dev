@@ -11,8 +11,6 @@ private:
     cudaStream_t stream;
     AmgXSolver *ESolver = nullptr;
     int num_iteration;
-    double time_monitor_CPU;
-    double time_monitor_GPU_kernel, time_monitor_GPU_memcpy, time_monitor_GPU_memcpy_test;
 
     // common variables
     int num_cells, cell_bytes, num_faces, num_surfaces, cell_vec_bytes, csr_value_vec_bytes, num_boundary_cells;
@@ -34,6 +32,8 @@ private:
     double *d_hDiffCorrFlux = nullptr;
     double *d_boundary_K_init = nullptr;
     double *d_boundary_K = nullptr;
+    double *d_boundary_hDiffCorrFlux_init = nullptr;
+    double *d_boundary_hDiffCorrFlux = nullptr;
     double *d_boundary_alphaEff_init = nullptr;
     double *d_boundary_alphaEff = nullptr;
     double *d_value_internal_coeffs_init = nullptr;
@@ -52,7 +52,7 @@ public:
 
     void prepare_data(const double *he_old, const double *K, const double *K_old, const double *alphaEff,
             const double *hDiffCorrFlux, const double *dpdt, const double *diffAlphaD,
-            const double *boundary_K, const double *boundary_alphaEff,
+            const double *boundary_K, const double *boundary_hDiffCorrFlux, const double *boundary_alphaEff,
             const double *valueInternalCoeffs, const double *valueBoundaryCoeffs,
             const double *gradientInternalCoeffs, const double *gradientBoundaryCoeffs);
 
