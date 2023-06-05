@@ -49,9 +49,10 @@ cudaMallocHost(&boundary_nuEff_init, num_boundary_faces*sizeof(double));
 cudaMallocHost(&boundary_rho_init, num_boundary_faces*sizeof(double));
 cudaMallocHost(&boundary_phi_init, num_boundary_faces*sizeof(double));
 
-double *boundary_alphaEff, *boundary_K;
+double *boundary_alphaEff, *boundary_K, *boundary_hDiffCorrFlux;
 double *eeqn_valueInternalCoeffs, *eeqn_valueBoundaryCoeffs, *eeqn_gradientInternalCoeffs, *eeqn_gradientBoundaryCoeffs;
 cudaMallocHost(&boundary_K, num_boundary_faces*sizeof(double));
+cudaMallocHost(&boundary_hDiffCorrFlux, 3 * num_boundary_faces*sizeof(double));
 cudaMallocHost(&boundary_alphaEff, num_boundary_faces*sizeof(double));
 cudaMallocHost(&eeqn_valueInternalCoeffs, num_boundary_faces*sizeof(double));
 cudaMallocHost(&eeqn_valueBoundaryCoeffs, num_boundary_faces*sizeof(double));
