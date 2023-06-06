@@ -31,9 +31,11 @@ settingPath = CanteraTorchProperties.subDict("AmgxSettings").lookupOrDefault("UE
 dfMatrixDataBase dfDataBase(num_surfaces, num_cells, num_boundary_faces, Y.size(), num_boundary_cells, &neighbour[0], &owner[0], &mesh.V()[0], &mesh.surfaceInterpolation::weights()[0], 
 &mesh.Sf()[0][0], &mesh.magSf()[0], &mesh.nonOrthDeltaCoeffs()[0], boundary_face_vector_init, boundary_face_init, boundary_deltaCoeffs_init, boundaryCellIndex);
 
+#ifdef GPUSolver_
 dfRhoEqn rhoEqn_GPU(dfDataBase);
 dfUEqn UEqn_GPU(dfDataBase, "dDDI", settingPath);
 dfYEqn YEqn_GPU(dfDataBase, "dDDI", settingPath, inertIndex);
+dfEEqn EEqn_GPU(dfDataBase, "dDDI", settingPath);
 
 double *ueqn_internalCoeffs_init, *ueqn_boundaryCoeffs_init, *boundary_pressure_init, *boundary_velocity_init,
     *boundary_nuEff_init, *boundary_rho_init, *ueqn_laplac_internalCoeffs_init, *ueqn_laplac_boundaryCoeffs_init, *boundary_phi_init;
@@ -46,3 +48,14 @@ cudaMallocHost(&boundary_pressure_init, num_boundary_faces*sizeof(double));
 cudaMallocHost(&boundary_nuEff_init, num_boundary_faces*sizeof(double));
 cudaMallocHost(&boundary_rho_init, num_boundary_faces*sizeof(double));
 cudaMallocHost(&boundary_phi_init, num_boundary_faces*sizeof(double));
+
+double *boundary_alphaEff, *boundary_K, *boundary_hDiffCorrFlux;
+double *eeqn_valueInternalCoeffs, *eeqn_valueBoundaryCoeffs, *eeqn_gradientInternalCoeffs, *eeqn_gradientBoundaryCoeffs;
+cudaMallocHost(&boundary_K, num_boundary_faces*sizeof(double));
+cudaMallocHost(&boundary_hDiffCorrFlux, 3 * num_boundary_faces*sizeof(double));
+cudaMallocHost(&boundary_alphaEff, num_boundary_faces*sizeof(double));
+cudaMallocHost(&eeqn_valueInternalCoeffs, num_boundary_faces*sizeof(double));
+cudaMallocHost(&eeqn_valueBoundaryCoeffs, num_boundary_faces*sizeof(double));
+cudaMallocHost(&eeqn_gradientInternalCoeffs, num_boundary_faces*sizeof(double));
+cudaMallocHost(&eeqn_gradientBoundaryCoeffs, num_boundary_faces*sizeof(double));
+#endif

@@ -189,7 +189,7 @@ __global__ void fvc_grad_internal_face(int num_cells,
             double sfz = face_vector[neighbor_index * 3 + 2];
             int neighbor_cell_id = csr_col_index[row_index + inner_index];
             double neighbor_cell_p = pressure[neighbor_cell_id];
-            double face_p = (1 - w) * own_cell_p + w * neighbor_cell_p;
+            double face_p = w * own_cell_p + (1 - w) * neighbor_cell_p;
             grad_bx_upp += face_p * sfx;
             grad_by_upp += face_p * sfy;
             grad_bz_upp += face_p * sfz;
