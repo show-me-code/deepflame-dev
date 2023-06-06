@@ -28,18 +28,6 @@ Description
     Solve the continuity for density.
 
 \*---------------------------------------------------------------------------*/
-
-#ifdef CPUSolver_
-{
-    fvScalarMatrix rhoEqn
-    (
-        fvm::ddt(rho)
-      + fvc::div(phi)
-    );
-
-    rhoEqn.solve();
-}
-#endif
 #ifdef GPUSolver_
 {
     rho.oldTime();
@@ -56,6 +44,16 @@ Description
     rhoEqn_GPU.fvm_ddt(&rho.oldTime()[0], &rho[0]);
     rhoEqn_GPU.updatePsi(&rho.primitiveFieldRef()[0]);
     rho.correctBoundaryConditions();
+}
+#else
+{
+    fvScalarMatrix rhoEqn
+    (
+        fvm::ddt(rho)
+      + fvc::div(phi)
+    );
+
+    rhoEqn.solve();
 }
 #endif
 

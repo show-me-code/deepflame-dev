@@ -7,9 +7,53 @@ if (!pimple.simpleRho())
 // pressure solution
 const volScalarField psip0(psi*p);
 
-volScalarField rAU(1.0/UEqn.A());
-surfaceScalarField rhorAUf("rhorAUf", fvc::interpolate(rho*rAU));
-volVectorField HbyA(constrainHbyA(rAU*UEqn.H(), U, p));
+#ifdef GPUSolver_
+    // UEqn.H()
+    volVectorField UEqn_H
+    (
+        IOobject
+        (
+            "H("+U.name()+')',
+            runTime.timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh,
+        dimensionedVector(dimensionSet(1,-2,-2,0,0,0,0), Zero),
+        extrapolatedCalculatedFvPatchScalarField::typeName
+    );
+    UEqn_GPU.H(&UEqn_H[0][0]);
+    UEqn_H.correctBoundaryConditions();
+
+    // UEqn.A()
+    volScalarField UEqn_A
+    (
+        IOobject
+        (
+            "A("+U.name()+')',
+            runTime.timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh,
+        dimensionedScalar(dimensionSet(1,-3,-1,0,0,0,0), Zero),
+        extrapolatedCalculatedFvPatchScalarField::typeName
+    );
+    UEqn_GPU.A(&UEqn_A[0]);
+    UEqn_A.correctBoundaryConditions();
+#endif
+
+#ifdef GPUSolver_
+    volScalarField rAU(1.0/UEqn_A);
+    surfaceScalarField rhorAUf("rhorAUf", fvc::interpolate(rho*rAU));
+    volVectorField HbyA(constrainHbyA(rAU*UEqn_H, U, p));
+#else
+    volScalarField rAU(1.0/UEqn.A());
+    surfaceScalarField rhorAUf("rhorAUf", fvc::interpolate(rho*rAU));
+    volVectorField HbyA(constrainHbyA(rAU*UEqn.H(), U, p));
+#endif
 
 if (pimple.nCorrPiso() <= 1)
 {
@@ -99,6 +143,7 @@ p.relax();
 U = HbyA - rAU*fvc::grad(p);
 U.correctBoundaryConditions();
 K = 0.5*magSqr(U);
+UEqn_GPU.correctPsi(&U[0][0]);
 
 if (pimple.simpleRho())
 {
