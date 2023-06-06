@@ -1,33 +1,4 @@
 // Solve the Momentum equation
-start1 = std::clock();
-tmp<fvVectorMatrix> tUEqn
-(
-    fvm::ddt(rho, U) + fvm::div(phi, U)
-  + turbulence->divDevRhoReff(U) 
-  == -fvc::grad(p)
-);
-fvVectorMatrix& UEqn = tUEqn.ref();
-
-end1 = std::clock();
-#ifdef CPUSolver_
-    time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
-    time_monitor_UEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
-#endif
-
-#ifdef CPUSolver_
-    // UEqn.relax();
-    start1 = std::clock();
-    if (pimple.momentumPredictor())
-    {
-        solve(UEqn);
-
-        K = 0.5*magSqr(U);
-    }
-    end1 = std::clock();
-    time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
-    time_monitor_UEqn_Solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
-#endif
-
 #ifdef GPUSolver_
     start1 = std::clock();
     UEqn_GPU.fvm_ddt(&U.oldTime()[0][0]);
@@ -111,6 +82,31 @@ end1 = std::clock();
     //     K = 0.5*magSqr(U);
     // }
     // UEqn_GPU.checkValue(false);
+#else
+    start1 = std::clock();
+    tmp<fvVectorMatrix> tUEqn
+    (
+        fvm::ddt(rho, U) + fvm::div(phi, U)
+    + turbulence->divDevRhoReff(U) 
+    == -fvc::grad(p)
+    );
+    fvVectorMatrix& UEqn = tUEqn.ref();
+
+    end1 = std::clock();
+    time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_UEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
+
+    // UEqn.relax();
+    start1 = std::clock();
+    if (pimple.momentumPredictor())
+    {
+        solve(UEqn);
+
+        K = 0.5*magSqr(U);
+    }
+    end1 = std::clock();
+    time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_UEqn_Solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
 #endif
 
 // start1 = std::clock();

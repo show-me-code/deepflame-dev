@@ -19,8 +19,8 @@ private:
     int *d_A_csr_row_index, *d_A_csr_diag_index, *d_A_csr_col_index;
 
     // Matrix variables
-    double *d_A_csr, *d_b, *d_psi = nullptr;
-    double *h_A_csr, *h_b, *h_psi = nullptr;
+    double *d_A_csr, *d_b, *d_psi, *d_H, *d_A, *d_ueqn_internal_coeffs, *d_ueqn_boundary_coeffs= nullptr;
+    double *h_A_csr, *h_b, *h_psi, *h_H, *h_A = nullptr;
 
 public:
     dfUEqn();
@@ -48,6 +48,13 @@ public:
 
     void add_fvMatrix(double *turbSrc_low, double *turbSrc_diag, double *turbSrc_upp, double *turbSrc_source);
 
+    void A(double *Psi);
+
+    void H(double *Psi);
+
     void solve();
+
     void updatePsi(double *Psi);
+
+    void correctPsi(double *Psi);
 };

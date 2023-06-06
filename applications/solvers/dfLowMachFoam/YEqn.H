@@ -107,7 +107,10 @@ time_monitor_corrDiff += double(end - start) / double(CLOCKS_PER_SEC);
 
         if (i != inertIndex)
         {
-            #ifdef CPUSolver_
+            #ifdef GPUSolver_
+                YEqn_GPU.updatePsi(&Yi[0], speciesIndex);
+                Yi.correctBoundaryConditions();
+            #else
                 tmp<volScalarField> DEff = chemistry->rhoD(i) + turbulence->mut()/Sct;
                 fvScalarMatrix YiEqn
                 (
@@ -125,11 +128,6 @@ time_monitor_corrDiff += double(end - start) / double(CLOCKS_PER_SEC);
                 YiEqn.relax();
 
                 YiEqn.solve("Yi");
-            #endif
-
-            #ifdef GPUSolver_
-                YEqn_GPU.updatePsi(&Yi[0], speciesIndex);
-                Yi.correctBoundaryConditions();
             #endif
 
             Yi.max(0.0);

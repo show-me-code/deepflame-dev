@@ -86,7 +86,8 @@ __global__ void fvm_div_boundary(int num_cells, int num_faces, int num_boundary_
                                  const int *csr_row_index, const int *csr_diag_index,
                                  const int *boundary_cell_offset, const int *boundary_cell_id,
                                  const double *internal_coeffs, const double *boundary_coeffs,
-                                 const double *A_csr_input, const double *b_input, double *A_csr_output, double *b_output)
+                                 const double *A_csr_input, const double *b_input, double *A_csr_output, double *b_output,
+                                 double *ueqn_internal_coeffs, double *ueqn_boundary_coeffs)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index >= num_boundary_cells)
@@ -120,6 +121,13 @@ __global__ void fvm_div_boundary(int num_cells, int num_faces, int num_boundary_
         boundary_coeffs_y += boundary_coeffs[(cell_offset + i) * 3 + 1];
         boundary_coeffs_z += boundary_coeffs[(cell_offset + i) * 3 + 2];
     }
+    ueqn_internal_coeffs[cell_index * 3 + 0] = internal_coeffs_x;
+    ueqn_internal_coeffs[cell_index * 3 + 1] = internal_coeffs_y;
+    ueqn_internal_coeffs[cell_index * 3 + 2] = internal_coeffs_z;
+    ueqn_boundary_coeffs[cell_index * 3 + 0] = boundary_coeffs_x;
+    ueqn_boundary_coeffs[cell_index * 3 + 1] = boundary_coeffs_y;
+    ueqn_boundary_coeffs[cell_index * 3 + 2] = boundary_coeffs_z;
+
     A_csr_output[csr_dim * 0 + csr_index] = A_csr_input[csr_dim * 0 + csr_index] + internal_coeffs_x;
     A_csr_output[csr_dim * 1 + csr_index] = A_csr_input[csr_dim * 1 + csr_index] + internal_coeffs_y;
     A_csr_output[csr_dim * 2 + csr_index] = A_csr_input[csr_dim * 2 + csr_index] + internal_coeffs_z;
@@ -799,7 +807,8 @@ __global__ void fvm_laplacian_uncorrected_vector_boundary(int num_cells, int num
                                                           const int *boundary_cell_offset, const int *boundary_cell_id,
                                                           const double *boundary_scalar0, const double *boundary_scalar1,
                                                           const double *boundary_magsf, const double *gradient_internal_coeffs, const double *gradient_boundary_coeffs,
-                                                          const double sign, const double *A_csr_input, const double *b_input, double *A_csr_output, double *b_output)
+                                                          const double sign, const double *A_csr_input, const double *b_input, double *A_csr_output, double *b_output,
+                                                          double *ueqn_internal_coeffs, double *ueqn_boundary_coeffs)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index >= num_boundary_cells)
@@ -846,12 +855,151 @@ __global__ void fvm_laplacian_uncorrected_vector_boundary(int num_cells, int num
         boundary_coeffs_z += gamma_magsf * gradient_boundary_coeffs[i * 3 + 2];
     }
 
+    ueqn_internal_coeffs[cell_index * 3 + 0] += internal_coeffs_x * sign;
+    ueqn_internal_coeffs[cell_index * 3 + 1] += internal_coeffs_y * sign;
+    ueqn_internal_coeffs[cell_index * 3 + 2] += internal_coeffs_z * sign;
+    ueqn_boundary_coeffs[cell_index * 3 + 0] += boundary_coeffs_x * sign;
+    ueqn_boundary_coeffs[cell_index * 3 + 1] += boundary_coeffs_y * sign;
+    ueqn_boundary_coeffs[cell_index * 3 + 2] += boundary_coeffs_z * sign;
+
     A_csr_output[csr_dim * 0 + csr_index] = A_csr_input[csr_dim * 0 + csr_index] + internal_coeffs_x * sign;
     A_csr_output[csr_dim * 1 + csr_index] = A_csr_input[csr_dim * 1 + csr_index] + internal_coeffs_y * sign;
     A_csr_output[csr_dim * 2 + csr_index] = A_csr_input[csr_dim * 2 + csr_index] + internal_coeffs_z * sign;
     b_output[num_cells * 0 + cell_index] = b_input[num_cells * 0 + cell_index] + boundary_coeffs_x * sign;
     b_output[num_cells * 1 + cell_index] = b_input[num_cells * 1 + cell_index] + boundary_coeffs_y * sign;
     b_output[num_cells * 2 + cell_index] = b_input[num_cells * 2 + cell_index] + boundary_coeffs_z * sign;
+}
+
+__global__ void addBoundaryDiag(int num_cells, int num_boundary_cells,
+                                const int *csr_row_index, const int *csr_diag_index,
+                                const int *boundary_cell_offset, const int *boundary_cell_id,
+                                const double *ueqn_internal_coeffs, const double *ueqn_boundary_coeffs,
+                                const double *psi, double *H)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_boundary_cells)
+        return;
+
+    int cell_offset = boundary_cell_offset[index];
+    int next_cell_offset = boundary_cell_offset[index + 1];
+    int cell_index = boundary_cell_id[cell_offset];
+
+    // addBoundaryDiag(boundaryDiagCmpt, cmpt); // add internal coeffs
+    // boundaryDiagCmpt.negate();
+    double internal_x = ueqn_internal_coeffs[cell_index * 3 + 0];
+    double internal_y = ueqn_internal_coeffs[cell_index * 3 + 1];
+    double internal_z = ueqn_internal_coeffs[cell_index * 3 + 2];
+
+    // addCmptAvBoundaryDiag(boundaryDiagCmpt);
+    double ave_internal = (internal_x + internal_y + internal_z) / 3;
+
+    H[num_cells * 0 + cell_index] = (-internal_x + ave_internal) * psi[num_cells * 0 + cell_index];
+    H[num_cells * 1 + cell_index] = (-internal_y + ave_internal) * psi[num_cells * 1 + cell_index];
+    H[num_cells * 2 + cell_index] = (-internal_z + ave_internal) * psi[num_cells * 2 + cell_index];
+}
+
+__global__ void lduMatrix_H(int num_cells,
+                            const int *csr_row_index, const int *csr_col_index, const int *csr_diag_index,
+                            const double *volume, const double *psi, const double *A_csr, const double *b,
+                            const double *ueqn_boundary_coeffs, double *H)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_cells)
+        return;
+
+    // A_csr has one more element in each row: itself
+    int row_index = csr_row_index[index];
+    int row_elements = csr_row_index[index + 1] - row_index;
+    int diag_index = csr_diag_index[index];
+    int neighbor_offset = csr_row_index[index] - index;
+
+    double APsi_x = 0.;
+    double APsi_y = 0.;
+    double APsi_z = 0.;
+    // lower
+    for (int i = 0; i < diag_index; i++)
+    {
+        int neighbor_cell_id = csr_col_index[i + row_index];
+        APsi_x += A_csr[row_index + i] * psi[num_cells * 0 + neighbor_cell_id];
+        APsi_y += A_csr[row_index + i] * psi[num_cells * 1 + neighbor_cell_id];
+        APsi_z += A_csr[row_index + i] * psi[num_cells * 2 + neighbor_cell_id];
+    }
+    // upper
+    for (int i = diag_index + 1; i < row_elements; i++)
+    {
+        int neighbor_cell_id = csr_col_index[i + row_index];
+        APsi_x += A_csr[row_index + i] * psi[num_cells * 0 + neighbor_cell_id];
+        APsi_y += A_csr[row_index + i] * psi[num_cells * 1 + neighbor_cell_id];
+        APsi_z += A_csr[row_index + i] * psi[num_cells * 2 + neighbor_cell_id];
+    }
+
+    H[num_cells * 0 + index] = H[num_cells * 0 + index] - APsi_x + b[num_cells * 0 + index];
+    H[num_cells * 1 + index] = H[num_cells * 1 + index] - APsi_y + b[num_cells * 1 + index];
+    H[num_cells * 2 + index] = H[num_cells * 2 + index] - APsi_z + b[num_cells * 2 + index];
+
+    double vol = volume[index];
+    H[num_cells * 0 + index] = H[num_cells * 0 + index] / vol;
+    H[num_cells * 1 + index] = H[num_cells * 1 + index] / vol;
+    H[num_cells * 2 + index] = H[num_cells * 2 + index] / vol;
+}
+
+__global__ void addBoundarySource(int num_cells, int num_boundary_cells,
+                                  const int *csr_row_index, const int *csr_diag_index,
+                                  const int *boundary_cell_offset, const int *boundary_cell_id,
+                                  const double *ueqn_internal_coeffs, const double *ueqn_boundary_coeffs,
+                                  const double *volume, double *H)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_boundary_cells)
+        return;
+
+    int cell_offset = boundary_cell_offset[index];
+    int cell_index = boundary_cell_id[cell_offset];
+
+    double vol = volume[index];
+
+    H[num_cells * 0 + index] = H[num_cells * 0 + index] + ueqn_boundary_coeffs[cell_index * 3 + 0] / vol;
+    H[num_cells * 1 + index] = H[num_cells * 1 + index] + ueqn_boundary_coeffs[cell_index * 3 + 1] / vol;
+    H[num_cells * 2 + index] = H[num_cells * 2 + index] + ueqn_boundary_coeffs[cell_index * 3 + 2] / vol;
+}
+
+__global__ void addAveInternaltoDiag(int num_cells, int num_boundary_cells,
+                                     const int *csr_row_index, const int *csr_diag_index,
+                                     const int *boundary_cell_offset, const int *boundary_cell_id,
+                                     const double *ueqn_internal_coeffs, const double *ueqn_boundary_coeffs, double *A)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_boundary_cells)
+        return;
+
+    int cell_offset = boundary_cell_offset[index];
+    int next_cell_offset = boundary_cell_offset[index + 1];
+    int cell_index = boundary_cell_id[cell_offset];
+
+    double internal_x = ueqn_internal_coeffs[cell_index * 3 + 0];
+    double internal_y = ueqn_internal_coeffs[cell_index * 3 + 1];
+    double internal_z = ueqn_internal_coeffs[cell_index * 3 + 2];
+
+    double ave_internal = (internal_x + internal_y + internal_z) / 3;
+
+    A[cell_index] = ave_internal;
+}
+
+__global__ void addDiagDivVolume(int num_cells, const int *csr_row_index,
+                                 const int *csr_diag_index, const double *A_csr, const double *volume,
+                                 double *ueqn_internal_coeffs, const double *A_input, double *A_output)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_cells)
+        return;
+
+    int row_index = csr_row_index[index];
+    int diag_index = csr_diag_index[index];
+    int csr_index = row_index + diag_index;
+
+    double vol = volume[index];
+
+    A_output[index] = (A_input[index] + A_csr[csr_index] - ueqn_internal_coeffs[index * 3]) / vol; 
 }
 
 // constructor
@@ -877,10 +1025,16 @@ dfUEqn::dfUEqn(dfMatrixDataBase &dataBase, const std::string &modeStr, const std
     h_A_csr = new double[(num_cells + num_faces) * 3];
     h_b = new double[num_cells * 3];
     cudaMallocHost(&h_psi, cell_vec_bytes);
+    cudaMallocHost(&h_H, cell_vec_bytes);
+    cudaMallocHost(&h_A, cell_bytes);
 
     checkCudaErrors(cudaMalloc((void **)&d_A_csr, csr_value_vec_bytes));
     checkCudaErrors(cudaMalloc((void **)&d_b, cell_vec_bytes));
     checkCudaErrors(cudaMalloc((void **)&d_psi, cell_vec_bytes));
+    checkCudaErrors(cudaMalloc((void **)&d_H, cell_vec_bytes));
+    checkCudaErrors(cudaMalloc((void **)&d_A, cell_bytes));
+    checkCudaErrors(cudaMalloc((void **)&d_ueqn_internal_coeffs, cell_vec_bytes));
+    checkCudaErrors(cudaMalloc((void **)&d_ueqn_boundary_coeffs, cell_vec_bytes));
 
     checkCudaErrors(cudaStreamCreate(&stream));
 }
@@ -964,7 +1118,8 @@ void dfUEqn::fvm_div(double *phi, double *ueqn_internalCoeffs_init, double *ueqn
     fvm_div_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_faces, num_boundary_cells,
                                                                         d_A_csr_row_index, d_A_csr_diag_index,
                                                                         dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id,
-                                                                        dataBase_.d_internal_coeffs, dataBase_.d_boundary_coeffs, d_A_csr, d_b, d_A_csr, d_b);
+                                                                        dataBase_.d_internal_coeffs, dataBase_.d_boundary_coeffs, d_A_csr, d_b, d_A_csr, d_b,
+                                                                        d_ueqn_internal_coeffs, d_ueqn_boundary_coeffs);
     end = std::clock();
     time_monitor_GPU_kernel += double(end - start) / double(CLOCKS_PER_SEC);
 }
@@ -1067,9 +1222,60 @@ void dfUEqn::fvm_laplacian()
     fvm_laplacian_uncorrected_vector_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_faces, num_boundary_cells,
                                                                                                  d_A_csr_row_index, d_A_csr_diag_index, dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id,
                                                                                                  dataBase_.d_boundary_nuEff, dataBase_.d_boundary_rho, dataBase_.d_boundary_face, dataBase_.d_laplac_internal_coeffs,
-                                                                                                 dataBase_.d_laplac_boundary_coeffs, -1., d_A_csr, d_b, d_A_csr, d_b);
+                                                                                                 dataBase_.d_laplac_boundary_coeffs, -1., d_A_csr, d_b, d_A_csr, d_b, d_ueqn_internal_coeffs, d_ueqn_boundary_coeffs);
     clock_t end = std::clock();
     time_monitor_GPU_kernel += double(end - start) / double(CLOCKS_PER_SEC);
+}
+
+void dfUEqn::A(double *Psi)
+{
+    // tmp<scalarField> tdiag(new scalarField(diag()));
+    // addCmptAvBoundaryDiag(tdiag.ref());
+    checkCudaErrors(cudaMemsetAsync(d_A, 0, cell_bytes, stream));
+
+    size_t threads_per_block = 1024;
+    size_t blocks_per_grid = (num_boundary_cells + threads_per_block - 1) / threads_per_block;
+    addAveInternaltoDiag<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_boundary_cells, d_A_csr_row_index, d_A_csr_diag_index,
+                                                                            dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id,
+                                                                            d_ueqn_internal_coeffs, d_ueqn_boundary_coeffs, d_A);
+    blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
+    addDiagDivVolume<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, d_A_csr_row_index, d_A_csr_diag_index, d_A_csr,
+                                                                        dataBase_.d_volume, d_ueqn_internal_coeffs, d_A, d_A);
+    
+    checkCudaErrors(cudaMemcpyAsync(h_A, d_A, cell_bytes, cudaMemcpyDeviceToHost, stream));
+    checkCudaErrors(cudaStreamSynchronize(stream));
+    for (size_t i = 0; i < num_cells; i++)
+        Psi[i] = h_A[i];
+}
+
+void dfUEqn::H(double *Psi)
+{
+    checkCudaErrors(cudaMemsetAsync(d_H, 0, cell_vec_bytes, stream));
+    checkCudaErrors(cudaStreamSynchronize(stream));
+
+    size_t threads_per_block = 1024;
+    size_t blocks_per_grid = (num_boundary_cells + threads_per_block - 1) / threads_per_block;
+    addBoundaryDiag<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_boundary_cells, d_A_csr_row_index, d_A_csr_diag_index,
+                                                                       dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id,
+                                                                       d_ueqn_internal_coeffs, d_ueqn_boundary_coeffs,
+                                                                       d_psi, d_H);
+
+    blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
+    lduMatrix_H<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, d_A_csr_row_index, d_A_csr_col_index, d_A_csr_diag_index,
+                                                                   dataBase_.d_volume, d_psi, d_A_csr, d_b, d_ueqn_boundary_coeffs, d_H);
+
+    checkCudaErrors(cudaMemcpyAsync(h_H, d_H, cell_vec_bytes, cudaMemcpyDeviceToHost, stream));
+    checkCudaErrors(cudaStreamSynchronize(stream));
+
+    for (size_t i = 0; i < num_cells; i++)
+    {
+        Psi[i * 3] = h_H[i];
+        Psi[i * 3 + 1] = h_H[num_cells + i];
+        Psi[i * 3 + 2] = h_H[num_cells * 2 + i];
+    }
+
+    // for (int i = 0; i < num_cells; i++)
+    // fprintf(stderr, "h_H_GPU[%d]: (%.5e, %.5e, %.5e)\n", i, h_H[i], h_H[num_cells + i], h_H[num_cells * 2 + i]);
 }
 
 void dfUEqn::checkValue(bool print)
@@ -1082,9 +1288,9 @@ void dfUEqn::checkValue(bool print)
     if (print)
     {
         for (int i = 0; i < (num_faces + num_cells); i++)
-            fprintf(stderr, "h_A_csr[%d]: %.15lf\n", i, h_A_csr[i]);
+            fprintf(stderr, "h_A_csr[%d]: %.5e\n", i, h_A_csr[i]);
         for (int i = 0; i < num_cells * 3; i++)
-            fprintf(stderr, "h_b[%d]: %.15lf\n", i, h_b[i]);
+            fprintf(stderr, "h_b[%d]: %.5e\n", i, h_b[i]);
     }
 
     char *input_file = "of_output.txt";
@@ -1136,9 +1342,9 @@ void dfUEqn::checkValue(bool print)
     if (print)
     {
         for (int i = 0; i < (num_faces + num_cells); i++)
-            fprintf(stderr, "h_A_of_vec_1mtx[%d]: %.15lf\n", i, h_A_of_vec_1mtx[i]);
+            fprintf(stderr, "h_A_of_vec_1mtx[%d]: %.5e\n", i, h_A_of_vec_1mtx[i]);
         for (int i = 0; i < 3 * num_cells; i++)
-            fprintf(stderr, "h_b_of_vec[%d]: %.15lf\n", i, h_b_of_vec[i]);
+            fprintf(stderr, "h_b_of_vec[%d]: %.5e\n", i, h_b_of_vec[i]);
     }
 
     // check
@@ -1202,6 +1408,18 @@ void dfUEqn::updatePsi(double *Psi)
         Psi[i * 3 + 1] = h_psi[num_cells + i];
         Psi[i * 3 + 2] = h_psi[num_cells * 2 + i];
     }
+}
+
+// correct volecity in pEqn
+void dfUEqn::correctPsi(double *Psi)
+{
+    for (size_t i = 0; i < num_cells; i++)
+    {
+        h_psi[i] = Psi[i * 3];
+        h_psi[num_cells + i] = Psi[i * 3 + 1];
+        h_psi[num_cells * 2 + i] = Psi[i * 3 + 2];
+    }
+    checkCudaErrors(cudaMemcpyAsync(d_psi, h_psi, cell_vec_bytes, cudaMemcpyDeviceToHost, stream));
 }
 
 dfUEqn::~dfUEqn()
