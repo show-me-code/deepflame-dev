@@ -97,7 +97,8 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
             IOobject::NO_READ,
             IOobject::AUTO_WRITE
         ),
-        this->thermo().he()
+        mesh_,
+       dimensionedScalar("ha", dimensionSet(0,2,-2,0,0,0,0), 0)
     ),
     selectDNN_
     (
@@ -386,6 +387,9 @@ void Foam::dfChemistryModel<ThermoType>::setNumerics(Cantera::ReactorNet &sim)
 template<class ThermoType>
 void Foam::dfChemistryModel<ThermoType>::correctThermo()
 {
+    // update enthalpy
+    ha_ = this->thermo().he();
+	
     try
     {
         psi_.oldTime();
