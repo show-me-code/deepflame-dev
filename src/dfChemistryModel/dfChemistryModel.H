@@ -107,8 +107,6 @@ public IOdictionary
         PtrList<volScalarField> rhoD_;
         // species absolute enthalpy, [J/kg]
         PtrList<volScalarField> hai_;
-        // enthalpy field, [J/kg]
-        volScalarField& ha_;
         // species chemistry enthalpy, [J/kg]
         scalarList hc_;         
         // temp mass fraction
@@ -130,6 +128,8 @@ public IOdictionary
         volScalarField& psi_;
         // heat release rate, [J/m^3/s]
         volScalarField Qdot_;
+        // enthalpy field, [m^2/s^2]
+        volScalarField& ha_;
         // DNN selection fields
         volScalarField selectDNN_;
 
