@@ -102,6 +102,7 @@ int main(int argc, char *argv[])
     double time_monitor_UEqn_mtxAssembly=0;
     double time_monitor_UEqn_Solve=0;
     double time_monitor_UEqn_sum=0;
+    double time_monitor_UEqn_CPU=0;
     double time_monitor_EEqn=0;
     double time_monitor_EEqn_mtxAssembly=0;
     double time_monitor_EEqn_mtxAssembly_CPU_Prepare;
@@ -109,6 +110,10 @@ int main(int argc, char *argv[])
     double time_monitor_EEqn_mtxAssembly_GPU_Run;
     double time_monitor_EEqn_Solve=0;
     double time_monitor_EEqn_sum=0;
+    double time_monitor_YEqn=0;
+    double time_monitor_YEqn_mtxAssembly=0;
+    double time_monitor_YEqn_mtxAssembly_CPU_Prepare=0;
+    double time_monitor_YEqn_Solve=0;
     double time_monitor_chem=0;
     double time_monitor_Y=0;
     double time_monitor_E=0;
@@ -213,7 +218,7 @@ int main(int argc, char *argv[])
             {
                 if (pimple.consistent())
                 {
-                    #include "pcEqn.H"
+                    // #include "pcEqn.H"
                 }
                 else
                 {
@@ -255,9 +260,12 @@ int main(int argc, char *argv[])
         Info<< "EEqn assamble(GPU prepare) = " << time_monitor_EEqn_mtxAssembly_GPU_Prepare << " s" << endl;
         Info<< "EEqn assamble(GPU run)     = " << time_monitor_EEqn_mtxAssembly_GPU_Run << " s" << endl;
         Info<< "EEqn Time solve            = " << time_monitor_EEqn_Solve << " s" << endl;
+        Info<< "YEqn Time                  = " << time_monitor_YEqn << " s" << endl;
+        Info<< "YEqn Time assamble Mtx     = " << time_monitor_YEqn_mtxAssembly << " s" << endl;
+        Info<< "YEqn assamble(CPU prepare) = " << time_monitor_YEqn_mtxAssembly_CPU_Prepare << " s" << endl;
+        Info<< "YEqn Time solve            = " << time_monitor_YEqn_Solve << " s" << endl;
         Info<< "sum Time                   = " << (time_monitor_chem + time_monitor_Y + time_monitor_flow + time_monitor_E + time_monitor_corrThermo + time_monitor_corrDiff) << " s" << endl;
         Info<< "CPU Time (get turb souce)  = " << time_monitor_CPU << " s" << endl;
-        Info<< "UEqn time in EEqn          = " << time_monitor_UinE << " s" << endl;
         Info<< "============================================"<<nl<< endl;
 
         Info<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
@@ -279,6 +287,10 @@ int main(int argc, char *argv[])
         time_monitor_corrDiff = 0;
         time_monitor_CPU = 0;
         time_monitor_UinE = 0;
+        time_monitor_YEqn=0;
+        time_monitor_YEqn_mtxAssembly=0;
+        time_monitor_YEqn_mtxAssembly_CPU_Prepare=0;
+        time_monitor_YEqn_Solve=0;
 
 #ifdef USE_PYTORCH
         if (log_ && torch_)

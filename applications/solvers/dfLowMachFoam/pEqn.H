@@ -53,12 +53,12 @@ const volScalarField psip0(psi*p);
     volScalarField rAU(1.0/UEqn.A());
     surfaceScalarField rhorAUf("rhorAUf", fvc::interpolate(rho*rAU));
     volVectorField HbyA(constrainHbyA(rAU*UEqn.H(), U, p));
-#endif
 
-if (pimple.nCorrPiso() <= 1)
-{
-    tUEqn.clear();
-}
+    if (pimple.nCorrPiso() <= 1)
+    {
+        tUEqn.clear();
+    }
+#endif
 
 surfaceScalarField phiHbyA
 (
@@ -143,7 +143,10 @@ p.relax();
 U = HbyA - rAU*fvc::grad(p);
 U.correctBoundaryConditions();
 K = 0.5*magSqr(U);
-UEqn_GPU.correctPsi(&U[0][0]);
+
+#ifdef GPUSolver_
+    UEqn_GPU.correctPsi(&U[0][0]);
+#endif
 
 if (pimple.simpleRho())
 {

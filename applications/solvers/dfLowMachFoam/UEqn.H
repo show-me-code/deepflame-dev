@@ -1,6 +1,7 @@
 // Solve the Momentum equation
 #ifdef GPUSolver_
     start1 = std::clock();
+    UEqn_GPU.initializeTimeStep();
     UEqn_GPU.fvm_ddt(&U.oldTime()[0][0]);
     start2 = std::clock();
     int offset = 0;
@@ -8,30 +9,13 @@
     const volScalarField& nuEff = nuEff_tmp();
     forAll(U.boundaryField(), patchi)
     {
-        const fvsPatchScalarField& patchFlux = phi.boundaryField()[patchi];
-        const fvsPatchScalarField& pw = mesh.surfaceInterpolation::weights().boundaryField()[patchi];
-
         const scalarField& patchP = p.boundaryField()[patchi];
-        const vectorField& pSf = mesh.Sf().boundaryField()[patchi];
         const vectorField& patchU = U.boundaryField()[patchi];
         const scalarField& patchRho = rho.boundaryField()[patchi];
         const scalarField& patchNuEff = nuEff.boundaryField()[patchi];
 
-        int patchSize = pw.size();
+        int patchSize = patchP.size();
 
-        Field<vector> ueqn_internalCoeffs_vec = patchFlux*U.boundaryField()[patchi].valueInternalCoeffs(pw);
-        Field<vector> ueqn_boundaryCoeffs_vec = -patchFlux*U.boundaryField()[patchi].valueBoundaryCoeffs(pw); 
-        Field<vector> ueqn_laplac_internalCoeffs_vec = U.boundaryField()[patchi].gradientInternalCoeffs();
-        Field<vector> ueqn_laplac_boundaryCoeffs_vec = U.boundaryField()[patchi].gradientBoundaryCoeffs();
-
-        // only need to construct once
-        memcpy(ueqn_internalCoeffs_init + 3*offset, &ueqn_internalCoeffs_vec[0][0], 3*patchSize*sizeof(double));
-        // need to construct every time step
-        memcpy(ueqn_boundaryCoeffs_init + 3*offset, &ueqn_boundaryCoeffs_vec[0][0], 3*patchSize*sizeof(double));
-        // laplacian internalCoeffs
-        memcpy(ueqn_laplac_internalCoeffs_init + 3*offset, &ueqn_laplac_internalCoeffs_vec[0][0], 3*patchSize*sizeof(double));
-        // laplacian boundaryCoeffs
-        memcpy(ueqn_laplac_boundaryCoeffs_init + 3*offset, &ueqn_laplac_boundaryCoeffs_vec[0][0], 3*patchSize*sizeof(double));
         // boundary pressure
         memcpy(boundary_pressure_init+offset, &patchP[0], patchSize*sizeof(double));
         // boundary velocity
@@ -44,14 +28,12 @@
     }
     end1 = std::clock();
     end2 = std::clock();
-    time_monitor_CPU += double(end2 - start2) / double(CLOCKS_PER_SEC);
+    time_monitor_UEqn_CPU += double(end2 - start2) / double(CLOCKS_PER_SEC);
     time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_UEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
     start1 = std::clock();
-    UEqn_GPU.fvm_div(&phi[0], ueqn_internalCoeffs_init, ueqn_boundaryCoeffs_init, 
-        ueqn_laplac_internalCoeffs_init, ueqn_laplac_boundaryCoeffs_init, 
-        boundary_pressure_init, boundary_velocity_init, boundary_nuEff_init, boundary_rho_init);
+    UEqn_GPU.fvm_div(boundary_pressure_init, boundary_velocity_init, boundary_nuEff_init, boundary_rho_init);
     UEqn_GPU.fvc_grad(&p[0]);
     UEqn_GPU.fvc_grad_vector();
     UEqn_GPU.dev2T();

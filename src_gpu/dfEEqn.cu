@@ -149,12 +149,12 @@ __global__ void eeqn_fvm_laplacian_uncorrected_internal(int num_cells,
 }
 
 __global__ void eeqn_fvm_laplacian_uncorrected_boundary(int num_boundary_cells,
-                                                               const int *csr_row_index, const int *csr_diag_index,
-                                                               const int *boundary_cell_offset, const int *boundary_cell_id,
-                                                               const double *boundary_alphaEff, const double *boundary_magsf,
-                                                               const double *gradient_internal_coeffs, const double *gradient_boundary_coeffs,
-                                                               const double sign, const double *A_csr_input, const double *b_input,
-                                                               double *A_csr_output, double *b_output)
+                                                        const int *csr_row_index, const int *csr_diag_index,
+                                                        const int *boundary_cell_offset, const int *boundary_cell_id,
+                                                        const double *boundary_alphaEff, const double *boundary_magsf,
+                                                        const double *gradient_internal_coeffs, const double *gradient_boundary_coeffs,
+                                                        const double sign, const double *A_csr_input, const double *b_input,
+                                                        double *A_csr_output, double *b_output)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index >= num_boundary_cells)
@@ -211,9 +211,9 @@ __global__ void eeqn_fvc_ddt_kernel(int num_cells, const double rdelta_t,
 }
 
 __global__ void eeqn_fvc_div_vector_internal(int num_cells,
-        const int *csr_row_index, const int *csr_col_index, const int *csr_diag_index,
-        const double *sf, const double *vf, const double *tlambdas,
-        const double sign, const double *b_input, double *b_output)
+                                             const int *csr_row_index, const int *csr_col_index, const int *csr_diag_index,
+                                             const double *sf, const double *vf, const double *tlambdas,
+                                             const double sign, const double *b_input, double *b_output)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index >= num_cells)
@@ -267,9 +267,9 @@ __global__ void eeqn_fvc_div_vector_internal(int num_cells,
 }
 
 __global__ void eeqn_fvc_div_vector_boundary(int num_boundary_cells,
-        const int *boundary_cell_offset, const int *boundary_cell_id,
-        const double *boundary_sf, const double *boundary_vf,
-        const double sign, const double *b_input, double *b_output)
+                                             const int *boundary_cell_offset, const int *boundary_cell_id,
+                                             const double *boundary_sf, const double *boundary_vf,
+                                             const double sign, const double *b_input, double *b_output)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index >= num_boundary_cells)
@@ -316,9 +316,9 @@ __global__ void eeqn_fvc_div_vector_boundary(int num_boundary_cells,
 }
 
 __global__ void eeqn_fvc_div_phi_scalar_internal(int num_cells,
-                                       const int *csr_row_index, const int *csr_col_index, const int *csr_diag_index,
-                                       const double *weight, const double *phi, const double *K,
-                                       const double sign, const double *b_input, double *b_output)
+                                                 const int *csr_row_index, const int *csr_col_index, const int *csr_diag_index,
+                                                 const double *weight, const double *phi, const double *K,
+                                                 const double sign, const double *b_input, double *b_output)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index >= num_cells)
@@ -362,9 +362,9 @@ __global__ void eeqn_fvc_div_phi_scalar_internal(int num_cells,
 }
 
 __global__ void eeqn_fvc_div_phi_scalar_boundary(int num_boundary_cells,
-                                       const int *boundary_cell_offset, const int *boundary_cell_id,
-                                       const double *boundary_phi, const double* boundary_K,
-                                       const double sign, const double *b_input, double *b_output)
+                                                 const int *boundary_cell_offset, const int *boundary_cell_id,
+                                                 const double *boundary_phi, const double *boundary_K,
+                                                 const double sign, const double *b_input, double *b_output)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index >= num_boundary_cells)
@@ -384,12 +384,11 @@ __global__ void eeqn_fvc_div_phi_scalar_boundary(int num_boundary_cells,
     b_output[cell_index] = b_input[cell_index] + interp * sign;
 }
 
-
 __global__ void eeqn_add_to_source_kernel(int num_cells,
-                                    const double sign_dpdt, const double *dpdt,
-                                    const double sign_diffAlphaD, const double *diffAlphaD,
-                                    const double *volume,
-                                    const double *b_input, double *b_output)
+                                          const double sign_dpdt, const double *dpdt,
+                                          const double sign_diffAlphaD, const double *diffAlphaD,
+                                          const double *volume,
+                                          const double *b_input, double *b_output)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index >= num_cells)
@@ -399,14 +398,10 @@ __global__ void eeqn_add_to_source_kernel(int num_cells,
 }
 
 __global__ void eeqn_boundaryPermutation(const int num_boundary_faces, const int *bouPermedIndex,
-                                    const double *boundary_K_init, const double *boundary_hDiffCorrFlux_init,
-                                    const double *boundary_alphaEff_init,
-                                    const double *value_internal_coeffs_init, const double *value_boundary_coeffs_init,
-                                    const double *gradient_internal_coeffs_init, const double *gradient_boundary_coeffs_init,
-                                    double *boundary_K, double *boundary_hDiffCorrFlux,
-                                    double *boundary_alphaEff,
-                                    double *value_internal_coeffs, double *value_boundary_coeffs,
-                                    double *gradient_internal_coeffs, double *gradient_boundary_coeffs)
+                                         const double *boundary_K_init, const double *boundary_hDiffCorrFlux_init,
+                                         const double *boundary_alphaEff_init,
+                                         double *boundary_K, double *boundary_hDiffCorrFlux,
+                                         double *boundary_alphaEff)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index >= num_boundary_faces)
@@ -419,10 +414,26 @@ __global__ void eeqn_boundaryPermutation(const int num_boundary_faces, const int
     boundary_hDiffCorrFlux[index * 3 + 1] = boundary_hDiffCorrFlux_init[p * 3 + 1];
     boundary_hDiffCorrFlux[index * 3 + 2] = boundary_hDiffCorrFlux_init[p * 3 + 2];
     boundary_alphaEff[index] = boundary_alphaEff_init[p];
-    value_internal_coeffs[index] = value_internal_coeffs_init[p];
-    value_boundary_coeffs[index] = value_boundary_coeffs_init[p];
-    gradient_internal_coeffs[index] = gradient_internal_coeffs_init[p];
-    gradient_boundary_coeffs[index] = gradient_boundary_coeffs_init[p];
+}
+
+__global__ void eeqn_update_BoundaryCoeffs_kernel(int num_boundary_faces, const double *boundary_phi, double *internal_coeffs,
+                                                  double *boundary_coeffs, double *laplac_internal_coeffs,
+                                                  double *laplac_boundary_coeffs)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_boundary_faces)
+        return;
+
+    // zeroGradient
+    double valueInternalCoeffs = 1.;
+    double valueBoundaryCoeffs = 0.;
+    double gradientInternalCoeffs = 0.;
+    double gradientBoundaryCoeffs = 0.;
+
+    internal_coeffs[index] = boundary_phi[index] * valueInternalCoeffs;
+    boundary_coeffs[index] = -boundary_phi[index] * valueBoundaryCoeffs;
+    laplac_internal_coeffs[index] = gradientInternalCoeffs;
+    laplac_boundary_coeffs[index] = gradientBoundaryCoeffs;
 }
 
 // constructor
@@ -480,10 +491,9 @@ dfEEqn::dfEEqn(dfMatrixDataBase &dataBase, const std::string &modeStr, const std
 }
 
 void dfEEqn::prepare_data(const double *he_old, const double *K, const double *K_old, const double *alphaEff,
-        const double *dpdt, const double *diffAlphaD, const double *hDiffCorrFlux,
-        const double *boundary_K, const double *boundary_hDiffCorrFlux, const double *boundary_alphaEff,
-        const double *valueInternalCoeffs, const double *valueBoundaryCoeffs,
-        const double *gradientInternalCoeffs, const double *gradientBoundaryCoeffs) {
+                          const double *dpdt, const double *diffAlphaD, const double *hDiffCorrFlux,
+                          const double *boundary_K, const double *boundary_hDiffCorrFlux, const double *boundary_alphaEff)
+{
     // TODO not real async copy now, because some host array are not in pinned memory.
 
     // copy the host input array in host memory to the device input array in device memory
@@ -499,26 +509,25 @@ void dfEEqn::prepare_data(const double *he_old, const double *K, const double *K
     checkCudaErrors(cudaMemcpyAsync(d_boundary_K_init, boundary_K, boundary_face_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_hDiffCorrFlux_init, boundary_hDiffCorrFlux, boundary_face_bytes * 3, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_alphaEff_init, boundary_alphaEff, boundary_face_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_value_internal_coeffs_init, valueInternalCoeffs, boundary_face_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_value_boundary_coeffs_init, valueBoundaryCoeffs, boundary_face_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_gradient_internal_coeffs_init, gradientInternalCoeffs, boundary_face_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_gradient_boundary_coeffs_init, gradientBoundaryCoeffs, boundary_face_bytes, cudaMemcpyHostToDevice, stream));
 
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_boundary_faces + threads_per_block - 1) / threads_per_block;
     eeqn_boundaryPermutation<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_faces, dataBase_.d_bouPermedIndex,
-            d_boundary_K_init, d_boundary_hDiffCorrFlux_init, d_boundary_alphaEff_init,
-            d_value_internal_coeffs_init, d_value_boundary_coeffs_init,
-            d_gradient_internal_coeffs_init, d_gradient_boundary_coeffs_init,
-            d_boundary_K, d_boundary_hDiffCorrFlux, d_boundary_alphaEff,
-            d_value_internal_coeffs, d_value_boundary_coeffs,
-            d_gradient_internal_coeffs, d_gradient_boundary_coeffs);
+                                                                                d_boundary_K_init, d_boundary_hDiffCorrFlux_init, d_boundary_alphaEff_init,
+                                                                                d_boundary_K, d_boundary_hDiffCorrFlux, d_boundary_alphaEff);
 }
 
-void dfEEqn::resetAb() {
+void dfEEqn::initializeTimeStep()
+{
     // initialize matrix value
     checkCudaErrors(cudaMemsetAsync(d_A_csr, 0, csr_value_vec_bytes, stream));
     checkCudaErrors(cudaMemsetAsync(d_b, 0, cell_vec_bytes, stream));
+    // initialize boundary coeffs
+    size_t threads_per_block = 1024;
+    size_t blocks_per_grid = (dataBase_.num_boundary_faces + threads_per_block - 1) / threads_per_block;
+    eeqn_update_BoundaryCoeffs_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(dataBase_.num_boundary_faces, dataBase_.d_boundary_phi,
+                                                                                         d_value_internal_coeffs, d_value_boundary_coeffs,
+                                                                                         d_gradient_internal_coeffs, d_gradient_boundary_coeffs);
 }
 
 void dfEEqn::fvm_ddt()
@@ -526,9 +535,9 @@ void dfEEqn::fvm_ddt()
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
     eeqn_fvm_ddt_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, dataBase_.rdelta_t,
-            d_A_csr_row_index, d_A_csr_diag_index,
-            dataBase_.d_rho_old, dataBase_.d_rho_new, dataBase_.d_volume, d_he_old,
-            1., d_A_csr, d_b, d_A_csr, d_b);
+                                                                           d_A_csr_row_index, d_A_csr_diag_index,
+                                                                           dataBase_.d_rho_old, dataBase_.d_rho_new, dataBase_.d_volume, d_he_old,
+                                                                           1., d_A_csr, d_b, d_A_csr, d_b);
 }
 
 void dfEEqn::fvm_div()
@@ -536,15 +545,15 @@ void dfEEqn::fvm_div()
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
     eeqn_fvm_div_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
-            d_A_csr_row_index, d_A_csr_diag_index,
-            dataBase_.d_weight, dataBase_.d_phi,
-            1., d_A_csr, d_b, d_A_csr, d_b);
+                                                                             d_A_csr_row_index, d_A_csr_diag_index,
+                                                                             dataBase_.d_weight, dataBase_.d_phi,
+                                                                             1., d_A_csr, d_b, d_A_csr, d_b);
     blocks_per_grid = (num_boundary_cells + threads_per_block - 1) / threads_per_block;
     eeqn_fvm_div_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_cells,
-            d_A_csr_row_index, d_A_csr_diag_index,
-            dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id,
-            d_value_internal_coeffs, d_value_boundary_coeffs,
-            1., d_A_csr, d_b, d_A_csr, d_b);
+                                                                             d_A_csr_row_index, d_A_csr_diag_index,
+                                                                             dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id,
+                                                                             d_value_internal_coeffs, d_value_boundary_coeffs,
+                                                                             1., d_A_csr, d_b, d_A_csr, d_b);
 }
 
 void dfEEqn::fvm_laplacian()
@@ -552,14 +561,14 @@ void dfEEqn::fvm_laplacian()
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
     eeqn_fvm_laplacian_uncorrected_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
-            d_A_csr_row_index, d_A_csr_col_index, d_A_csr_diag_index, d_alphaEff, dataBase_.d_weight,
-            dataBase_.d_face, dataBase_.d_deltaCoeffs,
-            -1., d_A_csr, d_A_csr);
+                                                                                               d_A_csr_row_index, d_A_csr_col_index, d_A_csr_diag_index, d_alphaEff, dataBase_.d_weight,
+                                                                                               dataBase_.d_face, dataBase_.d_deltaCoeffs,
+                                                                                               -1., d_A_csr, d_A_csr);
     blocks_per_grid = (num_boundary_cells + threads_per_block - 1) / threads_per_block;
     eeqn_fvm_laplacian_uncorrected_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_cells,
-            d_A_csr_row_index, d_A_csr_diag_index, dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id,
-            d_boundary_alphaEff, dataBase_.d_boundary_face, d_gradient_internal_coeffs, d_gradient_boundary_coeffs,
-            -1., d_A_csr, d_b, d_A_csr, d_b);
+                                                                                               d_A_csr_row_index, d_A_csr_diag_index, dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id,
+                                                                                               d_boundary_alphaEff, dataBase_.d_boundary_face, d_gradient_internal_coeffs, d_gradient_boundary_coeffs,
+                                                                                               -1., d_A_csr, d_b, d_A_csr, d_b);
 }
 
 void dfEEqn::fvc_ddt()
@@ -568,8 +577,8 @@ void dfEEqn::fvc_ddt()
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
     eeqn_fvc_ddt_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, dataBase_.rdelta_t,
-            dataBase_.d_rho_old, dataBase_.d_rho_new, d_K_old, d_K, dataBase_.d_volume,
-            -1., d_b, d_b);
+                                                                           dataBase_.d_rho_old, dataBase_.d_rho_new, d_K_old, d_K, dataBase_.d_volume,
+                                                                           -1., d_b, d_b);
 }
 
 void dfEEqn::fvc_div_vector()
@@ -578,14 +587,14 @@ void dfEEqn::fvc_div_vector()
     size_t threads_per_block = 512;
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
     eeqn_fvc_div_vector_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
-            d_A_csr_row_index, d_A_csr_col_index, d_A_csr_diag_index,
-            dataBase_.d_face_vector, d_hDiffCorrFlux, dataBase_.d_weight,
-            1., d_b, d_b);
+                                                                                    d_A_csr_row_index, d_A_csr_col_index, d_A_csr_diag_index,
+                                                                                    dataBase_.d_face_vector, d_hDiffCorrFlux, dataBase_.d_weight,
+                                                                                    1., d_b, d_b);
     blocks_per_grid = (num_boundary_cells + threads_per_block - 1) / threads_per_block;
     eeqn_fvc_div_vector_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_cells,
-            dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id,
-            dataBase_.d_boundary_face_vector, d_boundary_hDiffCorrFlux,
-            1., d_b, d_b);
+                                                                                    dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id,
+                                                                                    dataBase_.d_boundary_face_vector, d_boundary_hDiffCorrFlux,
+                                                                                    1., d_b, d_b);
 }
 
 void dfEEqn::fvc_div_phi_scalar()
@@ -594,14 +603,14 @@ void dfEEqn::fvc_div_phi_scalar()
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
     eeqn_fvc_div_phi_scalar_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
-            d_A_csr_row_index, d_A_csr_col_index, d_A_csr_diag_index,
-            dataBase_.d_weight, dataBase_.d_phi, d_K,
-            -1., d_b, d_b);
+                                                                                        d_A_csr_row_index, d_A_csr_col_index, d_A_csr_diag_index,
+                                                                                        dataBase_.d_weight, dataBase_.d_phi, d_K,
+                                                                                        -1., d_b, d_b);
     blocks_per_grid = (num_boundary_cells + threads_per_block - 1) / threads_per_block;
     eeqn_fvc_div_phi_scalar_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_cells,
-            dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id,
-            dataBase_.d_boundary_phi, d_boundary_K,
-            -1., d_b, d_b);
+                                                                                        dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id,
+                                                                                        dataBase_.d_boundary_phi, d_boundary_K,
+                                                                                        -1., d_b, d_b);
 }
 
 void dfEEqn::add_to_source()
@@ -612,7 +621,7 @@ void dfEEqn::add_to_source()
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
     // " + fvc::ddt(rho，K)" is on the left side of "==", thus should minus from source.
     eeqn_add_to_source_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
-            1., d_dpdt, -1., d_diffAlphaD, dataBase_.d_volume, d_b, d_b);
+                                                                                 1., d_dpdt, -1., d_diffAlphaD, dataBase_.d_volume, d_b, d_b);
 }
 
 void dfEEqn::checkValue(bool print)
@@ -701,10 +710,7 @@ void dfEEqn::sync()
 
 void dfEEqn::updatePsi(double *Psi)
 {
-    for (size_t i = 0; i < num_cells; i++)
-    {
-        Psi[i] = h_he_new[i];
-    }
+    memcpy(Psi, h_he_new, cell_bytes);
 }
 
 dfEEqn::~dfEEqn()

@@ -1,5 +1,4 @@
 start = std::clock();
-cudaSetDevice(0);
 hDiffCorrFlux = Zero;
 diffAlphaD = Zero;
 sumYDiffError = Zero;
@@ -15,12 +14,15 @@ tmp<fv::convectionScheme<scalar>> mvConvection
     )
 );
 
-
+start1 = std::clock();
 forAll(Y, i)
 {
     sumYDiffError += chemistry->rhoD(i)*fvc::grad(Y[i]);
 }
 const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
+start1 = std::clock();
+time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+time_monitor_YEqn_Solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
 #ifdef GPUSolver_
     start1 = std::clock();
@@ -32,13 +34,14 @@ const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
 #endif
 
 #ifdef GPUSolver_
-    std::vector<double*> Y_new(Y.size()), Y_old(Y.size()), boundary_Y_init(Y.size()), boundary_rhoD_init(Y.size());
+    start1 = std::clock();
+    start2 = std::clock();
+    std::vector<double*> Y_old(Y.size()), boundary_Y_init(Y.size()), boundary_rhoD_init(Y.size());
     std::vector<const double*> rhoD_GPU(Y.size());
     for (size_t i = 0; i < Y.size(); ++i)
     {
         volScalarField& Yi = Y[i];
         const volScalarField& rhoDi = chemistry->rhoD(i);
-        Y_new[i] = &Yi[0];
         Y_old[i] = &Yi.oldTime()[0];
         rhoD_GPU[i] = &chemistry->rhoD(i)[0];
         cudaMallocHost(&boundary_Y_init[i], num_boundary_faces*sizeof(double));
@@ -64,15 +67,25 @@ const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
         int patchSize = patchMut_sct.size();
         boundary_mutsct.insert(boundary_mutsct.end(), &patchMut_sct[0], &patchMut_sct[0] + patchSize);
     }
+    end2 = std::clock();
+    time_monitor_YEqn_mtxAssembly_CPU_Prepare += double(end2 - start2) / double(CLOCKS_PER_SEC);
 
     YEqn_GPU.upwindWeight();
-    YEqn_GPU.correctVelocity(Y_new, boundary_Y_init, rhoD_GPU);
-    YEqn_GPU.fvm_ddt(Y_old);
+    YEqn_GPU.correctVelocity(Y_old, boundary_Y_init, rhoD_GPU);
+    YEqn_GPU.fvm_ddt();
     YEqn_GPU.fvm_div_phi();
     YEqn_GPU.fvm_div_phiUc();
     YEqn_GPU.fvm_laplacian(&mut_sct[0], boundary_mutsct.data(), boundary_rhoD_init);
 
+    end1 = std::clock();
+    time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_YEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
+
+    start1 = std::clock();
     YEqn_GPU.solve();
+    end1 = std::clock();
+    time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_YEqn_Solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
 #endif
 
 //MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
@@ -108,9 +121,15 @@ time_monitor_corrDiff += double(end - start) / double(CLOCKS_PER_SEC);
         if (i != inertIndex)
         {
             #ifdef GPUSolver_
+                start1 = std::clock();
                 YEqn_GPU.updatePsi(&Yi[0], speciesIndex);
                 Yi.correctBoundaryConditions();
+                end1 = std::clock();
+                time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+                time_monitor_YEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
+                time_monitor_YEqn_mtxAssembly_CPU_Prepare += double(end1 - start1) / double(CLOCKS_PER_SEC);
             #else
+                start1 = std::clock();
                 tmp<volScalarField> DEff = chemistry->rhoD(i) + turbulence->mut()/Sct;
                 fvScalarMatrix YiEqn
                 (
@@ -124,10 +143,16 @@ time_monitor_corrDiff += double(end - start) / double(CLOCKS_PER_SEC);
                     :  (fvm::laplacian(DEff(), Yi) + combustion->R(Yi))
                     )
                 );
+                end1 = std::clock();
+                time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+                time_monitor_YEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
+                // YiEqn.relax();
 
-                YiEqn.relax();
-
+                start1 = std::clock();
                 YiEqn.solve("Yi");
+                end1 = std::clock();
+                time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+                time_monitor_YEqn_Solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
             #endif
 
             Yi.max(0.0);
@@ -141,5 +166,4 @@ time_monitor_corrDiff += double(end - start) / double(CLOCKS_PER_SEC);
 
     end = std::clock();
     time_monitor_Y += double(end - start) / double(CLOCKS_PER_SEC);
-    cudaSetDevice(0);
 }
