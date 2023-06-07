@@ -87,6 +87,18 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
         mesh_,
         dimensionedScalar(dimEnergy/dimVolume/dimTime, 0)
     ),
+    ha_
+    (
+        IOobject
+        (
+            "ha",
+            mesh_.time().timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        this->thermo().he()
+    ),
     selectDNN_
     (
         IOobject
