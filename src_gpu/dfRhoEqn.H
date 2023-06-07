@@ -37,7 +37,7 @@ public:
 
     void fvc_div(double *phi, double *boundary_phi_init);
 
-    void fvm_ddt(double *rho_old, double *rho_new);
+    void fvm_ddt(double *rho_old);
 
     void updatePsi(double* Psi);
 };

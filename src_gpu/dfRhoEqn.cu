@@ -123,7 +123,7 @@ void dfRhoEqn::fvc_div(double *phi, double *boundary_phi_init)
                                                                             dataBase_.d_bouPermedIndex, dataBase_.d_boundary_phi_init, dataBase_.d_boundary_phi, 1., d_b, d_b);
 }
 
-void dfRhoEqn::fvm_ddt(double *rho_old, double *rho_new)
+void dfRhoEqn::fvm_ddt(double *rho_old)
 {
     checkCudaErrors(cudaMemcpyAsync(dataBase_.d_rho_old, rho_old, cell_bytes, cudaMemcpyHostToDevice, stream));
     size_t threads_per_block = 1024;

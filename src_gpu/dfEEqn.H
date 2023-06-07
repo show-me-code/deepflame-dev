@@ -52,11 +52,9 @@ public:
 
     void prepare_data(const double *he_old, const double *K, const double *K_old, const double *alphaEff,
             const double *hDiffCorrFlux, const double *dpdt, const double *diffAlphaD,
-            const double *boundary_K, const double *boundary_hDiffCorrFlux, const double *boundary_alphaEff,
-            const double *valueInternalCoeffs, const double *valueBoundaryCoeffs,
-            const double *gradientInternalCoeffs, const double *gradientBoundaryCoeffs);
+            const double *boundary_K, const double *boundary_hDiffCorrFlux, const double *boundary_alphaEff);
 
-    void resetAb();
+    void initializeTimeStep();
 
     void fvm_ddt();
     void fvm_div();

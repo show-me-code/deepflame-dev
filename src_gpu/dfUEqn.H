@@ -31,9 +31,7 @@ public:
 
     void fvm_ddt(double *vector_old);
 
-    void fvm_div(double *phi, double *ueqn_internalCoeffs_init, double *ueqn_boundaryCoeffs_init,
-                 double *ueqn_laplac_internalCoeffs_init, double *ueqn_laplac_boundaryCoeffs_init,
-                 double *boundary_pressure_init, double *boundary_velocity_init,
+    void fvm_div(double *boundary_pressure_init, double *boundary_velocity_init,
                  double *boundary_nuEff_init, double *boundary_rho_init);
 
     void fvc_grad(double *pressure);
@@ -57,4 +55,6 @@ public:
     void updatePsi(double *Psi);
 
     void correctPsi(double *Psi);
+
+    void initializeTimeStep();
 };

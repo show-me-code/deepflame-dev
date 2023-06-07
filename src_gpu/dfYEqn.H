@@ -35,11 +35,11 @@ public:
 
     void checkValue(bool print, char *filename);
 
-    void correctVelocity(std::vector<double *> Y_new, std::vector<double *> boundary_Y_init, std::vector<const double *> rhoD_GPU);
+    void correctVelocity(std::vector<double *> Y_old, std::vector<double *> boundary_Y_init, std::vector<const double *> rhoD_GPU);
 
     void upwindWeight();
 
-    void fvm_ddt(std::vector<double *> Y_old);
+    void fvm_ddt();
 
     void fvm_div_phi();
 

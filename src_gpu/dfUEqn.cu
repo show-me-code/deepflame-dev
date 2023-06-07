@@ -281,11 +281,7 @@ __global__ void offdiagPermutation(const int num_faces, const int *permedIndex,
 }
 
 __global__ void boundaryPermutation(const int num_boundary_faces, const int *bouPermedIndex,
-                                    const double *ueqn_internalCoeffs_init, const double *ueqn_boundaryCoeffs_init,
-                                    const double *ueqn_laplac_internalCoeffs_init, const double *ueqn_laplac_boundaryCoeffs_init,
                                     const double *boundary_pressure_init, const double *boundary_velocity_init,
-                                    double *ueqn_internalCoeffs, double *ueqn_boundaryCoeffs,
-                                    double *ueqn_laplac_internalCoeffs, double *ueqn_laplac_boundaryCoeffs,
                                     double *boundary_pressure, double *boundary_velocity,
                                     double *boundary_nuEff_init, double *boundary_nuEff,
                                     double *boundary_rho_init, double *boundary_rho)
@@ -295,37 +291,12 @@ __global__ void boundaryPermutation(const int num_boundary_faces, const int *bou
         return;
 
     int p = bouPermedIndex[index];
-    ueqn_internalCoeffs[3 * index] = ueqn_internalCoeffs_init[3 * p];
-    ueqn_internalCoeffs[3 * index + 1] = ueqn_internalCoeffs_init[3 * p + 1];
-    ueqn_internalCoeffs[3 * index + 2] = ueqn_internalCoeffs_init[3 * p + 2];
-    ueqn_boundaryCoeffs[3 * index] = ueqn_boundaryCoeffs_init[3 * p];
-    ueqn_boundaryCoeffs[3 * index + 1] = ueqn_boundaryCoeffs_init[3 * p + 1];
-    ueqn_boundaryCoeffs[3 * index + 2] = ueqn_boundaryCoeffs_init[3 * p + 2];
-
-    ueqn_laplac_internalCoeffs[3 * index] = ueqn_laplac_internalCoeffs_init[3 * p];
-    ueqn_laplac_internalCoeffs[3 * index + 1] = ueqn_laplac_internalCoeffs_init[3 * p + 1];
-    ueqn_laplac_internalCoeffs[3 * index + 2] = ueqn_laplac_internalCoeffs_init[3 * p + 2];
-    ueqn_laplac_boundaryCoeffs[3 * index] = ueqn_laplac_boundaryCoeffs_init[3 * p];
-    ueqn_laplac_boundaryCoeffs[3 * index + 1] = ueqn_laplac_boundaryCoeffs_init[3 * p + 1];
-    ueqn_laplac_boundaryCoeffs[3 * index + 2] = ueqn_laplac_boundaryCoeffs_init[3 * p + 2];
-
     boundary_velocity[3 * index] = boundary_velocity_init[3 * p];
     boundary_velocity[3 * index + 1] = boundary_velocity_init[3 * p + 1];
     boundary_velocity[3 * index + 2] = boundary_velocity_init[3 * p + 2];
     boundary_pressure[index] = boundary_pressure_init[p];
     boundary_rho[index] = boundary_rho_init[p];
     boundary_nuEff[index] = boundary_nuEff_init[p];
-}
-
-__global__ void csrPermutation(const int num_Nz, const int *csrPermedIndex,
-                               const double *d_turbSrc_A_init, double *d_turbSrc_A)
-{
-    int index = blockDim.x * blockIdx.x + threadIdx.x;
-    if (index >= num_Nz)
-        return;
-
-    int p = csrPermedIndex[index];
-    d_turbSrc_A[index] = d_turbSrc_A_init[p];
 }
 
 __global__ void fvc_grad_vector_internal(int num_cells,
@@ -999,7 +970,35 @@ __global__ void addDiagDivVolume(int num_cells, const int *csr_row_index,
 
     double vol = volume[index];
 
-    A_output[index] = (A_input[index] + A_csr[csr_index] - ueqn_internal_coeffs[index * 3]) / vol; 
+    A_output[index] = (A_input[index] + A_csr[csr_index] - ueqn_internal_coeffs[index * 3]) / vol;
+}
+
+__global__ void ueqn_update_BoundaryCoeffs_kernel(int num_boundary_faces, const double *boundary_phi, double *internal_coeffs,
+                                                  double *boundary_coeffs, double *laplac_internal_coeffs,
+                                                  double *laplac_boundary_coeffs)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_boundary_faces)
+        return;
+
+    // zeroGradient
+    double valueInternalCoeffs = 1.;
+    double valueBoundaryCoeffs = 0.;
+    double gradientInternalCoeffs = 0.;
+    double gradientBoundaryCoeffs = 0.;
+
+    internal_coeffs[index * 3 + 0] = boundary_phi[index] * valueInternalCoeffs;
+    internal_coeffs[index * 3 + 1] = boundary_phi[index] * valueInternalCoeffs;
+    internal_coeffs[index * 3 + 2] = boundary_phi[index] * valueInternalCoeffs;
+    boundary_coeffs[index * 3 + 0] = -boundary_phi[index] * valueBoundaryCoeffs;
+    boundary_coeffs[index * 3 + 1] = -boundary_phi[index] * valueBoundaryCoeffs;
+    boundary_coeffs[index * 3 + 2] = -boundary_phi[index] * valueBoundaryCoeffs;
+    laplac_internal_coeffs[index * 3 + 0] = gradientInternalCoeffs;
+    laplac_internal_coeffs[index * 3 + 1] = gradientInternalCoeffs;
+    laplac_internal_coeffs[index * 3 + 2] = gradientInternalCoeffs;
+    laplac_boundary_coeffs[index * 3 + 0] = gradientBoundaryCoeffs;
+    laplac_boundary_coeffs[index * 3 + 1] = gradientBoundaryCoeffs;
+    laplac_boundary_coeffs[index * 3 + 2] = gradientBoundaryCoeffs;
 }
 
 // constructor
@@ -1041,9 +1040,6 @@ dfUEqn::dfUEqn(dfMatrixDataBase &dataBase, const std::string &modeStr, const std
 
 void dfUEqn::fvm_ddt(double *vector_old)
 {
-    // initialize matrix value
-    checkCudaErrors(cudaMemsetAsync(d_A_csr, 0, csr_value_vec_bytes, stream));
-    checkCudaErrors(cudaMemsetAsync(d_b, 0, cell_vec_bytes, stream));
     // Copy the host input array in host memory to the device input array in device memory
     clock_t start = std::clock();
     checkCudaErrors(cudaMemcpyAsync(dataBase_.d_velocity_old, vector_old, cell_vec_bytes, cudaMemcpyHostToDevice, stream));
@@ -1061,53 +1057,24 @@ void dfUEqn::fvm_ddt(double *vector_old)
     time_monitor_GPU_kernel += double(end - start) / double(CLOCKS_PER_SEC);
 }
 
-void dfUEqn::fvm_div(double *phi, double *ueqn_internalCoeffs_init, double *ueqn_boundaryCoeffs_init,
-                     double *ueqn_laplac_internalCoeffs_init, double *ueqn_laplac_boundaryCoeffs_init,
-                     double *boundary_pressure_init, double *boundary_velocity_init,
+void dfUEqn::fvm_div(double *boundary_pressure_init, double *boundary_velocity_init,
                      double *boundary_nuEff_init, double *boundary_rho_init)
 {
-    // copy and permutate face variables
-    clock_t start = std::clock();
-    // std::copy(phi, phi + num_surfaces, h_phi_init);
-    // std::copy(phi, phi + num_surfaces, h_phi_init + num_surfaces);
-    memcpy(dataBase_.h_phi_init, phi, num_surfaces * sizeof(double));
-    // memcpy(h_phi_init + num_surfaces, phi, num_surfaces*sizeof(double));
-
-    clock_t end = std::clock();
-    time_monitor_CPU += double(end - start) / double(CLOCKS_PER_SEC);
-
-    start = std::clock();
-    checkCudaErrors(cudaMemcpyAsync(dataBase_.d_phi_init, dataBase_.h_phi_init, num_surfaces * sizeof(double), cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(dataBase_.d_phi_init + num_surfaces, dataBase_.d_phi_init, num_surfaces * sizeof(double), cudaMemcpyDeviceToDevice, stream));
-    end = std::clock();
-    time_monitor_GPU_memcpy += double(end - start) / double(CLOCKS_PER_SEC);
-
-    start = std::clock();
-    size_t threads_per_block = 1024;
-    size_t blocks_per_grid = (num_faces + threads_per_block - 1) / threads_per_block;
-    offdiagPermutation<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_faces, dataBase_.d_permedIndex, dataBase_.d_phi_init, dataBase_.d_phi);
-    end = std::clock();
-    time_monitor_GPU_kernel += double(end - start) / double(CLOCKS_PER_SEC);
-
     // copy and permutate boundary variable
-    start = std::clock();
-    checkCudaErrors(cudaMemcpyAsync(dataBase_.d_internal_coeffs_init, ueqn_internalCoeffs_init, dataBase_.boundary_face_vec_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_coeffs_init, ueqn_boundaryCoeffs_init, dataBase_.boundary_face_vec_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(dataBase_.d_laplac_internal_coeffs_init, ueqn_laplac_internalCoeffs_init, dataBase_.boundary_face_vec_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(dataBase_.d_laplac_boundary_coeffs_init, ueqn_laplac_boundaryCoeffs_init, dataBase_.boundary_face_vec_bytes, cudaMemcpyHostToDevice, stream));
+    clock_t start = std::clock();
     checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_velocity_init, boundary_velocity_init, dataBase_.boundary_face_vec_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_pressure_init, boundary_pressure_init, dataBase_.boundary_face_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_nuEff_init, boundary_nuEff_init, dataBase_.boundary_face_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_rho_init, boundary_rho_init, dataBase_.boundary_face_bytes, cudaMemcpyHostToDevice, stream));
-    end = std::clock();
+    clock_t end = std::clock();
     time_monitor_GPU_memcpy += double(end - start) / double(CLOCKS_PER_SEC);
 
     start = std::clock();
-    blocks_per_grid = (dataBase_.num_boundary_faces + threads_per_block - 1) / threads_per_block;
-    boundaryPermutation<<<blocks_per_grid, threads_per_block, 0, stream>>>(dataBase_.num_boundary_faces, dataBase_.d_bouPermedIndex, dataBase_.d_internal_coeffs_init,
-                                                                           dataBase_.d_boundary_coeffs_init, dataBase_.d_laplac_internal_coeffs_init, dataBase_.d_laplac_boundary_coeffs_init, dataBase_.d_boundary_pressure_init,
-                                                                           dataBase_.d_boundary_velocity_init, dataBase_.d_internal_coeffs, dataBase_.d_boundary_coeffs, dataBase_.d_laplac_internal_coeffs, dataBase_.d_laplac_boundary_coeffs,
-                                                                           dataBase_.d_boundary_pressure, dataBase_.d_boundary_velocity, dataBase_.d_boundary_nuEff_init, dataBase_.d_boundary_nuEff, dataBase_.d_boundary_rho_init, dataBase_.d_boundary_rho);
+    size_t threads_per_block = 1024;
+    size_t blocks_per_grid = (dataBase_.num_boundary_faces + threads_per_block - 1) / threads_per_block;
+    boundaryPermutation<<<blocks_per_grid, threads_per_block, 0, stream>>>(dataBase_.num_boundary_faces, dataBase_.d_bouPermedIndex, dataBase_.d_boundary_pressure_init,
+                                                                           dataBase_.d_boundary_velocity_init, dataBase_.d_boundary_pressure, dataBase_.d_boundary_velocity, 
+                                                                           dataBase_.d_boundary_nuEff_init, dataBase_.d_boundary_nuEff, dataBase_.d_boundary_rho_init, dataBase_.d_boundary_rho);
 
     // launch cuda kernel
     blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
@@ -1229,8 +1196,6 @@ void dfUEqn::fvm_laplacian()
 
 void dfUEqn::A(double *Psi)
 {
-    // tmp<scalarField> tdiag(new scalarField(diag()));
-    // addCmptAvBoundaryDiag(tdiag.ref());
     checkCudaErrors(cudaMemsetAsync(d_A, 0, cell_bytes, stream));
 
     size_t threads_per_block = 1024;
@@ -1241,7 +1206,7 @@ void dfUEqn::A(double *Psi)
     blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
     addDiagDivVolume<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, d_A_csr_row_index, d_A_csr_diag_index, d_A_csr,
                                                                         dataBase_.d_volume, d_ueqn_internal_coeffs, d_A, d_A);
-    
+
     checkCudaErrors(cudaMemcpyAsync(h_A, d_A, cell_bytes, cudaMemcpyDeviceToHost, stream));
     checkCudaErrors(cudaStreamSynchronize(stream));
     for (size_t i = 0; i < num_cells; i++)
@@ -1250,9 +1215,7 @@ void dfUEqn::A(double *Psi)
 
 void dfUEqn::H(double *Psi)
 {
-    checkCudaErrors(cudaMemsetAsync(d_H, 0, cell_vec_bytes, stream));
-    checkCudaErrors(cudaStreamSynchronize(stream));
-
+    checkCudaErrors(cudaMemsetAsync(d_H, 0, cell_bytes * 3, stream));
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_boundary_cells + threads_per_block - 1) / threads_per_block;
     addBoundaryDiag<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_boundary_cells, d_A_csr_row_index, d_A_csr_diag_index,
@@ -1275,7 +1238,20 @@ void dfUEqn::H(double *Psi)
     }
 
     // for (int i = 0; i < num_cells; i++)
-    // fprintf(stderr, "h_H_GPU[%d]: (%.5e, %.5e, %.5e)\n", i, h_H[i], h_H[num_cells + i], h_H[num_cells * 2 + i]);
+    //     fprintf(stderr, "h_H_GPU[%d]: (%.5e, %.5e, %.5e)\n", i, h_H[i], h_H[num_cells + i], h_H[num_cells * 2 + i]);
+}
+
+void dfUEqn::initializeTimeStep()
+{
+    // initialize matrix value
+    checkCudaErrors(cudaMemsetAsync(d_A_csr, 0, csr_value_vec_bytes, stream));
+    checkCudaErrors(cudaMemsetAsync(d_b, 0, cell_vec_bytes, stream));
+    // initialize boundary coeffs
+    size_t threads_per_block = 1024;
+    size_t blocks_per_grid = (dataBase_.num_boundary_faces + threads_per_block - 1) / threads_per_block;
+    ueqn_update_BoundaryCoeffs_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(dataBase_.num_boundary_faces, dataBase_.d_boundary_phi,
+                                                                                         dataBase_.d_internal_coeffs, dataBase_.d_boundary_coeffs,
+                                                                                         dataBase_.d_laplac_internal_coeffs, dataBase_.d_laplac_boundary_coeffs);
 }
 
 void dfUEqn::checkValue(bool print)

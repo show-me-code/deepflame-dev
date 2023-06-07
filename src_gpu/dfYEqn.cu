@@ -508,7 +508,7 @@ void dfYEqn::upwindWeight()
     getUpwindWeight<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_faces, dataBase_.d_phi, dataBase_.d_weight_upwind);
 }
 
-void dfYEqn::correctVelocity(std::vector<double *> Y_new, std::vector<double *> boundary_Y_init, std::vector<const double *> rhoD_GPU)
+void dfYEqn::correctVelocity(std::vector<double *> Y_old, std::vector<double *> boundary_Y_init, std::vector<const double *> rhoD_GPU)
 {
     // initialize variables in each time step
     checkCudaErrors(cudaMemsetAsync(d_sumYDiffError, 0, 3 * cell_bytes, stream));
@@ -518,7 +518,7 @@ void dfYEqn::correctVelocity(std::vector<double *> Y_new, std::vector<double *> 
     for (size_t i = 0; i < num_species; ++i)
     {
         checkCudaErrors(cudaMemsetAsync(d_sumYDiffError_tmp, 0, 3 * cell_bytes, stream));
-        checkCudaErrors(cudaMemcpyAsync(dataBase_.d_Y_new_vector[i], Y_new[i], cell_bytes, cudaMemcpyHostToDevice, stream));
+        checkCudaErrors(cudaMemcpyAsync(dataBase_.d_Y_old_vector[i], Y_old[i], cell_bytes, cudaMemcpyHostToDevice, stream));
         checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_Y_init_vector[i], boundary_Y_init[i], dataBase_.boundary_face_bytes, cudaMemcpyHostToDevice, stream));
         checkCudaErrors(cudaMemcpyAsync(dataBase_.d_rhoD_vector[i], rhoD_GPU[i], cell_bytes, cudaMemcpyHostToDevice, stream));
 
@@ -527,7 +527,7 @@ void dfYEqn::correctVelocity(std::vector<double *> Y_new, std::vector<double *> 
         blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
         fvc_grad_internal_face_Y<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
                                                                                     d_A_csr_row_index, d_A_csr_col_index, d_A_csr_diag_index, dataBase_.d_volume,
-                                                                                    dataBase_.d_face_vector, dataBase_.d_weight, dataBase_.d_Y_new_vector[i],
+                                                                                    dataBase_.d_face_vector, dataBase_.d_weight, dataBase_.d_Y_old_vector[i],
                                                                                     dataBase_.d_rhoD_vector[i], d_sumYDiffError_tmp, d_sumYDiffError_tmp);
         blocks_per_grid = (num_boundary_cells + threads_per_block - 1) / threads_per_block;
         fvc_grad_boundary_face_Y<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_boundary_cells, dataBase_.d_boundary_cell_offset,
@@ -554,7 +554,7 @@ void dfYEqn::correctVelocity(std::vector<double *> Y_new, std::vector<double *> 
                                                                                 dataBase_.d_boundary_face_vector, d_sumYDiffError_boundary, d_phiUc_boundary);
 }
 
-void dfYEqn::fvm_ddt(std::vector<double *> Y_old)
+void dfYEqn::fvm_ddt()
 {
     // initialize variables in each time step
     checkCudaErrors(cudaMemsetAsync(d_A_csr, 0, (num_cells + num_faces) * (num_species - 1) * sizeof(double), stream)); // consider inert species
@@ -567,7 +567,6 @@ void dfYEqn::fvm_ddt(std::vector<double *> Y_old)
     {
         if (i == inertIndex)
             continue;
-        checkCudaErrors(cudaMemcpyAsync(dataBase_.d_Y_old_vector[i], Y_old[i], cell_bytes, cudaMemcpyHostToDevice, stream));
 
         // launch cuda kernel
         threads_per_block = 1024;
@@ -757,8 +756,7 @@ void dfYEqn::solve()
 void dfYEqn::updatePsi(double *Psi, int speciesIndex)
 {
     checkCudaErrors(cudaStreamSynchronize(stream));
-    for (size_t i = 0; i < num_cells; i++)
-        Psi[i] = h_psi[i + speciesIndex * num_cells];
+    memcpy(Psi, h_psi + speciesIndex * num_cells, cell_bytes);
 }
 
 dfYEqn::~dfYEqn()
