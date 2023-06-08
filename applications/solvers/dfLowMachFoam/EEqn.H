@@ -49,10 +49,8 @@
         int patchSize = pw.size();
 
         const scalarField& patchK = K.boundaryField()[patchi];
-        const vectorField& patchhDiffCorrFlux = hDiffCorrFlux.boundaryField()[patchi];
         const scalarField& patchAlphaEff = alphaEff.boundaryField()[patchi];
         memcpy(boundary_K + eeqn_offset, &patchK[0], patchSize*sizeof(double));
-        memcpy(boundary_hDiffCorrFlux + eeqn_offset * 3, &patchhDiffCorrFlux[0][0], 3 * patchSize*sizeof(double));
         memcpy(boundary_alphaEff + eeqn_offset, &patchAlphaEff[0], patchSize*sizeof(double));
 
         eeqn_offset += patchSize;
@@ -63,8 +61,7 @@
     // prepare data on GPU
     start1 = std::clock();
     EEqn_GPU.prepare_data(&he.oldTime()[0], &K[0], &K.oldTime()[0], &alphaEff[0],
-            &dpdt[0], &diffAlphaD[0], &hDiffCorrFlux[0][0],
-            boundary_K, boundary_hDiffCorrFlux, boundary_alphaEff);
+            &dpdt[0], boundary_K, boundary_alphaEff);
     if (doSync) EEqn_GPU.sync();
     end1 = std::clock();
     time_monitor_EEqn_mtxAssembly_GPU_Prepare += double(end1 - start1) / double(CLOCKS_PER_SEC);

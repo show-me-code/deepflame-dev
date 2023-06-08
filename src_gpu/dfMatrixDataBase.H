@@ -101,6 +101,9 @@ struct dfMatrixDataBase
     double *d_deltaCoeffs_init = nullptr, *d_deltaCoeffs = nullptr;
     std::vector<double*> d_rhoD_vector;
 
+    double *d_hDiffCorrFlux = nullptr;
+    double *d_diffAlphaD = nullptr;
+
     double rdelta_t = 1/1e-6;
 
     /**
@@ -130,6 +133,8 @@ struct dfMatrixDataBase
     std::vector<double*> d_laplac_boundary_coeffs_Y_vector;
     std::vector<double*> d_boundary_rhoD_vector;
     double *d_boundary_mut_sct = nullptr;
+
+    double *d_boundary_hDiffCorrFlux = nullptr;
 
     std::vector<int> boundPermutationList;
     std::vector<double> ueqn_internalCoeffs, ueqn_boundaryCoeffs;
@@ -562,6 +567,9 @@ struct dfMatrixDataBase
         checkCudaErrors(cudaMalloc((void**)&d_grad_boundary_init, boundary_cell_bytes * 9));
         total_bytes += (num_cells * 9 * sizeof(double) + boundary_face_bytes * 9 + boundary_cell_bytes * 9); // FIXME: rename
 
+        checkCudaErrors(cudaMalloc((void**)&d_hDiffCorrFlux, 3 * cell_bytes));
+        checkCudaErrors(cudaMalloc((void**)&d_diffAlphaD, cell_bytes));
+        checkCudaErrors(cudaMalloc((void**)&d_boundary_hDiffCorrFlux, 3 * boundary_face_bytes));
 
         fprintf(stderr, "Total bytes malloc on GPU: %.2fMB\n", total_bytes * 1.0 / 1024 / 1024);
 
