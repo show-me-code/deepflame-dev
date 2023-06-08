@@ -80,6 +80,7 @@ time_monitor_YEqn_Solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
     end2 = std::clock();
     time_monitor_YEqn_mtxAssembly_CPU_Prepare += double(end2 - start2) / double(CLOCKS_PER_SEC);
 
+    YEqn_GPU.initializeTimeStep();
     YEqn_GPU.upwindWeight();
     YEqn_GPU.correctVelocity(Y_old, boundary_Y, hai, boundary_hai, rhoD, boundary_rhoD);
     YEqn_GPU.fvm_ddt();

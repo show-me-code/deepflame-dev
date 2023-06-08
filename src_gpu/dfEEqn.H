@@ -9,6 +9,8 @@ class dfEEqn
 private:
     dfMatrixDataBase &dataBase_;
     cudaStream_t stream;
+    //cudaEvent_t event;
+
     AmgXSolver *ESolver = nullptr;
     int num_iteration;
 

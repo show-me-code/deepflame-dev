@@ -1005,6 +1005,8 @@ __global__ void ueqn_update_BoundaryCoeffs_kernel(int num_boundary_faces, const 
 dfUEqn::dfUEqn(dfMatrixDataBase &dataBase, const std::string &modeStr, const std::string &cfgFile)
     : dataBase_(dataBase)
 {
+    stream = dataBase_.stream;
+
     UxSolver = new AmgXSolver(modeStr, cfgFile);
     UySolver = new AmgXSolver(modeStr, cfgFile);
     UzSolver = new AmgXSolver(modeStr, cfgFile);
@@ -1034,8 +1036,6 @@ dfUEqn::dfUEqn(dfMatrixDataBase &dataBase, const std::string &modeStr, const std
     checkCudaErrors(cudaMalloc((void **)&d_A, cell_bytes));
     checkCudaErrors(cudaMalloc((void **)&d_ueqn_internal_coeffs, cell_vec_bytes));
     checkCudaErrors(cudaMalloc((void **)&d_ueqn_boundary_coeffs, cell_vec_bytes));
-
-    checkCudaErrors(cudaStreamCreate(&stream));
 }
 
 void dfUEqn::fvm_ddt(double *vector_old)

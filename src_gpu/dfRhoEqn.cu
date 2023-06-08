@@ -82,6 +82,7 @@ __global__ void fvm_ddt_rho(int num_cells, const double rdelta_t,
 dfRhoEqn::dfRhoEqn(dfMatrixDataBase &dataBase)
     : dataBase_(dataBase)
 {
+    stream = dataBase_.stream;
     num_cells = dataBase_.num_cells;
     cell_bytes = dataBase_.cell_bytes;
     num_surfaces = dataBase_.num_surfaces;
@@ -94,13 +95,16 @@ dfRhoEqn::dfRhoEqn(dfMatrixDataBase &dataBase)
 
     checkCudaErrors(cudaMalloc((void **)&d_b, cell_bytes));
     checkCudaErrors(cudaMalloc((void **)&d_psi, cell_bytes));
+}
 
-    checkCudaErrors(cudaStreamCreate(&stream));
+void dfRhoEqn::initializeTimeStep()
+{
+    // initialize matrix value
+    checkCudaErrors(cudaMemsetAsync(d_b, 0, cell_bytes, stream));
 }
 
 void dfRhoEqn::fvc_div(double *phi, double *boundary_phi_init)
 {
-    checkCudaErrors(cudaMemsetAsync(d_b, 0, cell_bytes, stream));
     clock_t start = std::clock();
     memcpy(dataBase_.h_phi_init, phi, num_surfaces * sizeof(double));
 

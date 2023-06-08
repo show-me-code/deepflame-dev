@@ -108,6 +108,7 @@ int main(int argc, char *argv[])
     double time_monitor_EEqn_mtxAssembly_CPU_Prepare;
     double time_monitor_EEqn_mtxAssembly_GPU_Prepare;
     double time_monitor_EEqn_mtxAssembly_GPU_Run;
+    double time_monitor_EEqn_mtxAssembly_CPU_CorrectBC;
     double time_monitor_EEqn_Solve=0;
     double time_monitor_EEqn_sum=0;
     double time_monitor_YEqn=0;
@@ -259,6 +260,7 @@ int main(int argc, char *argv[])
         Info<< "EEqn assamble(CPU prepare) = " << time_monitor_EEqn_mtxAssembly_CPU_Prepare << " s" << endl;
         Info<< "EEqn assamble(GPU prepare) = " << time_monitor_EEqn_mtxAssembly_GPU_Prepare << " s" << endl;
         Info<< "EEqn assamble(GPU run)     = " << time_monitor_EEqn_mtxAssembly_GPU_Run << " s" << endl;
+        Info<< "EEqn assamble(CPU correct) = " << time_monitor_EEqn_mtxAssembly_CPU_CorrectBC << " s" << endl;
         Info<< "EEqn Time solve            = " << time_monitor_EEqn_Solve << " s" << endl;
         Info<< "YEqn Time                  = " << time_monitor_YEqn << " s" << endl;
         Info<< "YEqn Time assamble Mtx     = " << time_monitor_YEqn_mtxAssembly << " s" << endl;
@@ -278,6 +280,7 @@ int main(int argc, char *argv[])
         time_monitor_EEqn_mtxAssembly_CPU_Prepare = 0;
         time_monitor_EEqn_mtxAssembly_GPU_Prepare = 0;
         time_monitor_EEqn_mtxAssembly_GPU_Run = 0;
+        time_monitor_EEqn_mtxAssembly_CPU_CorrectBC = 0;
         time_monitor_EEqn_Solve = 0;
         time_monitor_chem = 0;
         time_monitor_Y = 0;

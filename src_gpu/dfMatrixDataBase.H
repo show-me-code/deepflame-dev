@@ -43,6 +43,9 @@ inline void checkVectorEqual(int count, const double* basevec, double* vec, doub
 
 struct dfMatrixDataBase
 {
+    // - cuda resource
+    cudaStream_t stream;
+
     // - number of cell size
     int num_cells;
     // - number of face size
@@ -185,11 +188,6 @@ struct dfMatrixDataBase
     // double *h_A_csr = nullptr, *h_b = nullptr, *h_psi = nullptr;
     // double *d_A_csr = nullptr, *d_b = nullptr, *d_psi = nullptr;
 
-    /**
-     * @brief cuda functions
-     */
-    cudaStream_t stream;
-
     int num_iteration;
 
     double time_monitor_CPU;
@@ -208,6 +206,9 @@ struct dfMatrixDataBase
     : num_cells(num_cells), num_faces(num_surfaces*2), num_surfaces(num_surfaces), num_species(num_species), num_iteration(0),
       num_boundary_faces(num_boundary_faces), h_volume(volume)
     {
+        // create cuda stream
+        checkCudaErrors(cudaStreamCreate(&stream));
+
         // allocate field pointer in pin memory
         cudaMallocHost(&h_phi_init, num_faces * sizeof(double));
         cudaMallocHost(&h_rho_old, num_cells * sizeof(double));
@@ -573,8 +574,6 @@ struct dfMatrixDataBase
 
         fprintf(stderr, "Total bytes malloc on GPU: %.2fMB\n", total_bytes * 1.0 / 1024 / 1024);
 
-        checkCudaErrors(cudaStreamCreate(&stream));
-
         checkCudaErrors(cudaMemcpyAsync(d_A_csr_row_index, h_A_csr_row_index, csr_row_index_bytes, cudaMemcpyHostToDevice, stream));
         checkCudaErrors(cudaMemcpyAsync(d_A_csr_col_index, h_A_csr_col_index, csr_col_index_bytes, cudaMemcpyHostToDevice, stream));
         checkCudaErrors(cudaMemcpyAsync(d_A_csr_diag_index, h_A_csr_diag_index, cell_index_bytes, cudaMemcpyHostToDevice, stream));
@@ -594,6 +593,7 @@ struct dfMatrixDataBase
         checkCudaErrors(cudaMemcpyAsync(d_bouPermedIndex, boundPermutationList.data(), boundary_face_index_bytes, cudaMemcpyHostToDevice, stream));
         checkCudaErrors(cudaMemcpyAsync(d_tmpPermutatedList, tmpPermutatedList.data(), csr_col_index_bytes, cudaMemcpyHostToDevice, stream));
     };
+
     ~dfMatrixDataBase(){
         std::cout << "Destructor called." << std::endl;
         // TODO: free pointers

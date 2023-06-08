@@ -45,6 +45,8 @@ public:
 
     ~dfYEqn();
 
+    void initializeTimeStep();
+
     void checkValue(bool print, char *filename);
 
     void correctVelocity(std::vector<double *> Y_old, std::vector<double *> boundary_Y,

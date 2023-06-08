@@ -58,6 +58,8 @@
     end1 = std::clock();
     time_monitor_EEqn_mtxAssembly_CPU_Prepare += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
+    EEqn_GPU.initializeTimeStep();
+
     // prepare data on GPU
     start1 = std::clock();
     EEqn_GPU.prepare_data(&he.oldTime()[0], &K[0], &K.oldTime()[0], &alphaEff[0],
@@ -67,7 +69,6 @@
     time_monitor_EEqn_mtxAssembly_GPU_Prepare += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
     start1 = std::clock();
-    EEqn_GPU.initializeTimeStep();
     EEqn_GPU.fvm_ddt();
     EEqn_GPU.fvm_div();
     EEqn_GPU.fvm_laplacian();
@@ -99,6 +100,7 @@
     he.correctBoundaryConditions();
     end1 = std::clock();
     time_monitor_EEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_EEqn_mtxAssembly_CPU_CorrectBC += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_EEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
 #endif
 }

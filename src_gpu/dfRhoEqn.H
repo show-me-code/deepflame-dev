@@ -16,6 +16,7 @@ class dfRhoEqn
 private:
     dfMatrixDataBase& dataBase_;
     cudaStream_t stream;
+
     int num_iteration;
     double time_monitor_CPU;
     double time_monitor_GPU_kernel, time_monitor_GPU_memcpy, time_monitor_GPU_memcpy_test;
@@ -32,6 +33,8 @@ public:
     dfRhoEqn();
     dfRhoEqn(dfMatrixDataBase& dataBase);
     ~dfRhoEqn();
+
+    void initializeTimeStep();
 
     void checkValue(bool print);
 

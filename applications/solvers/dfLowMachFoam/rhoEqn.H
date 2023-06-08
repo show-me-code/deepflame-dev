@@ -40,6 +40,7 @@ Description
         memcpy(boundary_phi_init+offset, &patchFlux[0], patchSize*sizeof(double));
         offset += patchSize;
     }
+    rhoEqn_GPU.initializeTimeStep();
     rhoEqn_GPU.fvc_div(&phi[0], boundary_phi_init);
     rhoEqn_GPU.fvm_ddt(&rho.oldTime()[0]);
     rhoEqn_GPU.updatePsi(&rho.primitiveFieldRef()[0]);

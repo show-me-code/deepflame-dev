@@ -508,6 +508,7 @@ __global__ void fvc_laplacian_internal(int num_cells,
 dfYEqn::dfYEqn(dfMatrixDataBase &dataBase, const std::string &modeStr, const std::string &cfgFile, const int inertIndex)
     : dataBase_(dataBase), inertIndex(inertIndex)
 {
+    stream = dataBase_.stream;
     num_species = dataBase_.num_species;
     num_cells = dataBase_.num_cells;
     num_faces = dataBase_.num_faces;
@@ -562,7 +563,6 @@ dfYEqn::dfYEqn(dfMatrixDataBase &dataBase, const std::string &modeStr, const std
         checkCudaErrors(cudaMalloc((void **)&d_Y_old[i], cell_bytes));
     }
 
-    checkCudaErrors(cudaStreamCreate(&stream));
     // zeroGradient
     for (size_t i = 0; i < num_species; i++)
     {
@@ -571,6 +571,16 @@ dfYEqn::dfYEqn(dfMatrixDataBase &dataBase, const std::string &modeStr, const std
         checkCudaErrors(cudaMemsetAsync(dataBase_.d_laplac_internal_coeffs_Y_vector[i], 0, boundary_face_bytes, stream));
         checkCudaErrors(cudaMemsetAsync(dataBase_.d_laplac_boundary_coeffs_Y_vector[i], 0, boundary_face_bytes, stream));
     }
+}
+
+void dfYEqn::initializeTimeStep()
+{
+    // consider inert species
+    // initialize matrix value
+    checkCudaErrors(cudaMemsetAsync(d_A_csr, 0, (num_cells + num_faces) * (num_species - 1) * sizeof(double), stream));
+    checkCudaErrors(cudaMemsetAsync(d_b, 0, cell_bytes * (num_species - 1), stream));
+    // initialize variables in each time step
+    checkCudaErrors(cudaMemsetAsync(d_psi, 0, cell_bytes * (num_species - 1), stream));
 }
 
 void dfYEqn::upwindWeight()
@@ -655,11 +665,6 @@ void dfYEqn::correctVelocity(std::vector<double *> Y_old, std::vector<double *> 
 
 void dfYEqn::fvm_ddt()
 {
-    // initialize variables in each time step
-    checkCudaErrors(cudaMemsetAsync(d_A_csr, 0, (num_cells + num_faces) * (num_species - 1) * sizeof(double), stream)); // consider inert species
-    checkCudaErrors(cudaMemsetAsync(d_b, 0, cell_bytes * (num_species - 1), stream));
-    checkCudaErrors(cudaMemsetAsync(d_psi, 0, cell_bytes * (num_species - 1), stream));
-
     size_t threads_per_block, blocks_per_grid;
     int mtxIndex = 0;
     for (size_t i = 0; i < num_species; ++i)

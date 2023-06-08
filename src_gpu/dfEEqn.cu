@@ -439,6 +439,9 @@ dfEEqn::dfEEqn(dfMatrixDataBase &dataBase, const std::string &modeStr, const std
 {
     ESolver = new AmgXSolver(modeStr, cfgFile);
 
+    stream = dataBase_.stream;
+    //checkCudaErrors(cudaEventCreate(&event));
+
     num_cells = dataBase_.num_cells;
     cell_bytes = dataBase_.cell_bytes;
     num_faces = dataBase_.num_faces;
@@ -479,8 +482,6 @@ dfEEqn::dfEEqn(dfMatrixDataBase &dataBase, const std::string &modeStr, const std
     checkCudaErrors(cudaMalloc((void **)&d_value_boundary_coeffs, boundary_face_bytes));
     checkCudaErrors(cudaMalloc((void **)&d_gradient_internal_coeffs, boundary_face_bytes));
     checkCudaErrors(cudaMalloc((void **)&d_gradient_boundary_coeffs, boundary_face_bytes));
-
-    checkCudaErrors(cudaStreamCreate(&stream));
 }
 
 void dfEEqn::prepare_data(const double *he_old, const double *K, const double *K_old, const double *alphaEff,
@@ -688,6 +689,7 @@ void dfEEqn::solve()
     num_iteration++;
 
     checkCudaErrors(cudaMemcpyAsync(h_he_new, d_he_old, cell_bytes, cudaMemcpyDeviceToHost, stream));
+    //checkCudaErrors(cudaEventRecord(event, stream));
     // checkCudaErrors(cudaStreamSynchronize(stream));
     // for (size_t i = 0; i < num_cells; i++)
     //     fprintf(stderr, "h_he_after[%d]: %.16lf\n", i, h_he_new[i]);
@@ -700,6 +702,8 @@ void dfEEqn::sync()
 
 void dfEEqn::updatePsi(double *Psi)
 {
+    checkCudaErrors(cudaStreamSynchronize(stream));
+    //checkCudaErrors(cudaEventSynchronize(event));
     memcpy(Psi, h_he_new, cell_bytes);
 }
 
@@ -732,4 +736,6 @@ dfEEqn::~dfEEqn()
     checkCudaErrors(cudaFree(d_value_boundary_coeffs));
     checkCudaErrors(cudaFree(d_gradient_internal_coeffs));
     checkCudaErrors(cudaFree(d_gradient_boundary_coeffs));
+
+    //checkCudaErrors(cudaEventDestroy(event));
 }
