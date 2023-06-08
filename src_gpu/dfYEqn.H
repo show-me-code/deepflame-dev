@@ -29,7 +29,6 @@ private:
     double *d_mut_Sct = nullptr;
     double *d_boundary_mut_sct = nullptr;
 
-    std::vector<double*> d_Y_old;
     double *d_boundary_Y = nullptr;
     double *d_hai, *d_boundary_hai = nullptr;
     double *d_rhoD, *d_boundary_rhoD = nullptr;
@@ -49,9 +48,10 @@ public:
 
     void checkValue(bool print, char *filename);
 
-    void correctVelocity(std::vector<double *> Y_old, std::vector<double *> boundary_Y,
+    void fvm_laplacian_and_sumYDiffError_diffAlphaD_hDiffCorrFlux(std::vector<double *> Y_old, std::vector<double *> boundary_Y,
         std::vector<const double *> hai, std::vector<double *> boundary_hai,
-        std::vector<const double *> rhoD, std::vector<double *> boundary_rhoD);
+        std::vector<const double *> rhoD, std::vector<double *> boundary_rhoD,
+        const double *mut_Sct, const double *boundary_mut_Sct, const double *alpha);
 
     void upwindWeight();
 
@@ -60,11 +60,6 @@ public:
     void fvm_div_phi();
 
     void fvm_div_phiUc();
-
-    void fvm_laplacian(const double *mut_Sct, const double *boundary_mut_Sct,
-            std::vector<const double*>rhoD, std::vector<double*>boundary_rhoD);
-
-    void compute_diffAlphaD(const double *alpha, std::vector<const double *> hai);
 
     void solve();
 

@@ -420,12 +420,12 @@ __global__ void fvm_laplacian_uncorrected_scalar_internal(int num_cells,
     A_csr_output[row_index + diag_index] = A_csr_input[row_index + diag_index] + sum_diag * sign;
 }
 
-__global__ void fvm_laplacian_uncorrected_scalar_boundary(int num_cells, int num_boundary_cells,
-                                                          const int *csr_row_index, const int *csr_diag_index, const int *boundary_cell_offset,
-                                                          const int *boundary_cell_id, const double *boundary_scalar0, const double *boundary_scalar1,
-                                                          const double *boundary_magsf, const int *bouPermedIndex,
-                                                          const double *gradient_internal_coeffs, const double *gradient_boundary_coeffs,
-                                                          const double sign, const double *A_csr_input, const double *b_input, double *A_csr_output, double *b_output)
+__global__ void fvm_laplacian_uncorrected_scalar_boundary(int num_boundary_cells,
+        const int *csr_row_index, const int *csr_diag_index, const int *boundary_cell_offset,
+        const int *boundary_cell_id, const double *boundary_scalar0, const double *boundary_scalar1,
+        const double *boundary_magsf, const int *bouPermedIndex,
+        const double *gradient_internal_coeffs, const double *gradient_boundary_coeffs,
+        const double sign, const double *A_csr_input, const double *b_input, double *A_csr_output, double *b_output)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index >= num_boundary_cells)
@@ -557,12 +557,6 @@ dfYEqn::dfYEqn(dfMatrixDataBase &dataBase, const std::string &modeStr, const std
 
     checkCudaErrors(cudaMalloc((void **)&d_alpha, cell_bytes));
 
-    d_Y_old.resize(num_species);
-    for (size_t i = 0; i < num_species; i++)
-    {
-        checkCudaErrors(cudaMalloc((void **)&d_Y_old[i], cell_bytes));
-    }
-
     // zeroGradient
     for (size_t i = 0; i < num_species; i++)
     {
@@ -590,11 +584,16 @@ void dfYEqn::upwindWeight()
     getUpwindWeight<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_faces, dataBase_.d_phi, dataBase_.d_weight_upwind);
 }
 
-void dfYEqn::correctVelocity(std::vector<double *> Y_old, std::vector<double *> boundary_Y,
+void dfYEqn::fvm_laplacian_and_sumYDiffError_diffAlphaD_hDiffCorrFlux(std::vector<double *> Y_old, std::vector<double *> boundary_Y,
         std::vector<const double *> hai, std::vector<double *> boundary_hai,
-        std::vector<const double *> rhoD, std::vector<double *> boundary_rhoD)
+        std::vector<const double *> rhoD, std::vector<double *> boundary_rhoD,
+        const double *mut_Sct, const double *boundary_mut_Sct, const double *alpha)
 {
     // initialize variables in each time step
+    checkCudaErrors(cudaMemcpyAsync(d_boundary_mut_sct, boundary_mut_Sct, boundary_face_bytes, cudaMemcpyHostToDevice, stream));
+    checkCudaErrors(cudaMemcpyAsync(d_mut_Sct, mut_Sct, cell_bytes, cudaMemcpyHostToDevice, stream));
+    checkCudaErrors(cudaMemcpyAsync(d_alpha, alpha, cell_bytes, cudaMemcpyHostToDevice, stream));
+
     checkCudaErrors(cudaMemsetAsync(d_sum_rhoD_grady, 0, 3 * cell_bytes, stream));
     checkCudaErrors(cudaMemsetAsync(d_sum_boundary_rhoD_grady, 0, 3 * boundary_face_bytes, stream));
     checkCudaErrors(cudaMemsetAsync(d_sum_hai_rhoD_grady, 0, 3 * cell_bytes, stream));
@@ -603,11 +602,13 @@ void dfYEqn::correctVelocity(std::vector<double *> Y_old, std::vector<double *> 
     checkCudaErrors(cudaMemsetAsync(d_sum_boundary_hai_y, 0, boundary_face_bytes, stream));
     checkCudaErrors(cudaMemsetAsync(dataBase_.d_hDiffCorrFlux, 0, 3 * cell_bytes, stream));
     checkCudaErrors(cudaMemsetAsync(dataBase_.d_boundary_hDiffCorrFlux, 0, 3 * boundary_face_bytes, stream));
+    checkCudaErrors(cudaMemsetAsync(dataBase_.d_diffAlphaD, 0, cell_bytes, stream));
 
     size_t threads_per_block, blocks_per_grid;
+    int mtxIndex = 0;
     for (size_t i = 0; i < num_species; ++i)
     {
-        checkCudaErrors(cudaMemcpyAsync(d_Y_old[i], Y_old[i], cell_bytes, cudaMemcpyHostToDevice, stream));
+        checkCudaErrors(cudaMemcpyAsync(dataBase_.d_Y[i], Y_old[i], cell_bytes, cudaMemcpyHostToDevice, stream));
         checkCudaErrors(cudaMemcpyAsync(d_boundary_Y, boundary_Y[i], boundary_face_bytes, cudaMemcpyHostToDevice, stream));
         checkCudaErrors(cudaMemcpyAsync(d_hai, hai[i], cell_bytes, cudaMemcpyHostToDevice, stream));
         checkCudaErrors(cudaMemcpyAsync(d_boundary_hai, boundary_hai[i], boundary_face_bytes, cudaMemcpyHostToDevice, stream));
@@ -617,12 +618,12 @@ void dfYEqn::correctVelocity(std::vector<double *> Y_old, std::vector<double *> 
         checkCudaErrors(cudaMemsetAsync(d_grady, 0, 3 * cell_bytes, stream));
         checkCudaErrors(cudaMemsetAsync(d_boundary_grady, 0, 3 * boundary_face_bytes, stream));
 
-        // launch cuda kernel
+        // fvc::grad(Yi)
         threads_per_block = 1024;
         blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
         fvc_grad_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
                 d_A_csr_row_index, d_A_csr_col_index, d_A_csr_diag_index,
-                dataBase_.d_face_vector, dataBase_.d_weight, d_Y_old[i],
+                dataBase_.d_face_vector, dataBase_.d_weight, dataBase_.d_Y[i],
                 dataBase_.d_volume, d_grady);
         blocks_per_grid = (num_boundary_cells + threads_per_block - 1) / threads_per_block;
         fvc_grad_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_cells,
@@ -635,25 +636,46 @@ void dfYEqn::correctVelocity(std::vector<double *> Y_old, std::vector<double *> 
                 dataBase_.d_boundary_face_vector, dataBase_.d_boundary_face,
                 d_grady, d_boundary_grady);
 
+        // sum(chemistry->hai(i)*chemistry->rhoD(i)*fvc::grad(Yi))
+        // sum(chemistry->rhoD(i)*fvc::grad(Yi)), also be called sumYDiffError
+        // sum(chemistry->hai(i)*Yi)
         blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
         sumError_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
-                d_hai, d_rhoD, d_Y_old[i], d_grady,
+                d_hai, d_rhoD, dataBase_.d_Y[i], d_grady,
                 d_sum_hai_rhoD_grady, d_sum_rhoD_grady, d_sum_hai_y);
         blocks_per_grid = (num_boundary_faces + threads_per_block - 1) / threads_per_block;
         sumError_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_faces,
                 dataBase_.d_bouPermedIndex,
                 d_boundary_hai, d_boundary_rhoD, d_boundary_Y, d_boundary_grady,
                 d_sum_boundary_hai_rhoD_grady, d_sum_boundary_rhoD_grady, d_sum_boundary_hai_y);
-    }
 
-    blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
-    calculate_phiUc_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
-            d_A_csr_row_index, d_A_csr_col_index, d_A_csr_diag_index,
-            dataBase_.d_face_vector, dataBase_.d_weight, d_sum_rhoD_grady, d_phiUc);
-    blocks_per_grid = (num_boundary_faces + threads_per_block - 1) / threads_per_block;
-    calculate_phiUc_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_faces,
-            dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id,
-            dataBase_.d_boundary_face_vector, d_sum_boundary_rhoD_grady, d_phiUc_boundary);
+        // compute diffAlphaD
+        blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
+        fvc_laplacian_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
+                d_A_csr_row_index, d_A_csr_col_index, d_A_csr_diag_index,
+                d_alpha, d_hai, dataBase_.d_Y[i],
+                dataBase_.d_weight, dataBase_.d_face, dataBase_.d_deltaCoeffs,
+                dataBase_.d_volume, dataBase_.d_diffAlphaD);
+
+        // fvm::laplacian
+        if (i != inertIndex)
+        {
+            blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
+            fvm_laplacian_uncorrected_scalar_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
+                    d_A_csr_row_index, d_A_csr_col_index, d_A_csr_diag_index,
+                    d_mut_Sct, d_rhoD, dataBase_.d_weight, dataBase_.d_face, dataBase_.d_deltaCoeffs,
+                    -1., d_A_csr + mtxIndex * (num_cells + num_faces), d_A_csr + mtxIndex * (num_cells + num_faces));
+            blocks_per_grid = (num_boundary_cells + threads_per_block - 1) / threads_per_block;
+            fvm_laplacian_uncorrected_scalar_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_cells,
+                    d_A_csr_row_index, d_A_csr_diag_index,
+                    dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id,
+                    d_boundary_rhoD, d_boundary_mut_sct, dataBase_.d_boundary_face, dataBase_.d_bouPermedIndex,
+                    dataBase_.d_laplac_internal_coeffs_Y_vector[i], dataBase_.d_laplac_boundary_coeffs_Y_vector[i],
+                    -1., d_A_csr + mtxIndex * (num_cells + num_faces), d_b + mtxIndex * num_cells,
+                    d_A_csr + mtxIndex * (num_cells + num_faces), d_b + mtxIndex * num_cells);
+        }
+        ++mtxIndex;
+    }
 
     blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
     calculate_hDiffCorrFlux<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
@@ -677,7 +699,7 @@ void dfYEqn::fvm_ddt()
         blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
         fvm_ddt_kernel_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_faces, dataBase_.rdelta_t,
                 d_A_csr_row_index, d_A_csr_diag_index,
-                dataBase_.d_rho_old, dataBase_.d_rho_new, dataBase_.d_volume, d_Y_old[i],
+                dataBase_.d_rho_old, dataBase_.d_rho_new, dataBase_.d_volume, dataBase_.d_Y[i],
                 d_A_csr + mtxIndex * (num_cells + num_faces), d_b + mtxIndex * num_cells,
                 d_A_csr + mtxIndex * (num_cells + num_faces), d_b + mtxIndex * num_cells,
                 d_psi + mtxIndex * num_cells);
@@ -694,21 +716,20 @@ void dfYEqn::fvm_div_phi()
         if (i == inertIndex)
             continue;
 
-        // launch cuda kernel
+        // mvConvection->fvmDiv(phi, Yi)
         threads_per_block = 512;
         blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
         fvm_div_internal_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_faces,
-                                                                                   d_A_csr_row_index, d_A_csr_diag_index, dataBase_.d_weight_upwind, dataBase_.d_phi,
-                                                                                   d_A_csr + mtxIndex * (num_cells + num_faces), d_b + mtxIndex * num_cells,
-                                                                                   d_A_csr + mtxIndex * (num_cells + num_faces), d_b + mtxIndex * num_cells);
-
+                d_A_csr_row_index, d_A_csr_diag_index, dataBase_.d_weight_upwind, dataBase_.d_phi,
+                d_A_csr + mtxIndex * (num_cells + num_faces), d_b + mtxIndex * num_cells,
+                d_A_csr + mtxIndex * (num_cells + num_faces), d_b + mtxIndex * num_cells);
         blocks_per_grid = (num_boundary_cells + threads_per_block - 1) / threads_per_block;
         fvm_div_boundary_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_faces, num_boundary_cells,
-                                                                                   d_A_csr_row_index, d_A_csr_diag_index, dataBase_.d_boundary_phi,
-                                                                                   dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id,
-                                                                                   dataBase_.d_internal_coeffs_Y_vector[i], dataBase_.d_boundary_coeffs_Y_vector[i],
-                                                                                   d_A_csr + mtxIndex * (num_cells + num_faces), d_b + mtxIndex * num_cells,
-                                                                                   d_A_csr + mtxIndex * (num_cells + num_faces), d_b + mtxIndex * num_cells);
+                d_A_csr_row_index, d_A_csr_diag_index, dataBase_.d_boundary_phi,
+                dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id,
+                dataBase_.d_internal_coeffs_Y_vector[i], dataBase_.d_boundary_coeffs_Y_vector[i],
+                d_A_csr + mtxIndex * (num_cells + num_faces), d_b + mtxIndex * num_cells,
+                d_A_csr + mtxIndex * (num_cells + num_faces), d_b + mtxIndex * num_cells);
         ++mtxIndex;
     }
 }
@@ -716,61 +737,37 @@ void dfYEqn::fvm_div_phi()
 void dfYEqn::fvm_div_phiUc()
 {
     size_t threads_per_block, blocks_per_grid;
+
+    // compue phiUc
+    threads_per_block = 512;
+    blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
+    calculate_phiUc_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
+            d_A_csr_row_index, d_A_csr_col_index, d_A_csr_diag_index,
+            dataBase_.d_face_vector, dataBase_.d_weight, d_sum_rhoD_grady, d_phiUc);
+    blocks_per_grid = (num_boundary_faces + threads_per_block - 1) / threads_per_block;
+    calculate_phiUc_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_faces,
+            dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id,
+            dataBase_.d_boundary_face_vector, d_sum_boundary_rhoD_grady, d_phiUc_boundary);
+
+    // mvConvection->fvmDiv(phiUc, Yi)
     int mtxIndex = 0;
     for (size_t i = 0; i < num_species; ++i)
     {
         if (i == inertIndex)
             continue;
-        // launch cuda kernel
-        threads_per_block = 512;
         blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
         fvm_div_internal_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_faces,
-                                                                                   d_A_csr_row_index, d_A_csr_diag_index, dataBase_.d_weight_upwind, d_phiUc,
-                                                                                   d_A_csr + mtxIndex * (num_cells + num_faces), d_b + mtxIndex * num_cells,
-                                                                                   d_A_csr + mtxIndex * (num_cells + num_faces), d_b + mtxIndex * num_cells);
+                d_A_csr_row_index, d_A_csr_diag_index, dataBase_.d_weight_upwind, d_phiUc,
+                d_A_csr + mtxIndex * (num_cells + num_faces), d_b + mtxIndex * num_cells,
+                d_A_csr + mtxIndex * (num_cells + num_faces), d_b + mtxIndex * num_cells);
 
         blocks_per_grid = (num_boundary_cells + threads_per_block - 1) / threads_per_block;
         fvm_div_boundary_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_faces, num_boundary_cells,
-                                                                                   d_A_csr_row_index, d_A_csr_diag_index, d_phiUc_boundary,
-                                                                                   dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id,
-                                                                                   dataBase_.d_internal_coeffs_Y_vector[i], dataBase_.d_boundary_coeffs_Y_vector[i],
-                                                                                   d_A_csr + mtxIndex * (num_cells + num_faces), d_b + mtxIndex * num_cells,
-                                                                                   d_A_csr + mtxIndex * (num_cells + num_faces), d_b + mtxIndex * num_cells);
-        ++mtxIndex;
-    }
-}
-
-void dfYEqn::fvm_laplacian(const double *mut_Sct, const double *boundary_mut_Sct,
-        std::vector<const double *> rhoD, std::vector<double *> boundary_rhoD)
-{
-    size_t threads_per_block, blocks_per_grid;
-    int mtxIndex = 0;
-
-    checkCudaErrors(cudaMemcpyAsync(d_boundary_mut_sct, boundary_mut_Sct, boundary_face_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_mut_Sct, mut_Sct, cell_bytes, cudaMemcpyHostToDevice, stream));
-
-    for (size_t i = 0; i < num_species; ++i)
-    {
-        if (i == inertIndex)
-            continue;
-        checkCudaErrors(cudaMemcpyAsync(d_rhoD, rhoD[i], cell_bytes, cudaMemcpyHostToDevice, stream));
-        checkCudaErrors(cudaMemcpyAsync(d_boundary_rhoD, boundary_rhoD[i], boundary_face_bytes, cudaMemcpyHostToDevice, stream));
-
-        // launch cuda kernel
-        threads_per_block = 1024;
-        blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
-        fvm_laplacian_uncorrected_scalar_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, d_A_csr_row_index, d_A_csr_col_index, d_A_csr_diag_index,
-                                                                                                     d_mut_Sct, d_rhoD, dataBase_.d_weight, dataBase_.d_face,
-                                                                                                     dataBase_.d_deltaCoeffs, -1., d_A_csr + mtxIndex * (num_cells + num_faces),
-                                                                                                     d_A_csr + mtxIndex * (num_cells + num_faces));
-        blocks_per_grid = (num_boundary_cells + threads_per_block - 1) / threads_per_block;
-        fvm_laplacian_uncorrected_scalar_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_boundary_cells,
-                                                                                                     d_A_csr_row_index, d_A_csr_diag_index, dataBase_.d_boundary_cell_offset,
-                                                                                                     dataBase_.d_boundary_cell_id, d_boundary_rhoD,
-                                                                                                     d_boundary_mut_sct, dataBase_.d_boundary_face, dataBase_.d_bouPermedIndex,
-                                                                                                     dataBase_.d_laplac_internal_coeffs_Y_vector[i], dataBase_.d_laplac_boundary_coeffs_Y_vector[i], -1.,
-                                                                                                     d_A_csr + mtxIndex * (num_cells + num_faces), d_b + mtxIndex * num_cells,
-                                                                                                     d_A_csr + mtxIndex * (num_cells + num_faces), d_b + mtxIndex * num_cells);
+                d_A_csr_row_index, d_A_csr_diag_index, d_phiUc_boundary,
+                dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id,
+                dataBase_.d_internal_coeffs_Y_vector[i], dataBase_.d_boundary_coeffs_Y_vector[i],
+                d_A_csr + mtxIndex * (num_cells + num_faces), d_b + mtxIndex * num_cells,
+                d_A_csr + mtxIndex * (num_cells + num_faces), d_b + mtxIndex * num_cells);
         ++mtxIndex;
     }
 }
@@ -863,24 +860,6 @@ void dfYEqn::updatePsi(double *Psi, int speciesIndex)
 {
     checkCudaErrors(cudaStreamSynchronize(stream));
     memcpy(Psi, h_psi + speciesIndex * num_cells, cell_bytes);
-}
-
-void dfYEqn::compute_diffAlphaD(const double *alpha, std::vector<const double *> hai)
-{
-    checkCudaErrors(cudaMemsetAsync(dataBase_.d_diffAlphaD, 0, cell_bytes, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_alpha, alpha, cell_bytes, cudaMemcpyHostToDevice, stream));
-    size_t threads_per_block, blocks_per_grid;
-    for (size_t i = 0; i < num_species; ++i)
-    {
-        checkCudaErrors(cudaMemcpyAsync(d_hai, hai[i], cell_bytes, cudaMemcpyHostToDevice, stream));
-        threads_per_block = 1024;
-        blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
-        fvc_laplacian_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
-                d_A_csr_row_index, d_A_csr_col_index, d_A_csr_diag_index,
-                d_alpha, d_hai, d_Y_old[i],
-                dataBase_.d_weight, dataBase_.d_face, dataBase_.d_deltaCoeffs,
-                dataBase_.d_volume, dataBase_.d_diffAlphaD);
-    }
 }
 
 dfYEqn::~dfYEqn()

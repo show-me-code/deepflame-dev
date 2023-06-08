@@ -90,9 +90,8 @@ struct dfMatrixDataBase
     // - the device pointer to rho_new, rho_old, velocity_old, pressure and volume list
     double *d_rho_new = nullptr, *d_rho_old = nullptr, *d_velocity_old = nullptr, 
     *d_pressure = nullptr, *d_volume = nullptr;
-    // - the device pointer to Y_new and Y_old
-    std::vector<double*> d_Y_new_vector;
-    std::vector<double*> d_Y_old_vector;
+    // - the device pointer to Y(vector Yi)
+    std::vector<double*> d_Y;
     // - the device pointer to the pre-permutated and post-permutated interpolation weight list
     double *d_weight_init = nullptr, *d_weight = nullptr;
     double *d_weight_upwind = nullptr;
@@ -479,8 +478,7 @@ struct dfMatrixDataBase
         checkCudaErrors(cudaMalloc((void**)&d_A_csr_diag_index, cell_index_bytes));
         total_bytes += (csr_row_index_bytes + csr_col_index_bytes + cell_index_bytes);
 
-        d_Y_new_vector.resize(num_species);
-        d_Y_old_vector.resize(num_species);
+        d_Y.resize(num_species);
         d_rhoD_vector.resize(num_species);
         d_boundary_Y_vector.resize(num_species);
         d_boundary_Y_init_vector.resize(num_species);
@@ -491,8 +489,7 @@ struct dfMatrixDataBase
         d_boundary_rhoD_vector.resize(num_species);
 
         for (size_t i = 0; i < num_species; ++i){
-            checkCudaErrors(cudaMalloc((void**)&d_Y_new_vector[i], cell_bytes));
-            checkCudaErrors(cudaMalloc((void**)&d_Y_old_vector[i], cell_bytes));
+            checkCudaErrors(cudaMalloc((void**)&d_Y[i], cell_bytes));
             checkCudaErrors(cudaMalloc((void**)&d_rhoD_vector[i], cell_bytes));
         }
         checkCudaErrors(cudaMalloc((void**)&d_rho_old, cell_bytes));

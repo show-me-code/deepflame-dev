@@ -82,13 +82,12 @@ time_monitor_YEqn_Solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
     YEqn_GPU.initializeTimeStep();
     YEqn_GPU.upwindWeight();
-    YEqn_GPU.correctVelocity(Y_old, boundary_Y, hai, boundary_hai, rhoD, boundary_rhoD);
+    YEqn_GPU.fvm_laplacian_and_sumYDiffError_diffAlphaD_hDiffCorrFlux(Y_old, boundary_Y,
+            hai, boundary_hai, rhoD, boundary_rhoD, &mut_sct[0], boundary_mutsct, &thermo.alpha()[0]);
     YEqn_GPU.fvm_ddt();
     YEqn_GPU.fvm_div_phi();
     YEqn_GPU.fvm_div_phiUc();
-    YEqn_GPU.fvm_laplacian(&mut_sct[0], boundary_mutsct, rhoD, boundary_rhoD);
 
-    YEqn_GPU.compute_diffAlphaD(&thermo.alpha()[0], hai);
     end1 = std::clock();
     time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_YEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
