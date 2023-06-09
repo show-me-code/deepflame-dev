@@ -136,6 +136,11 @@ void dfRhoEqn::fvm_ddt(double *rho_old)
     checkCudaErrors(cudaMemcpyAsync(h_psi, dataBase_.d_rho_new, cell_bytes, cudaMemcpyDeviceToHost, stream));
 }
 
+void dfRhoEqn::sync()
+{
+    checkCudaErrors(cudaStreamSynchronize(stream));
+}
+
 void dfRhoEqn::updatePsi(double *Psi)
 {
     checkCudaErrors(cudaStreamSynchronize(stream));

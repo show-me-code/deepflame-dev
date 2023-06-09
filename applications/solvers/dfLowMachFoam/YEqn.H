@@ -1,4 +1,3 @@
-start = std::clock();
 hDiffCorrFlux = Zero;
 diffAlphaD = Zero;
 sumYDiffError = Zero;
@@ -23,21 +22,17 @@ forAll(Y, i)
 const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
 start1 = std::clock();
 time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
-time_monitor_YEqn_Solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
+time_monitor_YEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
 #endif
 
 #ifdef GPUSolver_
     start1 = std::clock();
-    // // std::thread t(&dfMatrix::solve, &UEqn_GPU);
     UEqn_GPU.solve();
     end1 = std::clock();
     time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
-    time_monitor_UEqn_Solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
-#endif
+    time_monitor_UEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
-#ifdef GPUSolver_
     start1 = std::clock();
-    start2 = std::clock();
     std::vector<double*> Y_old(Y.size()), boundary_Y(Y.size()), boundary_hai(Y.size()), boundary_rhoD(Y.size());
     std::vector<const double*> hai(Y.size()), rhoD(Y.size());
     for (size_t i = 0; i < Y.size(); ++i)
@@ -65,7 +60,6 @@ time_monitor_YEqn_Solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
             offset += patchSize;
         }
     }
-
     volScalarField mut_sct = turbulence->mut().ref()/Sct;
     double *boundary_mutsct = nullptr;
     cudaMallocHost(&boundary_mutsct, num_boundary_faces*sizeof(double));
@@ -77,9 +71,13 @@ time_monitor_YEqn_Solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
         memcpy(boundary_mutsct + offset, &patchMut_sct[0], patchSize*sizeof(double));
         offset += patchSize;
     }
-    end2 = std::clock();
-    time_monitor_YEqn_mtxAssembly_CPU_Prepare += double(end2 - start2) / double(CLOCKS_PER_SEC);
+    end1 = std::clock();
+    time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_YEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_YEqn_mtxAssembly_CPU_prepare += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    fprintf(stderr, "time_monitor_YEqn_mtxAssembly_CPU_prepare: %lf\n", time_monitor_YEqn_mtxAssembly_CPU_prepare);
 
+    start1 = std::clock();
     YEqn_GPU.initializeTimeStep();
     YEqn_GPU.upwindWeight();
     YEqn_GPU.fvm_laplacian_and_sumYDiffError_diffAlphaD_hDiffCorrFlux(Y_old, boundary_Y,
@@ -87,24 +85,23 @@ time_monitor_YEqn_Solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
     YEqn_GPU.fvm_ddt();
     YEqn_GPU.fvm_div_phi();
     YEqn_GPU.fvm_div_phiUc();
-
+    YEqn_GPU.sync();
     end1 = std::clock();
     time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_YEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_YEqn_mtxAssembly_GPU_run += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
     start1 = std::clock();
     YEqn_GPU.solve();
     end1 = std::clock();
     time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
-    time_monitor_YEqn_Solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_YEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
 #endif
 
 //MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
 label flag_mpi_init;
 MPI_Initialized(&flag_mpi_init);
 if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
-end = std::clock();
-time_monitor_corrDiff += double(end - start) / double(CLOCKS_PER_SEC);
 
 {
     if (!splitting)
@@ -119,9 +116,8 @@ time_monitor_corrDiff += double(end - start) / double(CLOCKS_PER_SEC);
         time_monitor_chem += processingTime.count();
     }
 
+    start2 = std::clock();
     volScalarField Yt(0.0*Y[0]);
-
-    start = std::clock();
     int speciesIndex = 0;
     forAll(Y, i)
     {
@@ -137,9 +133,7 @@ time_monitor_corrDiff += double(end - start) / double(CLOCKS_PER_SEC);
                 YEqn_GPU.updatePsi(&Yi[0], speciesIndex);
                 Yi.correctBoundaryConditions();
                 end1 = std::clock();
-                time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
-                time_monitor_YEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
-                time_monitor_YEqn_mtxAssembly_CPU_Prepare += double(end1 - start1) / double(CLOCKS_PER_SEC);
+                time_monitor_YEqn_correctBC += double(end1 - start1) / double(CLOCKS_PER_SEC);
             #else
                 start1 = std::clock();
                 tmp<volScalarField> DEff = chemistry->rhoD(i) + turbulence->mut()/Sct;
@@ -156,15 +150,13 @@ time_monitor_corrDiff += double(end - start) / double(CLOCKS_PER_SEC);
                     )
                 );
                 end1 = std::clock();
-                time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
                 time_monitor_YEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
                 // YiEqn.relax();
 
                 start1 = std::clock();
                 YiEqn.solve("Yi");
                 end1 = std::clock();
-                time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
-                time_monitor_YEqn_Solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
+                time_monitor_YEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
             #endif
 
             Yi.max(0.0);
@@ -176,6 +168,6 @@ time_monitor_corrDiff += double(end - start) / double(CLOCKS_PER_SEC);
     Y[inertIndex] = scalar(1) - Yt;
     Y[inertIndex].max(0.0);
 
-    end = std::clock();
-    time_monitor_Y += double(end - start) / double(CLOCKS_PER_SEC);
+    end2 = std::clock();
+    time_monitor_YEqn += double(end2 - start2) / double(CLOCKS_PER_SEC);
 }

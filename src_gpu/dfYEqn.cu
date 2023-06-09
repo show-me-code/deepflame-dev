@@ -856,6 +856,11 @@ void dfYEqn::solve()
     //     fprintf(stderr, "h_species_gpu[%d]: %.5e\n", i, h_psi[i + 0 * num_cells]);
 }
 
+void dfYEqn::sync()
+{
+    checkCudaErrors(cudaStreamSynchronize(stream));
+}
+
 void dfYEqn::updatePsi(double *Psi, int speciesIndex)
 {
     checkCudaErrors(cudaStreamSynchronize(stream));

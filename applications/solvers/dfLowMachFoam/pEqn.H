@@ -9,6 +9,7 @@ const volScalarField psip0(psi*p);
 
 #ifdef GPUSolver_
     // UEqn.H()
+    start1 = std::clock();
     volVectorField UEqn_H
     (
         IOobject
@@ -24,9 +25,20 @@ const volScalarField psip0(psi*p);
         extrapolatedCalculatedFvPatchScalarField::typeName
     );
     UEqn_GPU.H(&UEqn_H[0][0]);
+    end1 = std::clock();
+    time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_UEqn_H += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_UEqn_H_GPU_run += double(end1 - start1) / double(CLOCKS_PER_SEC);
+
+    start1 = std::clock();
     UEqn_H.correctBoundaryConditions();
+    end1 = std::clock();
+    time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_UEqn_H += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_UEqn_H_correctBC += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
     // UEqn.A()
+    start1 = std::clock();
     volScalarField UEqn_A
     (
         IOobject
@@ -42,13 +54,28 @@ const volScalarField psip0(psi*p);
         extrapolatedCalculatedFvPatchScalarField::typeName
     );
     UEqn_GPU.A(&UEqn_A[0]);
+    end1 = std::clock();
+    time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_UEqn_A += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_UEqn_A_correctBC += double(end1 - start1) / double(CLOCKS_PER_SEC);
+
+    start1 = std::clock();
     UEqn_A.correctBoundaryConditions();
+    end1 = std::clock();
+    time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_UEqn_A += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_UEqn_A_correctBC += double(end1 - start1) / double(CLOCKS_PER_SEC);
 #endif
 
+start2 = std::clock();
 #ifdef GPUSolver_
+    start1 = std::clock();
     volScalarField rAU(1.0/UEqn_A);
     surfaceScalarField rhorAUf("rhorAUf", fvc::interpolate(rho*rAU));
     volVectorField HbyA(constrainHbyA(rAU*UEqn_H, U, p));
+    end1 = std::clock();
+    time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_UEqn_A += double(end1 - start1) / double(CLOCKS_PER_SEC);
 #else
     volScalarField rAU(1.0/UEqn.A());
     surfaceScalarField rhorAUf("rhorAUf", fvc::interpolate(rho*rAU));
@@ -95,7 +122,10 @@ if (pimple.transonic())
         // Relax the pressure equation to ensure diagonal-dominance
         pEqn.relax();
 
+        start1 = std::clock();
         pEqn.solve();
+        end1 = std::clock();
+        time_monitor_pEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
         if (pimple.finalNonOrthogonalIter())
         {
@@ -115,7 +145,10 @@ else
     {
         fvScalarMatrix pEqn(pDDtEqn - fvm::laplacian(rhorAUf, p));
 
+        start1 = std::clock();
         pEqn.solve();
+        end1 = std::clock();
+        time_monitor_pEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
         if (pimple.finalNonOrthogonalIter())
         {
@@ -145,7 +178,11 @@ U.correctBoundaryConditions();
 K = 0.5*magSqr(U);
 
 #ifdef GPUSolver_
+    start1 = std::clock();
     UEqn_GPU.correctPsi(&U[0][0]);
+    end1 = std::clock();
+    time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_UEqn_correctBC += double(end1 - start1) / double(CLOCKS_PER_SEC);
 #endif
 
 if (pimple.simpleRho())
@@ -165,3 +202,6 @@ if (thermo.dpdt())
         dpdt -= fvc::div(fvc::meshPhi(rho, U), p);
     }
 }
+end2 = std::clock();
+time_monitor_pEqn += double(end2 - start2) / double(CLOCKS_PER_SEC);
+

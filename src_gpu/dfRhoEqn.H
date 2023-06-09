@@ -42,5 +42,7 @@ public:
 
     void fvm_ddt(double *rho_old);
 
+    void sync();
+
     void updatePsi(double* Psi);
 };
