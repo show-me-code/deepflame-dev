@@ -273,7 +273,7 @@ __global__ void calculate_phiUc_boundary(int num_boundary_faces,
 __global__ void fvm_ddt_kernel_scalar(int num_cells, int num_faces, const double rdelta_t,
                                       const int *csr_row_index, const int *csr_diag_index,
                                       const double *rho_old, const double *rho_new, const double *volume, const double *species_old,
-                                      const double *A_csr_input, const double *b_input, double *A_csr_output, double *b_output, double *psi)
+                                      const double *A_csr_input, const double *b_input, double *A_csr_output, double *b_output)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index >= num_cells)
@@ -289,8 +289,24 @@ __global__ void fvm_ddt_kernel_scalar(int num_cells, int num_faces, const double
 
     double ddt_part_term = rdelta_t * rho_old[index] * volume[index];
     b_output[index] = b_input[index] + ddt_part_term * species_old[index];
+}
 
-    psi[index] = species_old[index];
+__global__ void compute_inertIndex_y(int num_cells, int num_species, int inertIndex, double *y)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_cells)
+        return;
+
+    double sum_yi = 0;
+    for (int i = 0; i < num_species; i++)
+    {
+        if (i == inertIndex) continue;
+
+        double yi = y[num_cells * i + index];
+        sum_yi += yi > 0 ? yi : 0;
+    }
+    sum_yi = 1 - sum_yi;
+    y[num_cells * inertIndex + index] = (sum_yi > 0 ? sum_yi : 0);
 }
 
 __global__ void fvm_div_internal_scalar(int num_cells, int num_faces,
@@ -528,7 +544,7 @@ dfYEqn::dfYEqn(dfMatrixDataBase &dataBase, const std::string &modeStr, const std
 
     h_A_csr = new double[(num_cells + num_faces) * (num_species - 1)];
     h_b = new double[num_cells * (num_species - 1)];
-    cudaMallocHost(&h_psi, num_cells * (num_species - 1) * sizeof(double));
+    cudaMallocHost(&h_psi, num_cells * num_species * sizeof(double));
 
     checkCudaErrors(cudaMalloc((void **)&d_A_csr, (num_cells + num_faces) * (num_species - 1) * sizeof(double)));
     checkCudaErrors(cudaMalloc((void **)&d_b, cell_bytes * (num_species - 1)));
@@ -608,7 +624,7 @@ void dfYEqn::fvm_laplacian_and_sumYDiffError_diffAlphaD_hDiffCorrFlux(std::vecto
     int mtxIndex = 0;
     for (size_t i = 0; i < num_species; ++i)
     {
-        checkCudaErrors(cudaMemcpyAsync(dataBase_.d_Y[i], Y_old[i], cell_bytes, cudaMemcpyHostToDevice, stream));
+        checkCudaErrors(cudaMemcpyAsync(dataBase_.d_Y + i * num_cells, Y_old[i], cell_bytes, cudaMemcpyHostToDevice, stream));
         checkCudaErrors(cudaMemcpyAsync(d_boundary_Y, boundary_Y[i], boundary_face_bytes, cudaMemcpyHostToDevice, stream));
         checkCudaErrors(cudaMemcpyAsync(d_hai, hai[i], cell_bytes, cudaMemcpyHostToDevice, stream));
         checkCudaErrors(cudaMemcpyAsync(d_boundary_hai, boundary_hai[i], boundary_face_bytes, cudaMemcpyHostToDevice, stream));
@@ -623,7 +639,7 @@ void dfYEqn::fvm_laplacian_and_sumYDiffError_diffAlphaD_hDiffCorrFlux(std::vecto
         blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
         fvc_grad_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
                 d_A_csr_row_index, d_A_csr_col_index, d_A_csr_diag_index,
-                dataBase_.d_face_vector, dataBase_.d_weight, dataBase_.d_Y[i],
+                dataBase_.d_face_vector, dataBase_.d_weight, dataBase_.d_Y + i * num_cells,
                 dataBase_.d_volume, d_grady);
         blocks_per_grid = (num_boundary_cells + threads_per_block - 1) / threads_per_block;
         fvc_grad_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_cells,
@@ -641,7 +657,7 @@ void dfYEqn::fvm_laplacian_and_sumYDiffError_diffAlphaD_hDiffCorrFlux(std::vecto
         // sum(chemistry->hai(i)*Yi)
         blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
         sumError_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
-                d_hai, d_rhoD, dataBase_.d_Y[i], d_grady,
+                d_hai, d_rhoD, dataBase_.d_Y + i * num_cells, d_grady,
                 d_sum_hai_rhoD_grady, d_sum_rhoD_grady, d_sum_hai_y);
         blocks_per_grid = (num_boundary_faces + threads_per_block - 1) / threads_per_block;
         sumError_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_faces,
@@ -653,7 +669,7 @@ void dfYEqn::fvm_laplacian_and_sumYDiffError_diffAlphaD_hDiffCorrFlux(std::vecto
         blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
         fvc_laplacian_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
                 d_A_csr_row_index, d_A_csr_col_index, d_A_csr_diag_index,
-                d_alpha, d_hai, dataBase_.d_Y[i],
+                d_alpha, d_hai, dataBase_.d_Y + i * num_cells,
                 dataBase_.d_weight, dataBase_.d_face, dataBase_.d_deltaCoeffs,
                 dataBase_.d_volume, dataBase_.d_diffAlphaD);
 
@@ -699,10 +715,10 @@ void dfYEqn::fvm_ddt()
         blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
         fvm_ddt_kernel_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_faces, dataBase_.rdelta_t,
                 d_A_csr_row_index, d_A_csr_diag_index,
-                dataBase_.d_rho_old, dataBase_.d_rho_new, dataBase_.d_volume, dataBase_.d_Y[i],
+                dataBase_.d_rho_old, dataBase_.d_rho_new, dataBase_.d_volume, dataBase_.d_Y + i * num_cells,
                 d_A_csr + mtxIndex * (num_cells + num_faces), d_b + mtxIndex * num_cells,
-                d_A_csr + mtxIndex * (num_cells + num_faces), d_b + mtxIndex * num_cells,
-                d_psi + mtxIndex * num_cells);
+                d_A_csr + mtxIndex * (num_cells + num_faces), d_b + mtxIndex * num_cells);
+                //d_psi + mtxIndex * num_cells);
         ++mtxIndex;
     }
 }
@@ -843,14 +859,23 @@ void dfYEqn::solve()
             ++solverIndex;
         }
     }
-    int solverIndex = 0;
-    for (auto &solver : YSolverSet)
+    int mtxIndex = 0;
+    for (size_t i = 0; i < num_species; ++i)
     {
-        solver->solve(num_cells, d_psi + solverIndex * num_cells, d_b + solverIndex * num_cells);
-        ++solverIndex;
+        if (i == inertIndex)
+            continue;
+
+        YSolverSet[mtxIndex]->solve(num_cells, dataBase_.d_Y + i * num_cells, d_b + mtxIndex * num_cells);
+        ++mtxIndex;
     }
+
+    size_t threads_per_block, blocks_per_grid;
+    threads_per_block = 1024;
+    blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
+    compute_inertIndex_y<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_species, inertIndex, dataBase_.d_Y);
+    checkCudaErrors(cudaMemcpyAsync(h_psi, dataBase_.d_Y, num_species * cell_bytes, cudaMemcpyDeviceToHost, stream));
+
     num_iteration++;
-    checkCudaErrors(cudaMemcpyAsync(h_psi, d_psi, num_cells * (num_species - 1) * sizeof(double), cudaMemcpyDeviceToHost, stream));
     // checkCudaErrors(cudaStreamSynchronize(stream));
     // for (size_t i = 0; i < num_cells; i++)
     //     fprintf(stderr, "h_species_gpu[%d]: %.5e\n", i, h_psi[i + 0 * num_cells]);

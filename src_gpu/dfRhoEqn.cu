@@ -105,17 +105,11 @@ void dfRhoEqn::initializeTimeStep()
 
 void dfRhoEqn::fvc_div(double *phi, double *boundary_phi_init)
 {
-    clock_t start = std::clock();
     memcpy(dataBase_.h_phi_init, phi, num_surfaces * sizeof(double));
 
-    clock_t end = std::clock();
-    time_monitor_CPU += double(end - start) / double(CLOCKS_PER_SEC);
-
-    start = std::clock();
     checkCudaErrors(cudaMemcpyAsync(dataBase_.d_phi_init, dataBase_.h_phi_init, num_surfaces * sizeof(double), cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(dataBase_.d_phi_init + num_surfaces, dataBase_.d_phi_init, num_surfaces * sizeof(double), cudaMemcpyDeviceToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_phi_init, boundary_phi_init, dataBase_.boundary_face_bytes, cudaMemcpyHostToDevice, stream));
-    end = std::clock();
 
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
