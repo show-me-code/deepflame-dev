@@ -69,13 +69,9 @@ const volScalarField psip0(psi*p);
 
 start2 = std::clock();
 #ifdef GPUSolver_
-    start1 = std::clock();
     volScalarField rAU(1.0/UEqn_A);
     surfaceScalarField rhorAUf("rhorAUf", fvc::interpolate(rho*rAU));
     volVectorField HbyA(constrainHbyA(rAU*UEqn_H, U, p));
-    end1 = std::clock();
-    time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
-    time_monitor_UEqn_A += double(end1 - start1) / double(CLOCKS_PER_SEC);
 #else
     volScalarField rAU(1.0/UEqn.A());
     surfaceScalarField rhorAUf("rhorAUf", fvc::interpolate(rho*rAU));

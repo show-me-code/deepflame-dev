@@ -1,15 +1,6 @@
 {
     volScalarField& he = thermo.he();
 
-#ifdef GPUSolver_
-    start1 = std::clock();
-    UEqn_GPU.updatePsi(&U[0][0]);
-    K = 0.5*magSqr(U);
-    end1 = std::clock();
-    time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
-    time_monitor_UEqn_correctBC += double(end1 - start1) / double(CLOCKS_PER_SEC);
-#endif
-
 #ifdef CPUSolver_
     start1 = std::clock();
     fvScalarMatrix EEqn
@@ -32,6 +23,15 @@
     end1 = std::clock();
     time_monitor_EEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_EEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
+#endif
+
+#ifdef GPUSolver_
+    start1 = std::clock();
+    UEqn_GPU.updatePsi(&U[0][0]);
+    K = 0.5*magSqr(U);
+    end1 = std::clock();
+    time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_UEqn_correctBC += double(end1 - start1) / double(CLOCKS_PER_SEC);
 #endif
 
 #ifdef GPUSolver_
