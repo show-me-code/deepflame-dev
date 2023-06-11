@@ -42,6 +42,8 @@ private:
     double *d_value_boundary_coeffs = nullptr;
     double *d_gradient_internal_coeffs = nullptr;
     double *d_gradient_boundary_coeffs = nullptr;
+    double *d_boundary_gradient_init = nullptr;
+    double *d_boundary_gradient = nullptr;
 
 public:
     dfEEqn();
@@ -49,7 +51,7 @@ public:
     ~dfEEqn();
 
     void prepare_data(const double *he_old, const double *K, const double *K_old, const double *alphaEff,
-            const double *dpdt, const double *boundary_K, const double *boundary_alphaEff);
+            const double *dpdt, const double *boundary_K, const double *boundary_alphaEff, const double *boundary_gradient);
 
     void initializeTimeStep();
 

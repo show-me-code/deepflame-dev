@@ -997,17 +997,26 @@ __global__ void addDiagDivVolume(int num_cells, const int *csr_row_index,
 
 __global__ void ueqn_update_BoundaryCoeffs_kernel(int num_boundary_faces, const double *boundary_phi, double *internal_coeffs,
                                                   double *boundary_coeffs, double *laplac_internal_coeffs,
-                                                  double *laplac_boundary_coeffs)
+                                                  double *laplac_boundary_coeffs, const int *U_patch_type)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index >= num_boundary_faces)
         return;
 
-    // zeroGradient
-    double valueInternalCoeffs = 1.;
-    double valueBoundaryCoeffs = 0.;
-    double gradientInternalCoeffs = 0.;
-    double gradientBoundaryCoeffs = 0.;
+    int patchIndex = U_patch_type[index];
+    double valueInternalCoeffs, valueBoundaryCoeffs, gradientInternalCoeffs, gradientBoundaryCoeffs;
+    switch (patchIndex)
+    {
+    case 0: // zeroGradient
+    {
+        valueInternalCoeffs = 1.;
+        valueBoundaryCoeffs = 0.;
+        gradientInternalCoeffs = 0.;
+        gradientBoundaryCoeffs = 0.;
+        break;
+    }
+        // TODO implement coupled and fixedValue conditions
+    }
 
     internal_coeffs[index * 3 + 0] = boundary_phi[index] * valueInternalCoeffs;
     internal_coeffs[index * 3 + 1] = boundary_phi[index] * valueInternalCoeffs;
@@ -1021,6 +1030,37 @@ __global__ void ueqn_update_BoundaryCoeffs_kernel(int num_boundary_faces, const 
     laplac_boundary_coeffs[index * 3 + 0] = gradientBoundaryCoeffs;
     laplac_boundary_coeffs[index * 3 + 1] = gradientBoundaryCoeffs;
     laplac_boundary_coeffs[index * 3 + 2] = gradientBoundaryCoeffs;
+}
+
+__global__ void ueqn_correct_BoundaryConditions_kernel(int num_cells, int num_boundary_cells,
+                                                       const int *boundary_cell_offset, const int *boundary_cell_id,
+                                                       const double *velocity, double *boundary_velocity, const int *U_patch_type)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_boundary_cells)
+        return;
+
+    int cell_offset = boundary_cell_offset[index];
+    int next_cell_offset = boundary_cell_offset[index + 1];
+    int cell_index = boundary_cell_id[cell_offset];
+
+    for (int i = cell_offset; i < next_cell_offset; i++)
+    {
+        int patchIndex = U_patch_type[i];
+        switch (patchIndex)
+        {
+            case 0: // zeroGradient
+            {
+                boundary_velocity[i * 3 + 0] = velocity[cell_index];
+                boundary_velocity[i * 3 + 1] = velocity[num_cells * 1 + cell_index];
+                boundary_velocity[i * 3 + 2] = velocity[num_cells * 2 + cell_index];
+                break;
+            }
+            case 1:
+                break;
+            // TODO implement coupled conditions
+        }
+    }
 }
 
 // constructor
@@ -1228,7 +1268,8 @@ void dfUEqn::initializeTimeStep()
     size_t blocks_per_grid = (dataBase_.num_boundary_faces + threads_per_block - 1) / threads_per_block;
     ueqn_update_BoundaryCoeffs_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(dataBase_.num_boundary_faces, dataBase_.d_boundary_phi,
                                                                                          dataBase_.d_internal_coeffs, dataBase_.d_boundary_coeffs,
-                                                                                         dataBase_.d_laplac_internal_coeffs, dataBase_.d_laplac_boundary_coeffs);
+                                                                                         dataBase_.d_laplac_internal_coeffs, dataBase_.d_laplac_boundary_coeffs,
+                                                                                         dataBase_.d_boundary_UpatchType);
 }
 
 void dfUEqn::checkValue(bool print)
@@ -1358,6 +1399,15 @@ void dfUEqn::updatePsi(double *Psi)
 {
     checkCudaErrors(cudaStreamSynchronize(stream));
     memcpy(Psi, h_psi, cell_vec_bytes);
+}
+
+void dfUEqn::correctBoundaryConditions()
+{
+    size_t threads_per_block = 1024;
+    size_t blocks_per_grid = (num_boundary_cells + threads_per_block - 1) / threads_per_block;
+    ueqn_correct_BoundaryConditions_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_boundary_cells, 
+                                                                                              dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id,
+                                                                                              d_psi, dataBase_.d_boundary_velocity, dataBase_.d_boundary_UpatchType);
 }
 
 // correct volecity in pEqn
