@@ -12,32 +12,42 @@ private:
 
     std::vector<AmgXSolver *> YSolverSet;
     int num_iteration = 0;
-    double time_monitor_CPU;
-    double time_monitor_GPU_kernel, time_monitor_GPU_memcpy, time_monitor_GPU_memcpy_test;
 
     // common variables
-    int num_cells, cell_bytes, num_faces, num_surfaces, num_boundary_cells, num_boundary_faces, num_species, inertIndex;
+    int num_cells, cell_bytes, num_faces, num_surfaces, num_boundary_cells, num_boundary_faces, num_species, boundary_face_bytes, inertIndex;
     int *d_A_csr_row_index, *d_A_csr_diag_index, *d_A_csr_col_index;
 
     // Matrix variables
     double *d_A_csr, *d_b, *d_psi = nullptr;
     double *h_A_csr, *h_b, *h_psi = nullptr;
-    double *d_sumYDiffError = nullptr, *d_sumYDiffError_tmp = nullptr;
-    double *d_sumYDiffError_boundary = nullptr;
-    double *d_phiUc_boundary = nullptr;
-    double *d_phiUc = nullptr;
-    double *d_mut_Sct = nullptr;
+
+    double *d_alpha = nullptr;
+    double *d_mut_Sct, *d_boundary_mut_sct = nullptr;
+    double *d_hai, *d_boundary_hai = nullptr;
+    double *d_rhoD, *d_boundary_rhoD = nullptr;
+    double *d_sum_hai_rhoD_grady, *d_sum_boundary_hai_rhoD_grady = nullptr; 
+    double *d_sum_rhoD_grady, *d_sum_boundary_rhoD_grady = nullptr;
+    double *d_sum_hai_y, *d_sum_boundary_hai_y = nullptr;
+    double *d_phiUc, *d_phiUc_boundary = nullptr;
+    double *d_boundary_Y = nullptr;
+    double *d_grady, *d_boundary_grady = nullptr;
 
 public:
     dfYEqn(dfMatrixDataBase &dataBase, const std::string &modeStr, const std::string &cfgFile, const int inertIndex);
 
     ~dfYEqn();
 
+    void initializeTimeStep();
+
     void checkValue(bool print, char *filename);
 
-    void correctVelocity(std::vector<double *> Y_old, std::vector<double *> boundary_Y_init, std::vector<const double *> rhoD_GPU);
-
     void upwindWeight();
+
+    void fvm_laplacian_and_sumYDiffError_diffAlphaD_hDiffCorrFlux(
+            std::vector<double *> Y_old, std::vector<double *> boundary_Y,
+            std::vector<const double *> hai, std::vector<double *> boundary_hai,
+            std::vector<const double *> rhoD, std::vector<double *> boundary_rhoD,
+            const double *mut_Sct, const double *boundary_mut_Sct, const double *alpha);
 
     void fvm_ddt();
 
@@ -45,9 +55,9 @@ public:
 
     void fvm_div_phiUc();
 
-    void fvm_laplacian(double *mut_Sct, double *boundary_mut_Sct, std::vector<double*>boundary_rhoD);
-
     void solve();
+
+    void sync();
 
     void updatePsi(double *Psi, int speciesIndex);
 };

@@ -1,9 +1,6 @@
 // Solve the Momentum equation
 #ifdef GPUSolver_
     start1 = std::clock();
-    UEqn_GPU.initializeTimeStep();
-    UEqn_GPU.fvm_ddt(&U.oldTime()[0][0]);
-    start2 = std::clock();
     int offset = 0;
     const tmp<volScalarField> nuEff_tmp(turbulence->nuEff());
     const volScalarField& nuEff = nuEff_tmp();
@@ -27,21 +24,24 @@
         offset += patchSize;
     }
     end1 = std::clock();
-    end2 = std::clock();
-    time_monitor_UEqn_CPU += double(end2 - start2) / double(CLOCKS_PER_SEC);
     time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_UEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_UEqn_mtxAssembly_CPU_prepare += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
     start1 = std::clock();
+    UEqn_GPU.initializeTimeStep();
+    UEqn_GPU.fvm_ddt(&U.oldTime()[0][0]);
     UEqn_GPU.fvm_div(boundary_pressure_init, boundary_velocity_init, boundary_nuEff_init, boundary_rho_init);
     UEqn_GPU.fvc_grad(&p[0]);
     UEqn_GPU.fvc_grad_vector();
     UEqn_GPU.dev2T();
     UEqn_GPU.fvc_div_tensor(&nuEff[0]);
     UEqn_GPU.fvm_laplacian();
+    UEqn_GPU.sync();
     end1 = std::clock();
     time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_UEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_UEqn_mtxAssembly_GPU_run += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
     // start2 = std::clock();
     // fvVectorMatrix turb_source
@@ -88,7 +88,7 @@
     }
     end1 = std::clock();
     time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
-    time_monitor_UEqn_Solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_UEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
 #endif
 
 // start1 = std::clock();
@@ -96,7 +96,7 @@
 // UEqn_GPU.solve();
 // end1 = std::clock();
 // time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
-// time_monitor_UEqn_Solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
+// time_monitor_UEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
 // start1 = std::clock();
 // // // t.join();

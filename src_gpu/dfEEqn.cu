@@ -398,9 +398,9 @@ __global__ void eeqn_add_to_source_kernel(int num_cells,
 }
 
 __global__ void eeqn_boundaryPermutation(const int num_boundary_faces, const int *bouPermedIndex,
-                                         const double *boundary_K_init, const double *boundary_hDiffCorrFlux_init,
+                                         const double *boundary_K_init,
                                          const double *boundary_alphaEff_init,
-                                         double *boundary_K, double *boundary_hDiffCorrFlux,
+                                         double *boundary_K,
                                          double *boundary_alphaEff)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
@@ -410,9 +410,6 @@ __global__ void eeqn_boundaryPermutation(const int num_boundary_faces, const int
     int p = bouPermedIndex[index];
 
     boundary_K[index] = boundary_K_init[p];
-    boundary_hDiffCorrFlux[index * 3 + 0] = boundary_hDiffCorrFlux_init[p * 3 + 0];
-    boundary_hDiffCorrFlux[index * 3 + 1] = boundary_hDiffCorrFlux_init[p * 3 + 1];
-    boundary_hDiffCorrFlux[index * 3 + 2] = boundary_hDiffCorrFlux_init[p * 3 + 2];
     boundary_alphaEff[index] = boundary_alphaEff_init[p];
 }
 
@@ -442,6 +439,9 @@ dfEEqn::dfEEqn(dfMatrixDataBase &dataBase, const std::string &modeStr, const std
 {
     ESolver = new AmgXSolver(modeStr, cfgFile);
 
+    stream = dataBase_.stream;
+    //checkCudaErrors(cudaEventCreate(&event));
+
     num_cells = dataBase_.num_cells;
     cell_bytes = dataBase_.cell_bytes;
     num_faces = dataBase_.num_faces;
@@ -468,13 +468,9 @@ dfEEqn::dfEEqn(dfMatrixDataBase &dataBase, const std::string &modeStr, const std
     checkCudaErrors(cudaMalloc((void **)&d_K_old, cell_bytes));
     checkCudaErrors(cudaMalloc((void **)&d_alphaEff, cell_bytes));
     checkCudaErrors(cudaMalloc((void **)&d_dpdt, cell_bytes));
-    checkCudaErrors(cudaMalloc((void **)&d_diffAlphaD, cell_bytes));
-    checkCudaErrors(cudaMalloc((void **)&d_hDiffCorrFlux, cell_bytes * 3));
 
     checkCudaErrors(cudaMalloc((void **)&d_boundary_K_init, boundary_face_bytes));
     checkCudaErrors(cudaMalloc((void **)&d_boundary_K, boundary_face_bytes));
-    checkCudaErrors(cudaMalloc((void **)&d_boundary_hDiffCorrFlux_init, boundary_face_bytes * 3));
-    checkCudaErrors(cudaMalloc((void **)&d_boundary_hDiffCorrFlux, boundary_face_bytes * 3));
     checkCudaErrors(cudaMalloc((void **)&d_boundary_alphaEff_init, boundary_face_bytes));
     checkCudaErrors(cudaMalloc((void **)&d_boundary_alphaEff, boundary_face_bytes));
 
@@ -486,13 +482,10 @@ dfEEqn::dfEEqn(dfMatrixDataBase &dataBase, const std::string &modeStr, const std
     checkCudaErrors(cudaMalloc((void **)&d_value_boundary_coeffs, boundary_face_bytes));
     checkCudaErrors(cudaMalloc((void **)&d_gradient_internal_coeffs, boundary_face_bytes));
     checkCudaErrors(cudaMalloc((void **)&d_gradient_boundary_coeffs, boundary_face_bytes));
-
-    checkCudaErrors(cudaStreamCreate(&stream));
 }
 
 void dfEEqn::prepare_data(const double *he_old, const double *K, const double *K_old, const double *alphaEff,
-                          const double *dpdt, const double *diffAlphaD, const double *hDiffCorrFlux,
-                          const double *boundary_K, const double *boundary_hDiffCorrFlux, const double *boundary_alphaEff)
+                          const double *dpdt, const double *boundary_K, const double *boundary_alphaEff)
 {
     // TODO not real async copy now, because some host array are not in pinned memory.
 
@@ -502,19 +495,16 @@ void dfEEqn::prepare_data(const double *he_old, const double *K, const double *K
     checkCudaErrors(cudaMemcpyAsync(d_K_old, K_old, cell_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_alphaEff, alphaEff, cell_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_dpdt, dpdt, cell_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_diffAlphaD, diffAlphaD, cell_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_hDiffCorrFlux, hDiffCorrFlux, cell_bytes * 3, cudaMemcpyHostToDevice, stream));
 
     // copy and permutate boundary variable
     checkCudaErrors(cudaMemcpyAsync(d_boundary_K_init, boundary_K, boundary_face_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_boundary_hDiffCorrFlux_init, boundary_hDiffCorrFlux, boundary_face_bytes * 3, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_alphaEff_init, boundary_alphaEff, boundary_face_bytes, cudaMemcpyHostToDevice, stream));
 
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_boundary_faces + threads_per_block - 1) / threads_per_block;
     eeqn_boundaryPermutation<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_faces, dataBase_.d_bouPermedIndex,
-                                                                                d_boundary_K_init, d_boundary_hDiffCorrFlux_init, d_boundary_alphaEff_init,
-                                                                                d_boundary_K, d_boundary_hDiffCorrFlux, d_boundary_alphaEff);
+            d_boundary_K_init, d_boundary_alphaEff_init,
+            d_boundary_K, d_boundary_alphaEff);
 }
 
 void dfEEqn::initializeTimeStep()
@@ -587,14 +577,14 @@ void dfEEqn::fvc_div_vector()
     size_t threads_per_block = 512;
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
     eeqn_fvc_div_vector_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
-                                                                                    d_A_csr_row_index, d_A_csr_col_index, d_A_csr_diag_index,
-                                                                                    dataBase_.d_face_vector, d_hDiffCorrFlux, dataBase_.d_weight,
-                                                                                    1., d_b, d_b);
+            d_A_csr_row_index, d_A_csr_col_index, d_A_csr_diag_index,
+            dataBase_.d_face_vector, dataBase_.d_hDiffCorrFlux, dataBase_.d_weight,
+            1., d_b, d_b);
     blocks_per_grid = (num_boundary_cells + threads_per_block - 1) / threads_per_block;
     eeqn_fvc_div_vector_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_cells,
-                                                                                    dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id,
-                                                                                    dataBase_.d_boundary_face_vector, d_boundary_hDiffCorrFlux,
-                                                                                    1., d_b, d_b);
+            dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id,
+            dataBase_.d_boundary_face_vector, dataBase_.d_boundary_hDiffCorrFlux,
+            1., d_b, d_b);
 }
 
 void dfEEqn::fvc_div_phi_scalar()
@@ -621,7 +611,8 @@ void dfEEqn::add_to_source()
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
     // " + fvc::ddt(rho，K)" is on the left side of "==", thus should minus from source.
     eeqn_add_to_source_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
-                                                                                 1., d_dpdt, -1., d_diffAlphaD, dataBase_.d_volume, d_b, d_b);
+            //1., d_dpdt, -1., d_diffAlphaD, dataBase_.d_volume, d_b, d_b);
+            1., d_dpdt, -1., dataBase_.d_diffAlphaD, dataBase_.d_volume, d_b, d_b);
 }
 
 void dfEEqn::checkValue(bool print)
@@ -698,6 +689,7 @@ void dfEEqn::solve()
     num_iteration++;
 
     checkCudaErrors(cudaMemcpyAsync(h_he_new, d_he_old, cell_bytes, cudaMemcpyDeviceToHost, stream));
+    //checkCudaErrors(cudaEventRecord(event, stream));
     // checkCudaErrors(cudaStreamSynchronize(stream));
     // for (size_t i = 0; i < num_cells; i++)
     //     fprintf(stderr, "h_he_after[%d]: %.16lf\n", i, h_he_new[i]);
@@ -710,6 +702,8 @@ void dfEEqn::sync()
 
 void dfEEqn::updatePsi(double *Psi)
 {
+    checkCudaErrors(cudaStreamSynchronize(stream));
+    //checkCudaErrors(cudaEventSynchronize(event));
     memcpy(Psi, h_he_new, cell_bytes);
 }
 
@@ -728,13 +722,9 @@ dfEEqn::~dfEEqn()
     checkCudaErrors(cudaFree(d_K_old));
     checkCudaErrors(cudaFree(d_alphaEff));
     checkCudaErrors(cudaFree(d_dpdt));
-    checkCudaErrors(cudaFree(d_diffAlphaD));
-    checkCudaErrors(cudaFree(d_hDiffCorrFlux));
 
     checkCudaErrors(cudaFree(d_boundary_K_init));
     checkCudaErrors(cudaFree(d_boundary_K));
-    checkCudaErrors(cudaFree(d_boundary_hDiffCorrFlux_init));
-    checkCudaErrors(cudaFree(d_boundary_hDiffCorrFlux));
     checkCudaErrors(cudaFree(d_boundary_alphaEff_init));
     checkCudaErrors(cudaFree(d_boundary_alphaEff));
 
@@ -746,4 +736,6 @@ dfEEqn::~dfEEqn()
     checkCudaErrors(cudaFree(d_value_boundary_coeffs));
     checkCudaErrors(cudaFree(d_gradient_internal_coeffs));
     checkCudaErrors(cudaFree(d_gradient_boundary_coeffs));
+
+    //checkCudaErrors(cudaEventDestroy(event));
 }

@@ -43,6 +43,9 @@ inline void checkVectorEqual(int count, const double* basevec, double* vec, doub
 
 struct dfMatrixDataBase
 {
+    // - cuda resource
+    cudaStream_t stream;
+
     // - number of cell size
     int num_cells;
     // - number of face size
@@ -87,9 +90,9 @@ struct dfMatrixDataBase
     // - the device pointer to rho_new, rho_old, velocity_old, pressure and volume list
     double *d_rho_new = nullptr, *d_rho_old = nullptr, *d_velocity_old = nullptr, 
     *d_pressure = nullptr, *d_volume = nullptr;
-    // - the device pointer to Y_new and Y_old
-    std::vector<double*> d_Y_new_vector;
-    std::vector<double*> d_Y_old_vector;
+    // - the device pointer to Y(vector Yi)
+    //std::vector<double*> d_Y;
+    double *d_Y = nullptr;
     // - the device pointer to the pre-permutated and post-permutated interpolation weight list
     double *d_weight_init = nullptr, *d_weight = nullptr;
     double *d_weight_upwind = nullptr;
@@ -100,6 +103,9 @@ struct dfMatrixDataBase
     double *d_face_init = nullptr, *d_face = nullptr;
     double *d_deltaCoeffs_init = nullptr, *d_deltaCoeffs = nullptr;
     std::vector<double*> d_rhoD_vector;
+
+    double *d_hDiffCorrFlux = nullptr;
+    double *d_diffAlphaD = nullptr;
 
     double rdelta_t = 1/1e-6;
 
@@ -130,6 +136,8 @@ struct dfMatrixDataBase
     std::vector<double*> d_laplac_boundary_coeffs_Y_vector;
     std::vector<double*> d_boundary_rhoD_vector;
     double *d_boundary_mut_sct = nullptr;
+
+    double *d_boundary_hDiffCorrFlux = nullptr;
 
     std::vector<int> boundPermutationList;
     std::vector<double> ueqn_internalCoeffs, ueqn_boundaryCoeffs;
@@ -180,11 +188,6 @@ struct dfMatrixDataBase
     // double *h_A_csr = nullptr, *h_b = nullptr, *h_psi = nullptr;
     // double *d_A_csr = nullptr, *d_b = nullptr, *d_psi = nullptr;
 
-    /**
-     * @brief cuda functions
-     */
-    cudaStream_t stream;
-
     int num_iteration;
 
     double time_monitor_CPU;
@@ -203,6 +206,9 @@ struct dfMatrixDataBase
     : num_cells(num_cells), num_faces(num_surfaces*2), num_surfaces(num_surfaces), num_species(num_species), num_iteration(0),
       num_boundary_faces(num_boundary_faces), h_volume(volume)
     {
+        // create cuda stream
+        checkCudaErrors(cudaStreamCreate(&stream));
+
         // allocate field pointer in pin memory
         cudaMallocHost(&h_phi_init, num_faces * sizeof(double));
         cudaMallocHost(&h_rho_old, num_cells * sizeof(double));
@@ -473,8 +479,7 @@ struct dfMatrixDataBase
         checkCudaErrors(cudaMalloc((void**)&d_A_csr_diag_index, cell_index_bytes));
         total_bytes += (csr_row_index_bytes + csr_col_index_bytes + cell_index_bytes);
 
-        d_Y_new_vector.resize(num_species);
-        d_Y_old_vector.resize(num_species);
+        //d_Y.resize(num_species);
         d_rhoD_vector.resize(num_species);
         d_boundary_Y_vector.resize(num_species);
         d_boundary_Y_init_vector.resize(num_species);
@@ -485,10 +490,10 @@ struct dfMatrixDataBase
         d_boundary_rhoD_vector.resize(num_species);
 
         for (size_t i = 0; i < num_species; ++i){
-            checkCudaErrors(cudaMalloc((void**)&d_Y_new_vector[i], cell_bytes));
-            checkCudaErrors(cudaMalloc((void**)&d_Y_old_vector[i], cell_bytes));
+            //checkCudaErrors(cudaMalloc((void**)&d_Y[i], cell_bytes));
             checkCudaErrors(cudaMalloc((void**)&d_rhoD_vector[i], cell_bytes));
         }
+        checkCudaErrors(cudaMalloc((void**)&d_Y, cell_bytes * num_species));
         checkCudaErrors(cudaMalloc((void**)&d_rho_old, cell_bytes));
         checkCudaErrors(cudaMalloc((void**)&d_rho_new, cell_bytes));
         checkCudaErrors(cudaMalloc((void**)&d_volume, cell_bytes));
@@ -562,10 +567,11 @@ struct dfMatrixDataBase
         checkCudaErrors(cudaMalloc((void**)&d_grad_boundary_init, boundary_cell_bytes * 9));
         total_bytes += (num_cells * 9 * sizeof(double) + boundary_face_bytes * 9 + boundary_cell_bytes * 9); // FIXME: rename
 
+        checkCudaErrors(cudaMalloc((void**)&d_hDiffCorrFlux, 3 * cell_bytes));
+        checkCudaErrors(cudaMalloc((void**)&d_diffAlphaD, cell_bytes));
+        checkCudaErrors(cudaMalloc((void**)&d_boundary_hDiffCorrFlux, 3 * boundary_face_bytes));
 
         fprintf(stderr, "Total bytes malloc on GPU: %.2fMB\n", total_bytes * 1.0 / 1024 / 1024);
-
-        checkCudaErrors(cudaStreamCreate(&stream));
 
         checkCudaErrors(cudaMemcpyAsync(d_A_csr_row_index, h_A_csr_row_index, csr_row_index_bytes, cudaMemcpyHostToDevice, stream));
         checkCudaErrors(cudaMemcpyAsync(d_A_csr_col_index, h_A_csr_col_index, csr_col_index_bytes, cudaMemcpyHostToDevice, stream));
@@ -586,6 +592,7 @@ struct dfMatrixDataBase
         checkCudaErrors(cudaMemcpyAsync(d_bouPermedIndex, boundPermutationList.data(), boundary_face_index_bytes, cudaMemcpyHostToDevice, stream));
         checkCudaErrors(cudaMemcpyAsync(d_tmpPermutatedList, tmpPermutatedList.data(), csr_col_index_bytes, cudaMemcpyHostToDevice, stream));
     };
+
     ~dfMatrixDataBase(){
         std::cout << "Destructor called." << std::endl;
         // TODO: free pointers

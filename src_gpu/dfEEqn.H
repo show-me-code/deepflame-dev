@@ -9,6 +9,8 @@ class dfEEqn
 private:
     dfMatrixDataBase &dataBase_;
     cudaStream_t stream;
+    //cudaEvent_t event;
+
     AmgXSolver *ESolver = nullptr;
     int num_iteration;
 
@@ -28,12 +30,8 @@ private:
     double *d_K = nullptr;
     double *d_K_old = nullptr;
     double *d_dpdt = nullptr;
-    double *d_diffAlphaD = nullptr;
-    double *d_hDiffCorrFlux = nullptr;
     double *d_boundary_K_init = nullptr;
     double *d_boundary_K = nullptr;
-    double *d_boundary_hDiffCorrFlux_init = nullptr;
-    double *d_boundary_hDiffCorrFlux = nullptr;
     double *d_boundary_alphaEff_init = nullptr;
     double *d_boundary_alphaEff = nullptr;
     double *d_value_internal_coeffs_init = nullptr;
@@ -51,8 +49,7 @@ public:
     ~dfEEqn();
 
     void prepare_data(const double *he_old, const double *K, const double *K_old, const double *alphaEff,
-            const double *hDiffCorrFlux, const double *dpdt, const double *diffAlphaD,
-            const double *boundary_K, const double *boundary_hDiffCorrFlux, const double *boundary_alphaEff);
+            const double *dpdt, const double *boundary_K, const double *boundary_alphaEff);
 
     void initializeTimeStep();
 

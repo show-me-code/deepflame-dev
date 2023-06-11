@@ -82,6 +82,7 @@ __global__ void fvm_ddt_rho(int num_cells, const double rdelta_t,
 dfRhoEqn::dfRhoEqn(dfMatrixDataBase &dataBase)
     : dataBase_(dataBase)
 {
+    stream = dataBase_.stream;
     num_cells = dataBase_.num_cells;
     cell_bytes = dataBase_.cell_bytes;
     num_surfaces = dataBase_.num_surfaces;
@@ -94,24 +95,21 @@ dfRhoEqn::dfRhoEqn(dfMatrixDataBase &dataBase)
 
     checkCudaErrors(cudaMalloc((void **)&d_b, cell_bytes));
     checkCudaErrors(cudaMalloc((void **)&d_psi, cell_bytes));
+}
 
-    checkCudaErrors(cudaStreamCreate(&stream));
+void dfRhoEqn::initializeTimeStep()
+{
+    // initialize matrix value
+    checkCudaErrors(cudaMemsetAsync(d_b, 0, cell_bytes, stream));
 }
 
 void dfRhoEqn::fvc_div(double *phi, double *boundary_phi_init)
 {
-    checkCudaErrors(cudaMemsetAsync(d_b, 0, cell_bytes, stream));
-    clock_t start = std::clock();
     memcpy(dataBase_.h_phi_init, phi, num_surfaces * sizeof(double));
 
-    clock_t end = std::clock();
-    time_monitor_CPU += double(end - start) / double(CLOCKS_PER_SEC);
-
-    start = std::clock();
     checkCudaErrors(cudaMemcpyAsync(dataBase_.d_phi_init, dataBase_.h_phi_init, num_surfaces * sizeof(double), cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(dataBase_.d_phi_init + num_surfaces, dataBase_.d_phi_init, num_surfaces * sizeof(double), cudaMemcpyDeviceToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_phi_init, boundary_phi_init, dataBase_.boundary_face_bytes, cudaMemcpyHostToDevice, stream));
-    end = std::clock();
 
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
@@ -130,6 +128,11 @@ void dfRhoEqn::fvm_ddt(double *rho_old)
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
     fvm_ddt_rho<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, dataBase_.rdelta_t, dataBase_.d_rho_old, dataBase_.d_rho_new, dataBase_.d_volume, d_b);
     checkCudaErrors(cudaMemcpyAsync(h_psi, dataBase_.d_rho_new, cell_bytes, cudaMemcpyDeviceToHost, stream));
+}
+
+void dfRhoEqn::sync()
+{
+    checkCudaErrors(cudaStreamSynchronize(stream));
 }
 
 void dfRhoEqn::updatePsi(double *Psi)
