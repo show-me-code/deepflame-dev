@@ -11,6 +11,7 @@
 #include <map>
 #include <iostream>
 #include <ctime>
+#include <cmath>
 
 
 static const char *_cudaGetErrorEnum(cudaError_t error) {
@@ -40,6 +41,13 @@ inline void checkVectorEqual(int count, const double* basevec, double* vec, doub
     }
 }
 
+enum boundaryConditions{
+    zeroGradient,
+    fixedValue,
+    coupled
+};
+
+void constructBoundarySelector(std::vector<int>& patchTypeSelector, const std::string& patchTypeStr, const int patchSize);
 
 struct dfMatrixDataBase
 {
@@ -138,6 +146,8 @@ struct dfMatrixDataBase
     double *d_boundary_mut_sct = nullptr;
 
     double *d_boundary_hDiffCorrFlux = nullptr;
+    int *d_boundary_UpatchType = nullptr;
+    int *d_boundary_YpatchType = nullptr;
 
     std::vector<int> boundPermutationList;
     std::vector<double> ueqn_internalCoeffs, ueqn_boundaryCoeffs;
@@ -145,6 +155,8 @@ struct dfMatrixDataBase
     std::vector<double> boundary_pressure;
     std::vector<double> boundary_face;
     std::vector<double> boundary_deltaCoeffs;
+    std::vector<std::vector<int>> patch_type_init;
+    std::vector<std::vector<int>> patch_type;
 
     // - the device pointer to the permutated index list
     std::vector<int> permedIndex;
@@ -202,9 +214,9 @@ struct dfMatrixDataBase
     dfMatrixDataBase(int num_surfaces, int num_cells, int num_boundary_faces, int num_species, int & num_boundary_cells_output,
         const int *neighbour, const int *owner, const double* volume, const double* weight, const double* face_vector, const double* face, 
         const double* deltaCoeffs, std::vector<double> boundary_face_vector_init, std::vector<double> boundary_face_init, 
-        std::vector<double> boundary_deltaCoeffs_init, std::vector<int> boundary_cell_id_init)
+        std::vector<double> boundary_deltaCoeffs_init, std::vector<int> boundary_cell_id_init, std::vector<std::vector<int>> patch_type_init)
     : num_cells(num_cells), num_faces(num_surfaces*2), num_surfaces(num_surfaces), num_species(num_species), num_iteration(0),
-      num_boundary_faces(num_boundary_faces), h_volume(volume)
+      num_boundary_faces(num_boundary_faces), h_volume(volume), patch_type_init(patch_type_init)
     {
         // create cuda stream
         checkCudaErrors(cudaStreamCreate(&stream));
@@ -403,6 +415,10 @@ struct dfMatrixDataBase
         boundary_face.resize(num_boundary_faces);
         boundary_deltaCoeffs.resize(num_boundary_faces);
 
+        patch_type.resize(2);
+        patch_type[0].resize(num_boundary_faces);
+        patch_type[1].resize(num_boundary_faces);
+
         /**
          * 4. permutation list for field variables
         */
@@ -466,6 +482,8 @@ struct dfMatrixDataBase
             boundary_face_vector[3*i+2] = boundary_face_vector_init[3*boundPermutationList[i]+2];
             boundary_face[i] = boundary_face_init[boundPermutationList[i]];
             boundary_deltaCoeffs[i] = boundary_deltaCoeffs_init[boundPermutationList[i]];
+            patch_type[0][i] = patch_type_init[0][boundPermutationList[i]];
+            patch_type[1][i] = patch_type_init[1][boundPermutationList[i]];
         }
         h_boundary_face_vector = boundary_face_vector.data();
         h_boundary_face = boundary_face.data();
@@ -535,6 +553,8 @@ struct dfMatrixDataBase
         checkCudaErrors(cudaMalloc((void**)&d_boundary_rho, boundary_face_bytes));
         checkCudaErrors(cudaMalloc((void**)&d_boundary_rho_init, boundary_face_bytes));
         checkCudaErrors(cudaMalloc((void**)&d_boundary_mut_sct, boundary_face_bytes));
+        checkCudaErrors(cudaMalloc((void**)&d_boundary_UpatchType, boundary_face_index_bytes));
+        checkCudaErrors(cudaMalloc((void**)&d_boundary_YpatchType, boundary_face_index_bytes));
         for (size_t i = 0; i < num_species; ++i){
             checkCudaErrors(cudaMalloc((void**)&d_boundary_Y_vector[i], boundary_face_bytes));
             checkCudaErrors(cudaMalloc((void**)&d_boundary_Y_init_vector[i], boundary_face_bytes));
@@ -587,6 +607,8 @@ struct dfMatrixDataBase
         checkCudaErrors(cudaMemcpyAsync(d_boundary_face_vector, h_boundary_face_vector, boundary_face_vec_bytes, cudaMemcpyHostToDevice, stream));
         checkCudaErrors(cudaMemcpyAsync(d_boundary_face, h_boundary_face, boundary_face_bytes, cudaMemcpyHostToDevice, stream));
         checkCudaErrors(cudaMemcpyAsync(d_boundary_deltaCoeffs, h_boundary_deltaCoeffs, boundary_face_bytes, cudaMemcpyHostToDevice, stream));
+        checkCudaErrors(cudaMemcpyAsync(d_boundary_UpatchType, patch_type[0].data(), boundary_face_index_bytes, cudaMemcpyHostToDevice, stream));
+        checkCudaErrors(cudaMemcpyAsync(d_boundary_YpatchType, patch_type[1].data(), boundary_face_index_bytes, cudaMemcpyHostToDevice, stream));
 
         checkCudaErrors(cudaMemcpyAsync(d_permedIndex, permedIndex.data(), face_index_bytes, cudaMemcpyHostToDevice, stream));
         checkCudaErrors(cudaMemcpyAsync(d_bouPermedIndex, boundPermutationList.data(), boundary_face_index_bytes, cudaMemcpyHostToDevice, stream));

@@ -54,6 +54,8 @@ public:
 
     void updatePsi(double *Psi);
 
+    void correctBoundaryConditions();
+
     void correctPsi(double *Psi);
 
     void initializeTimeStep();

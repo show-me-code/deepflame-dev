@@ -399,9 +399,10 @@ __global__ void eeqn_add_to_source_kernel(int num_cells,
 
 __global__ void eeqn_boundaryPermutation(const int num_boundary_faces, const int *bouPermedIndex,
                                          const double *boundary_K_init,
-                                         const double *boundary_alphaEff_init,
+                                         const double *boundary_alphaEff_init, const double *boundary_gradient_init,
                                          double *boundary_K,
-                                         double *boundary_alphaEff)
+                                         double *boundary_alphaEff,
+                                         double *boundary_gradient)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index >= num_boundary_faces)
@@ -411,9 +412,12 @@ __global__ void eeqn_boundaryPermutation(const int num_boundary_faces, const int
 
     boundary_K[index] = boundary_K_init[p];
     boundary_alphaEff[index] = boundary_alphaEff_init[p];
+    boundary_gradient[index] = boundary_gradient_init[p];
 }
 
-__global__ void eeqn_update_BoundaryCoeffs_kernel(int num_boundary_faces, const double *boundary_phi, double *internal_coeffs,
+__global__ void eeqn_update_BoundaryCoeffs_kernel(int num_boundary_faces, const double *boundary_phi,
+                                                  double *gradient, const double *boundary_deltaCoeffs,
+                                                  double *internal_coeffs,
                                                   double *boundary_coeffs, double *laplac_internal_coeffs,
                                                   double *laplac_boundary_coeffs)
 {
@@ -421,11 +425,12 @@ __global__ void eeqn_update_BoundaryCoeffs_kernel(int num_boundary_faces, const 
     if (index >= num_boundary_faces)
         return;
 
-    // zeroGradient
+    double grad = gradient[index];
+    // energyGradient
     double valueInternalCoeffs = 1.;
-    double valueBoundaryCoeffs = 0.;
+    double valueBoundaryCoeffs = grad / boundary_deltaCoeffs[index];
     double gradientInternalCoeffs = 0.;
-    double gradientBoundaryCoeffs = 0.;
+    double gradientBoundaryCoeffs = grad;
 
     internal_coeffs[index] = boundary_phi[index] * valueInternalCoeffs;
     boundary_coeffs[index] = -boundary_phi[index] * valueBoundaryCoeffs;
@@ -440,7 +445,7 @@ dfEEqn::dfEEqn(dfMatrixDataBase &dataBase, const std::string &modeStr, const std
     ESolver = new AmgXSolver(modeStr, cfgFile);
 
     stream = dataBase_.stream;
-    //checkCudaErrors(cudaEventCreate(&event));
+    // checkCudaErrors(cudaEventCreate(&event));
 
     num_cells = dataBase_.num_cells;
     cell_bytes = dataBase_.cell_bytes;
@@ -473,6 +478,8 @@ dfEEqn::dfEEqn(dfMatrixDataBase &dataBase, const std::string &modeStr, const std
     checkCudaErrors(cudaMalloc((void **)&d_boundary_K, boundary_face_bytes));
     checkCudaErrors(cudaMalloc((void **)&d_boundary_alphaEff_init, boundary_face_bytes));
     checkCudaErrors(cudaMalloc((void **)&d_boundary_alphaEff, boundary_face_bytes));
+    checkCudaErrors(cudaMalloc((void **)&d_boundary_gradient_init, boundary_face_bytes));
+    checkCudaErrors(cudaMalloc((void **)&d_boundary_gradient, boundary_face_bytes));
 
     checkCudaErrors(cudaMalloc((void **)&d_value_internal_coeffs_init, boundary_face_bytes));
     checkCudaErrors(cudaMalloc((void **)&d_value_boundary_coeffs_init, boundary_face_bytes));
@@ -485,7 +492,7 @@ dfEEqn::dfEEqn(dfMatrixDataBase &dataBase, const std::string &modeStr, const std
 }
 
 void dfEEqn::prepare_data(const double *he_old, const double *K, const double *K_old, const double *alphaEff,
-                          const double *dpdt, const double *boundary_K, const double *boundary_alphaEff)
+                          const double *dpdt, const double *boundary_K, const double *boundary_alphaEff, const double *boundary_gradient)
 {
     // TODO not real async copy now, because some host array are not in pinned memory.
 
@@ -499,12 +506,13 @@ void dfEEqn::prepare_data(const double *he_old, const double *K, const double *K
     // copy and permutate boundary variable
     checkCudaErrors(cudaMemcpyAsync(d_boundary_K_init, boundary_K, boundary_face_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_alphaEff_init, boundary_alphaEff, boundary_face_bytes, cudaMemcpyHostToDevice, stream));
+    checkCudaErrors(cudaMemcpyAsync(d_boundary_gradient_init, boundary_gradient, boundary_face_bytes, cudaMemcpyHostToDevice, stream));
 
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_boundary_faces + threads_per_block - 1) / threads_per_block;
     eeqn_boundaryPermutation<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_faces, dataBase_.d_bouPermedIndex,
-            d_boundary_K_init, d_boundary_alphaEff_init,
-            d_boundary_K, d_boundary_alphaEff);
+                                                                                d_boundary_K_init, d_boundary_alphaEff_init, d_boundary_gradient_init,
+                                                                                d_boundary_K, d_boundary_alphaEff, d_boundary_gradient);
 }
 
 void dfEEqn::initializeTimeStep()
@@ -516,6 +524,7 @@ void dfEEqn::initializeTimeStep()
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (dataBase_.num_boundary_faces + threads_per_block - 1) / threads_per_block;
     eeqn_update_BoundaryCoeffs_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(dataBase_.num_boundary_faces, dataBase_.d_boundary_phi,
+                                                                                         d_boundary_gradient, dataBase_.d_boundary_deltaCoeffs,
                                                                                          d_value_internal_coeffs, d_value_boundary_coeffs,
                                                                                          d_gradient_internal_coeffs, d_gradient_boundary_coeffs);
 }
@@ -577,14 +586,14 @@ void dfEEqn::fvc_div_vector()
     size_t threads_per_block = 512;
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
     eeqn_fvc_div_vector_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
-            d_A_csr_row_index, d_A_csr_col_index, d_A_csr_diag_index,
-            dataBase_.d_face_vector, dataBase_.d_hDiffCorrFlux, dataBase_.d_weight,
-            1., d_b, d_b);
+                                                                                    d_A_csr_row_index, d_A_csr_col_index, d_A_csr_diag_index,
+                                                                                    dataBase_.d_face_vector, dataBase_.d_hDiffCorrFlux, dataBase_.d_weight,
+                                                                                    1., d_b, d_b);
     blocks_per_grid = (num_boundary_cells + threads_per_block - 1) / threads_per_block;
     eeqn_fvc_div_vector_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_cells,
-            dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id,
-            dataBase_.d_boundary_face_vector, dataBase_.d_boundary_hDiffCorrFlux,
-            1., d_b, d_b);
+                                                                                    dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id,
+                                                                                    dataBase_.d_boundary_face_vector, dataBase_.d_boundary_hDiffCorrFlux,
+                                                                                    1., d_b, d_b);
 }
 
 void dfEEqn::fvc_div_phi_scalar()
@@ -611,8 +620,8 @@ void dfEEqn::add_to_source()
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
     // " + fvc::ddt(rho，K)" is on the left side of "==", thus should minus from source.
     eeqn_add_to_source_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
-            //1., d_dpdt, -1., d_diffAlphaD, dataBase_.d_volume, d_b, d_b);
-            1., d_dpdt, -1., dataBase_.d_diffAlphaD, dataBase_.d_volume, d_b, d_b);
+                                                                                 // 1., d_dpdt, -1., d_diffAlphaD, dataBase_.d_volume, d_b, d_b);
+                                                                                 1., d_dpdt, -1., dataBase_.d_diffAlphaD, dataBase_.d_volume, d_b, d_b);
 }
 
 void dfEEqn::checkValue(bool print)
@@ -689,10 +698,10 @@ void dfEEqn::solve()
     num_iteration++;
 
     checkCudaErrors(cudaMemcpyAsync(h_he_new, d_he_old, cell_bytes, cudaMemcpyDeviceToHost, stream));
-    //checkCudaErrors(cudaEventRecord(event, stream));
-    // checkCudaErrors(cudaStreamSynchronize(stream));
-    // for (size_t i = 0; i < num_cells; i++)
-    //     fprintf(stderr, "h_he_after[%d]: %.16lf\n", i, h_he_new[i]);
+    // checkCudaErrors(cudaEventRecord(event, stream));
+    //  checkCudaErrors(cudaStreamSynchronize(stream));
+    //  for (size_t i = 0; i < num_cells; i++)
+    //      fprintf(stderr, "h_he_after[%d]: %.16lf\n", i, h_he_new[i]);
 }
 
 void dfEEqn::sync()
@@ -703,7 +712,7 @@ void dfEEqn::sync()
 void dfEEqn::updatePsi(double *Psi)
 {
     checkCudaErrors(cudaStreamSynchronize(stream));
-    //checkCudaErrors(cudaEventSynchronize(event));
+    // checkCudaErrors(cudaEventSynchronize(event));
     memcpy(Psi, h_he_new, cell_bytes);
 }
 
@@ -727,6 +736,8 @@ dfEEqn::~dfEEqn()
     checkCudaErrors(cudaFree(d_boundary_K));
     checkCudaErrors(cudaFree(d_boundary_alphaEff_init));
     checkCudaErrors(cudaFree(d_boundary_alphaEff));
+    checkCudaErrors(cudaFree(d_boundary_gradient_init));
+    checkCudaErrors(cudaFree(d_boundary_gradient));
 
     checkCudaErrors(cudaFree(d_value_internal_coeffs_init));
     checkCudaErrors(cudaFree(d_value_boundary_coeffs_init));
@@ -737,5 +748,5 @@ dfEEqn::~dfEEqn()
     checkCudaErrors(cudaFree(d_gradient_internal_coeffs));
     checkCudaErrors(cudaFree(d_gradient_boundary_coeffs));
 
-    //checkCudaErrors(cudaEventDestroy(event));
+    // checkCudaErrors(cudaEventDestroy(event));
 }
