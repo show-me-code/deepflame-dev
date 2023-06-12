@@ -142,6 +142,10 @@ struct dfMatrixDataBase
     std::vector<double*> d_boundary_coeffs_Y_vector;
     std::vector<double*> d_laplac_internal_coeffs_Y_vector;
     std::vector<double*> d_laplac_boundary_coeffs_Y_vector;
+    double *d_internal_coeffs_Y = nullptr;
+    double *d_boundary_coeffs_Y = nullptr;
+    double *d_laplac_internal_coeffs_Y = nullptr;
+    double *d_laplac_boundary_coeffs_Y = nullptr;
     std::vector<double*> d_boundary_rhoD_vector;
     double *d_boundary_mut_sct = nullptr;
 
@@ -564,6 +568,10 @@ struct dfMatrixDataBase
             checkCudaErrors(cudaMalloc((void**)&d_laplac_boundary_coeffs_Y_vector[i], boundary_face_bytes));
             checkCudaErrors(cudaMalloc((void**)&d_boundary_rhoD_vector[i], boundary_face_bytes));
         }
+        checkCudaErrors(cudaMalloc((void**)&d_internal_coeffs_Y, boundary_face_bytes * num_species));
+        checkCudaErrors(cudaMalloc((void**)&d_boundary_coeffs_Y, boundary_face_bytes * num_species));
+        checkCudaErrors(cudaMalloc((void**)&d_laplac_internal_coeffs_Y, boundary_face_bytes * num_species));
+        checkCudaErrors(cudaMalloc((void**)&d_laplac_boundary_coeffs_Y, boundary_face_bytes * num_species));
         
         total_bytes += (boundary_face_bytes*10 + boundary_face_vec_bytes * 11);
 

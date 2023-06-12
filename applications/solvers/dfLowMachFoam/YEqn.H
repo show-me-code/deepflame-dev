@@ -83,7 +83,7 @@ time_monitor_YEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_YEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_YEqn_mtxAssembly_CPU_prepare += double(end1 - start1) / double(CLOCKS_PER_SEC);
-    fprintf(stderr, "time_monitor_YEqn_mtxAssembly_CPU_prepare: %lf\n", time_monitor_YEqn_mtxAssembly_CPU_prepare);
+    //fprintf(stderr, "time_monitor_YEqn_mtxAssembly_CPU_prepare: %lf\n", time_monitor_YEqn_mtxAssembly_CPU_prepare);
 
     start1 = std::clock();
     YEqn_GPU.initializeTimeStep();
@@ -98,6 +98,7 @@ time_monitor_YEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_YEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_YEqn_mtxAssembly_GPU_run += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    //fprintf(stderr, "time_monitor_YEqn_mtxAssembly_GPU_run: %lf\n", time_monitor_YEqn_mtxAssembly_GPU_run);
 
     start1 = std::clock();
     YEqn_GPU.solve();
