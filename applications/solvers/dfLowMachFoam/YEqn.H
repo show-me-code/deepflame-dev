@@ -42,28 +42,27 @@ time_monitor_YEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
         if (updateBoundaryFields)
         {
             cudaMallocHost(&boundary_Y[i], num_boundary_faces*sizeof(double));
-            Info << "here" << endl;
         }
-        const volScalarField& haii = chemistry->hai(i);
-        const volScalarField& rhoDi = chemistry->rhoD(i);
-        hai[i] = &haii[0];
-        rhoD[i] = &rhoDi[0];
-        cudaMallocHost(&boundary_hai[i], num_boundary_faces*sizeof(double));
-        cudaMallocHost(&boundary_rhoD[i], num_boundary_faces*sizeof(double));
+        // const volScalarField& haii = chemistry->hai(i);
+        // const volScalarField& rhoDi = chemistry->rhoD(i);
+        // hai[i] = &haii[0];
+        // rhoD[i] = &rhoDi[0];
+        // cudaMallocHost(&boundary_hai[i], num_boundary_faces*sizeof(double));
+        // cudaMallocHost(&boundary_rhoD[i], num_boundary_faces*sizeof(double));
         int offset = 0;
         forAll(Yi.boundaryField(), patchi)
         {
             const scalarField& patchYi = Yi.boundaryField()[patchi];
-            const scalarField& patchHaii = haii.boundaryField()[patchi];
-            const scalarField& patchRhoDi = rhoDi.boundaryField()[patchi];
+            // const scalarField& patchHaii = haii.boundaryField()[patchi];
+            // const scalarField& patchRhoDi = rhoDi.boundaryField()[patchi];
             int patchSize = patchYi.size();
 
             if (updateBoundaryFields)
             {
                 memcpy(boundary_Y[i] + offset, &patchYi[0], patchSize*sizeof(double));
             }
-            memcpy(boundary_hai[i] + offset, &patchHaii[0], patchSize*sizeof(double));
-            memcpy(boundary_rhoD[i] + offset, &patchRhoDi[0], patchSize*sizeof(double));
+            // memcpy(boundary_hai[i] + offset, &patchHaii[0], patchSize*sizeof(double));
+            // memcpy(boundary_rhoD[i] + offset, &patchRhoDi[0], patchSize*sizeof(double));
             offset += patchSize;
         }
     }

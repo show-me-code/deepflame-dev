@@ -40,8 +40,9 @@
     // prepare data on CPU
     start1 = std::clock();
     start2 = std::clock();
-    const tmp<volScalarField> alphaEff_tmp(turbulence->alphaEff());
-    const volScalarField& alphaEff = alphaEff_tmp();
+    // const tmp<volScalarField> alphaEff_tmp(thermo.alpha());
+    // const volScalarField& alphaEff = alphaEff_tmp();
+    double *alphaEff = nullptr; // tmp
     end2 = std::clock();
     int eeqn_offset = 0;
     int patchNum = 0;
@@ -52,10 +53,10 @@
         int patchSize = pw.size();
 
         const scalarField& patchK = K.boundaryField()[patchi];
-        const scalarField& patchAlphaEff = alphaEff.boundaryField()[patchi];
+        // const scalarField& patchAlphaEff = alphaEff.boundaryField()[patchi];
         const scalarField& patchGrad = he.boundaryField()[patchi].gradientBoundaryCoeffs(); // gradient_
         memcpy(boundary_K + eeqn_offset, &patchK[0], patchSize*sizeof(double));
-        memcpy(boundary_alphaEff + eeqn_offset, &patchAlphaEff[0], patchSize*sizeof(double));
+        // memcpy(boundary_alphaEff + eeqn_offset, &patchAlphaEff[0], patchSize*sizeof(double));
         memcpy(boundary_gradient + eeqn_offset, &patchGrad[0], patchSize*sizeof(double));
 
         eeqn_offset += patchSize;
@@ -70,7 +71,7 @@
 
     // prepare data on GPU
     start1 = std::clock();
-    EEqn_GPU.prepare_data(&he.oldTime()[0], &K[0], &K.oldTime()[0], &alphaEff[0],
+    EEqn_GPU.prepare_data(&he.oldTime()[0], &K[0], &K.oldTime()[0], alphaEff,
             &dpdt[0], boundary_K, boundary_alphaEff, boundary_gradient);
     EEqn_GPU.sync();
     end1 = std::clock();

@@ -399,9 +399,10 @@ __global__ void eeqn_add_to_source_kernel(int num_cells,
 
 __global__ void eeqn_boundaryPermutation(const int num_boundary_faces, const int *bouPermedIndex,
                                          const double *boundary_K_init,
-                                         const double *boundary_alphaEff_init, const double *boundary_gradient_init,
+                                        //  const double *boundary_alphaEff_init, 
+                                         const double *boundary_gradient_init,
                                          double *boundary_K,
-                                         double *boundary_alphaEff,
+                                        //  double *boundary_alphaEff,
                                          double *boundary_gradient)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
@@ -411,7 +412,7 @@ __global__ void eeqn_boundaryPermutation(const int num_boundary_faces, const int
     int p = bouPermedIndex[index];
 
     boundary_K[index] = boundary_K_init[p];
-    boundary_alphaEff[index] = boundary_alphaEff_init[p];
+    // boundary_alphaEff[index] = boundary_alphaEff_init[p];
     boundary_gradient[index] = boundary_gradient_init[p];
 }
 
@@ -500,19 +501,23 @@ void dfEEqn::prepare_data(const double *he_old, const double *K, const double *K
     checkCudaErrors(cudaMemcpyAsync(d_he_old, he_old, cell_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_K, K, cell_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_K_old, K_old, cell_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_alphaEff, alphaEff, cell_bytes, cudaMemcpyHostToDevice, stream));
+    // checkCudaErrors(cudaMemcpyAsync(d_alphaEff, alphaEff, cell_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_dpdt, dpdt, cell_bytes, cudaMemcpyHostToDevice, stream));
 
     // copy and permutate boundary variable
     checkCudaErrors(cudaMemcpyAsync(d_boundary_K_init, boundary_K, boundary_face_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_boundary_alphaEff_init, boundary_alphaEff, boundary_face_bytes, cudaMemcpyHostToDevice, stream));
+    // checkCudaErrors(cudaMemcpyAsync(d_boundary_alphaEff_init, boundary_alphaEff, boundary_face_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_gradient_init, boundary_gradient, boundary_face_bytes, cudaMemcpyHostToDevice, stream));
+
+    // UnityLewis
+    d_alphaEff = dataBase_.d_alpha;
+    d_boundary_alphaEff = dataBase_.d_boundary_alpha;
 
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_boundary_faces + threads_per_block - 1) / threads_per_block;
     eeqn_boundaryPermutation<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_faces, dataBase_.d_bouPermedIndex,
-                                                                                d_boundary_K_init, d_boundary_alphaEff_init, d_boundary_gradient_init,
-                                                                                d_boundary_K, d_boundary_alphaEff, d_boundary_gradient);
+                                                                                d_boundary_K_init, d_boundary_gradient_init,
+                                                                                d_boundary_K, d_boundary_gradient);
 }
 
 void dfEEqn::initializeTimeStep()
@@ -729,7 +734,7 @@ dfEEqn::~dfEEqn()
     checkCudaErrors(cudaFree(d_he_old));
     checkCudaErrors(cudaFree(d_K));
     checkCudaErrors(cudaFree(d_K_old));
-    checkCudaErrors(cudaFree(d_alphaEff));
+    // checkCudaErrors(cudaFree(d_alphaEff));
     checkCudaErrors(cudaFree(d_dpdt));
 
     checkCudaErrors(cudaFree(d_boundary_K_init));

@@ -68,7 +68,7 @@ Description
 #include "upwind.H"
 
 #define GPUSolver_
-//#define CPUSolver_
+// #define CPUSolver_
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -287,6 +287,7 @@ int main(int argc, char *argv[])
         Info<< "U Equations                  = " << time_monitor_U << " s" << endl;
         Info<< "Y Equations                  = " << time_monitor_Y << " s" << endl;
         Info<< "E Equations                  = " << time_monitor_E << " s" << endl;
+        Info<< "percentage of rho/U/Y/E      = " << (time_monitor_E + time_monitor_Y + time_monitor_U + time_monitor_rho) / loop_time * 100 << " %" << endl;
         Info<< "p Equations                  = " << time_monitor_p << " s" << endl;
         Info<< "chemistry correctThermo      = " << time_monitor_chemistry_correctThermo << " s" << endl;
         Info<< "turbulence correct           = " << time_monitor_turbulence_correct << " s" << endl;
