@@ -114,6 +114,8 @@ struct dfMatrixDataBase
 
     double *d_hDiffCorrFlux = nullptr;
     double *d_diffAlphaD = nullptr;
+    double *d_rhoD = nullptr;
+    double *d_alpha = nullptr;
 
     double rdelta_t = 1/1e-6;
 
@@ -148,6 +150,8 @@ struct dfMatrixDataBase
     double *d_laplac_boundary_coeffs_Y = nullptr;
     std::vector<double*> d_boundary_rhoD_vector;
     double *d_boundary_mut_sct = nullptr;
+    double *d_boundary_rhoD = nullptr;
+    double *d_boundary_alpha = nullptr;
 
     double *d_boundary_hDiffCorrFlux = nullptr;
     int *d_boundary_UpatchType = nullptr;
@@ -529,6 +533,8 @@ struct dfMatrixDataBase
         checkCudaErrors(cudaMalloc((void**)&d_phi_init, face_bytes));
         checkCudaErrors(cudaMalloc((void**)&d_face_vector, face_vec_bytes));
         checkCudaErrors(cudaMalloc((void**)&d_nuEff, cell_bytes));
+        checkCudaErrors(cudaMalloc((void**)&d_rhoD, cell_bytes * num_species));
+        checkCudaErrors(cudaMalloc((void**)&d_alpha, cell_bytes));
         total_bytes += (cell_bytes * (5 + 2*num_species) + face_bytes * 6 + cell_vec_bytes + face_vec_bytes);
 
         checkCudaErrors(cudaMalloc((void**)&d_boundary_cell_offset, (num_boundary_cells+1) * sizeof(int)));
@@ -572,6 +578,8 @@ struct dfMatrixDataBase
         checkCudaErrors(cudaMalloc((void**)&d_boundary_coeffs_Y, boundary_face_bytes * num_species));
         checkCudaErrors(cudaMalloc((void**)&d_laplac_internal_coeffs_Y, boundary_face_bytes * num_species));
         checkCudaErrors(cudaMalloc((void**)&d_laplac_boundary_coeffs_Y, boundary_face_bytes * num_species));
+        checkCudaErrors(cudaMalloc((void**)&d_boundary_rhoD, boundary_face_bytes * num_species));
+        checkCudaErrors(cudaMalloc((void**)&d_boundary_alpha, boundary_face_bytes));
         
         total_bytes += (boundary_face_bytes*10 + boundary_face_vec_bytes * 11);
 

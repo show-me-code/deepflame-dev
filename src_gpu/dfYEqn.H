@@ -32,7 +32,7 @@ private:
     double *d_boundary_Y = nullptr;
     double *d_grady, *d_boundary_grady = nullptr;
 
-    bool uploadBoundaryY = true;
+    bool uploadData = true;
 
 public:
     dfYEqn(dfMatrixDataBase &dataBase, const std::string &modeStr, const std::string &cfgFile, const int inertIndex);
