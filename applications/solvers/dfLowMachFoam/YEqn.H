@@ -56,30 +56,19 @@ time_monitor_corrDiff += double(end - start) / double(CLOCKS_PER_SEC);
 
             fvScalarMatrix YiEqn
                 (
-                    (turbName == "laminar")
-                    ?
-                    (
                     fvm::ddt(rho, Yi)
-                +   mvConvection->fvmDiv(phi, Yi)
-                +   mvConvection->fvmDiv(phiUc, Yi)
+                +
+                    (
+                        turbName == "laminar"
+                        ?  (mvConvection->fvmDiv(phi, Yi) + mvConvection->fvmDiv(phiUc, Yi))
+                        :   mvConvection->fvmDiv(phi, Yi)
+                    )
                 ==
                     (
                         splitting
-                    ?   fvm::laplacian(DEff(), Yi)
-                    :  (fvm::laplacian(DEff(), Yi) + combustion->R(Yi))
-                    )
-                    )
-                    :
-                    (
-                    fvm::ddt(rho, Yi)
-                +   mvConvection->fvmDiv(phi, Yi)
-                ==
-                    (
-                        splitting
-                    ?   fvm::laplacian(DEff(), Yi)
-                    :  (fvm::laplacian(DEff(), Yi) + combustion->R(Yi))
-                    )
-                    )
+                        ?   fvm::laplacian(DEff(), Yi)
+                        :  (fvm::laplacian(DEff(), Yi) + combustion->R(Yi))
+                        )
                 );
 
             YiEqn.relax();
@@ -88,9 +77,6 @@ time_monitor_corrDiff += double(end - start) / double(CLOCKS_PER_SEC);
 
             Yi.max(0.0);
             Yt += Yi;
-            
-            
-
         }
     }
 
