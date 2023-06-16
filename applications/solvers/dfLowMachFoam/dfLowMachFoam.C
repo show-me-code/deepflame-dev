@@ -149,7 +149,7 @@ int main(int argc, char *argv[])
             end = std::clock();
             time_monitor_flow += double(end - start) / double(CLOCKS_PER_SEC);
 
-            if(combModelName!="ESF" && combModelName!="flareFGM" )
+            if(combModelName!="ESF" && combModelName!="flareFGM" && combModelName!="DeePFGM")
             {
                 #include "YEqn.H"
 
