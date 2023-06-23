@@ -373,10 +373,7 @@ void Foam::dfChemistryModel<ThermoType>::setNumerics(Cantera::ReactorNet &sim)
 
 template<class ThermoType>
 void Foam::dfChemistryModel<ThermoType>::correctThermo()
-{
-    // update enthalpy
-    ha_ = this->thermo().he();
-	
+{	
     try
     {
         psi_.oldTime();
