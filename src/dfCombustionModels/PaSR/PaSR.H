@@ -58,7 +58,8 @@ class PaSR
     public laminar<ReactionThermo>
 {
     // Private Data
-        
+        CanteraMixture& mixture_;  
+
         //- thermo mu
         volScalarField& mu_;
         
