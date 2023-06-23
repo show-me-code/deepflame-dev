@@ -280,39 +280,39 @@ void Foam::combustionModels::PaSR<ReactionThermo>::correct()
 	volScalarField t_CO2=tc_;        
 	volScalarField t_H2=tc_;   
 
-	   forAll(rho,cellI)
-	   {
+	forAll(rho,cellI)
+	{
 
-		scalar RR_fuel = this->chemistryPtr_->RR(specieFuel)[cellI];
-		scalar RR_oxidizer = this->chemistryPtr_->RR(specieOxidizer)[cellI];
-		scalar RR_CO2 = this->chemistryPtr_->RR(specieCO2)[cellI];
-		scalar RR_H2 = this->chemistryPtr_->RR(specieH2)[cellI];
+	    scalar RR_fuel = this->chemistryPtr_->RR(specieFuel)[cellI];
+	    scalar RR_oxidizer = this->chemistryPtr_->RR(specieOxidizer)[cellI];
+	    scalar RR_CO2 = this->chemistryPtr_->RR(specieCO2)[cellI];
+	    scalar RR_H2 = this->chemistryPtr_->RR(specieH2)[cellI];
 
-		if( (RR_oxidizer < 0.0)  &&  (Yoxidizer[cellI] > 1e-10) )							
-		{			
-			t_oxidizer[cellI] =  -rho[cellI] * Yoxidizer[cellI]/(RR_oxidizer);   
-		}
+	    if( (RR_oxidizer < 0.0)  &&  (Yoxidizer[cellI] > 1e-10) )							
+	    {			
+		t_oxidizer[cellI] =  -rho[cellI] * Yoxidizer[cellI]/(RR_oxidizer);   
+	    }
 	 
-		if	( (RR_fuel < 0.0) && (Yfuel[cellI] > 1e-10))
-		{								
-			t_fuel[cellI] =  -rho[cellI] * Yfuel[cellI]/(RR_fuel);   
-		}
+	    if	( (RR_fuel < 0.0) && (Yfuel[cellI] > 1e-10))
+	    {								
+		t_fuel[cellI] =  -rho[cellI] * Yfuel[cellI]/(RR_fuel);   
+	    }
 
-		if	( (RR_CO2 > 0.0) && (YCO2[cellI] > 1e-10))
-		{								
-			t_CO2[cellI] =  rho[cellI] * YCO2[cellI]/(RR_CO2);   
-		}        
+	    if	( (RR_CO2 > 0.0) && (YCO2[cellI] > 1e-10))
+	    {								
+		t_CO2[cellI] =  rho[cellI] * YCO2[cellI]/(RR_CO2);   
+	    }        
 
-                if( (RR_H2 < 0.0) && (YH2[cellI] > 1e-10))
-		{								
-			t_H2[cellI] =  -rho[cellI] * YH2[cellI]/(RR_H2);   
-		}        
+            if( (RR_H2 < 0.0) && (YH2[cellI] > 1e-10))
+	    {								
+		t_H2[cellI] =  -rho[cellI] * YH2[cellI]/(RR_H2);   
+	    }        
 
-		tc_[cellI] = max(t_oxidizer[cellI],t_fuel[cellI]);     
+            tc_[cellI] = max(t_oxidizer[cellI],t_fuel[cellI]);     
 
-                tc_[cellI] = max(t_CO2[cellI],tc_[cellI]);     
+            tc_[cellI] = max(t_CO2[cellI],tc_[cellI]);     
 	 	
-                tc_[cellI] = max(t_H2[cellI],tc_[cellI]);     
+            tc_[cellI] = max(t_H2[cellI],tc_[cellI]);     
 	  }
 
     }
