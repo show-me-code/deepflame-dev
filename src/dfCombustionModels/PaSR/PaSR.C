@@ -37,6 +37,7 @@ Foam::combustionModels::PaSR<ReactionThermo>::PaSR
 )
 :
     laminar<ReactionThermo>(modelType, thermo, turb, combustionProperties),
+    mixture_(dynamic_cast<CanteraMixture&>(thermo)),
     // mu_(const_cast<volScalarField&>(dynamic_cast<psiThermo&>(thermo).mu()())),
     mu_(const_cast<volScalarField&>(dynamic_cast<rhoThermo&>(thermo).mu()())),
     p_(this->thermo().p()),
