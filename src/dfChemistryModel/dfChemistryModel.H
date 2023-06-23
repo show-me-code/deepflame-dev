@@ -128,8 +128,6 @@ public IOdictionary
         volScalarField& psi_;
         // heat release rate, [J/m^3/s]
         volScalarField Qdot_;
-        // enthalpy field, [m^2/s^2]
-        volScalarField ha_;
         // DNN selection fields
         volScalarField selectDNN_;
 
