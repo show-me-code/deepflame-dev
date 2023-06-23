@@ -4,7 +4,7 @@ Info<< "Reading thermophysical properties\n" << endl;
 // fluidThermo* pThermo = new hePsiThermo<psiThermo, CanteraMixture>(mesh, word::null);
 fluidThermo* pThermo = new heRhoThermo<rhoThermo, CanteraMixture>(mesh, word::null);
 fluidThermo& thermo = *pThermo;
-thermo.validate(args.executable(), "ha");
+// thermo.validate(args.executable(), "ha");
 
 SLGThermo slgThermo(mesh, thermo);
 
@@ -88,6 +88,8 @@ dfChemistryModel<basicThermo>* chemistry = combustion->chemistry();
 PtrList<volScalarField>& Y = chemistry->Y();
 const word inertSpecie(chemistry->lookup("inertSpecie"));
 const label inertIndex(chemistry->species()[inertSpecie]);
+chemistry->setEnergyName("ha");
+chemistry->updateEnergy();
 
 
 chemistry->correctThermo();

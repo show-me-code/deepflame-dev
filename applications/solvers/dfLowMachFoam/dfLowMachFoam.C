@@ -149,7 +149,7 @@ int main(int argc, char *argv[])
             end = std::clock();
             time_monitor_flow += double(end - start) / double(CLOCKS_PER_SEC);
 
-            if(combModelName!="ESF" && combModelName!="flareFGM" )
+            if(combModelName!="ESF" && combModelName!="flareFGM" && combModelName!="DeePFGM")
             {
                 #include "YEqn.H"
 
@@ -196,7 +196,7 @@ int main(int argc, char *argv[])
         rho = thermo.rho();
 
         runTime.write();
-
+      
         Info<< "========Time Spent in diffenet parts========"<< endl;
         Info<< "Chemical sources           = " << time_monitor_chem << " s" << endl;
         Info<< "Species Equations          = " << time_monitor_Y << " s" << endl;
