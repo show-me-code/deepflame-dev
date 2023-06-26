@@ -67,8 +67,8 @@ Description
 #include <thread>
 #include "upwind.H"
 
-#define GPUSolver_
-// #define CPUSolver_
+// #define GPUSolver_
+#define CPUSolver_
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -285,13 +285,15 @@ int main(int argc, char *argv[])
         Info<< "other Time                   = " << time_monitor_other << " s" << endl;
         Info<< "rho Equations                = " << time_monitor_rho << " s" << endl;
         Info<< "U Equations                  = " << time_monitor_U << " s" << endl;
-        Info<< "Y Equations                  = " << time_monitor_Y << " s" << endl;
+        Info<< "Y Equations                  = " << time_monitor_Y - time_monitor_chem << " s" << endl;
         Info<< "E Equations                  = " << time_monitor_E << " s" << endl;
-        Info<< "percentage of rho/U/Y/E      = " << (time_monitor_E + time_monitor_Y + time_monitor_U + time_monitor_rho) / loop_time * 100 << " %" << endl;
         Info<< "p Equations                  = " << time_monitor_p << " s" << endl;
         Info<< "chemistry correctThermo      = " << time_monitor_chemistry_correctThermo << " s" << endl;
         Info<< "turbulence correct           = " << time_monitor_turbulence_correct << " s" << endl;
         Info<< "combustion correct(in Y)     = " << time_monitor_chem << " s" << endl;
+        Info<< "percentage of chemistry      = " << time_monitor_chem / loop_time * 100 << " %" << endl;
+        Info<< "percentage of rho/U/Y/E      = " << (time_monitor_E + time_monitor_Y + time_monitor_U + time_monitor_rho - time_monitor_chem) / loop_time * 100 << " %" << endl;
+
 
         Info<< "========Time details of each equation======="<< endl;
 

@@ -3,6 +3,23 @@
 
 #ifdef CPUSolver_
     start1 = std::clock();
+    //debug
+    // {
+    //     const fvPatchScalarField& hew = he.boundaryField()[5];
+    //     const basicThermo& bThermo = basicThermo::lookupThermo(hew);
+    //     const scalarField& pw = bThermo.p().boundaryField()[5];
+    //     fvPatchScalarField& Tw =
+    //         const_cast<fvPatchScalarField&>(bThermo.T().boundaryField()[5]);
+    //     scalarField& Tw_v = Tw;
+
+    //     Tw.evaluate();
+
+    //     Info << "internal field" <<bThermo.he(pw, Tw, mesh.boundary()[5].faceCells()) << endl;
+    //     Info << "boundary field" <<bThermo.he(pw, Tw, 5) << endl;
+    //     Info << "calculated grad" << mesh.boundary()[5].deltaCoeffs() * (bThermo.he(pw, Tw, 5) - bThermo.he(pw, Tw, mesh.boundary()[5].faceCells())) << endl;
+    // }
+
+
     fvScalarMatrix EEqn
     (
         fvm::ddt(rho, he) + fvm::div(phi, he)
@@ -13,6 +30,9 @@
      ==
         fvc::div(hDiffCorrFlux)
     );
+    printf("EEqn = %.15lf\n", EEqn.boundaryCoeffs()[0][64]);
+    printf("EEqn = %.15lf\n", EEqn.boundaryCoeffs()[1][64]);
+    printf("EEqn = %.15lf\n", EEqn.boundaryCoeffs()[5][1]);
     end1 = std::clock();
     time_monitor_EEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_EEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
@@ -46,11 +66,43 @@
     end2 = std::clock();
     int eeqn_offset = 0;
     int patchNum = 0;
+
+    //debug
+    // {
+    //     const fvPatchScalarField& hew = he.boundaryField()[5];
+    //     const basicThermo& bThermo = basicThermo::lookupThermo(hew);
+    //     const scalarField& pw = bThermo.p().boundaryField()[5];
+    //     fvPatchScalarField& Tw =
+    //         const_cast<fvPatchScalarField&>(bThermo.T().boundaryField()[5]);
+    //     scalarField& Tw_v = Tw;
+
+    //     Tw.evaluate();
+
+    //     Info << "internal field" <<bThermo.he(pw, Tw, mesh.boundary()[5].faceCells()) << endl;
+    //     Info << "boundary field" <<bThermo.he(pw, Tw, 5) << endl;
+    //     Info << "calculated grad" << 
+    //         mesh.boundary()[5].deltaCoeffs() * (bThermo.he(pw, Tw, 5) - bThermo.he(pw, Tw, mesh.boundary()[5].faceCells())) << endl;
+    // }
+
     forAll(he.boundaryField(), patchi)
     {
         patchNum++;
         const fvsPatchScalarField& pw = mesh.surfaceInterpolation::weights().boundaryField()[patchi];
         int patchSize = pw.size();
+
+        // construct gradient manually
+        const fvPatchScalarField& hew = he.boundaryField()[patchi];
+        const basicThermo& bThermo = basicThermo::lookupThermo(hew);
+        const scalarField& ppw = bThermo.p().boundaryField()[patchi];
+        fvPatchScalarField& Tw =
+            const_cast<fvPatchScalarField&>(bThermo.T().boundaryField()[patchi]);
+        scalarField& Tw_v = Tw;
+
+        Tw.evaluate();
+        const scalarField& patchDeltaCoeff = mesh.boundary()[patchi].deltaCoeffs();
+        const scalarField heInternal = bThermo.he(ppw, Tw, patchi)();
+        const scalarField heBoundary = bThermo.he(ppw, Tw, mesh.boundary()[patchi].faceCells())();
+        const scalarField patchGradMau = patchDeltaCoeff * (heInternal - heBoundary);
 
         const scalarField& patchK = K.boundaryField()[patchi];
         // const scalarField& patchAlphaEff = alphaEff.boundaryField()[patchi];
@@ -60,6 +112,42 @@
         memcpy(boundary_gradient + eeqn_offset, &patchGrad[0], patchSize*sizeof(double));
 
         eeqn_offset += patchSize;
+
+        // debug
+        // const fvsPatchScalarField& patchFlux = phi.boundaryField()[patchi];
+        // // Field<scalar> valueInternalCoeffs = patchFlux*he.boundaryField()[patchi].valueInternalCoeffs(pw);
+        // // Field<scalar> valueBoundaryCoeffs = -patchFlux*he.boundaryField()[patchi].valueBoundaryCoeffs(pw);
+        // Field<scalar> valueInternalCoeffs = patchFlux*he.boundaryField()[patchi].valueInternalCoeffs(pw);
+        // Field<scalar> valueBoundaryCoeffs = -patchFlux*he.boundaryField()[patchi].valueBoundaryCoeffs(pw);
+        // Field<scalar> gradientInternalCoeffs = he.boundaryField()[patchi].gradientInternalCoeffs();
+        // Field<scalar> gradientBoundaryCoeffs = he.boundaryField()[patchi].gradientBoundaryCoeffs();
+        // labelUList sub_boundary = mesh.boundary()[patchi].faceCells();
+
+        // calculate grad manually
+        // const fvPatchScalarField& hew = he.boundaryField()[patchi];
+        // const basicThermo& bThermo = basicThermo::lookupThermo(hew);
+        // const scalarField& ppw = bThermo.p().boundaryField()[patchi];
+        // fvPatchScalarField& Tw =
+        //     const_cast<fvPatchScalarField&>(bThermo.T().boundaryField()[patchi]);
+        // scalarField& Tw_v = Tw;
+
+        // Tw.evaluate();
+        // const scalarField& patchDeltaCoeff = mesh.boundary()[patchi].deltaCoeffs();
+        // const scalarField heInternal = bThermo.he(ppw, Tw, patchi)();
+        // const scalarField heBoundary = bThermo.he(ppw, Tw, mesh.boundary()[patchi].faceCells())();
+        // const scalarField patchGradMau = patchDeltaCoeff * (heInternal - heBoundary);
+                
+        // forAll(sub_boundary, i){
+        //     if (sub_boundary[i] == 1)
+        //     {
+        //         printf("\npatchFlux = %.10lf\n", patchFlux[i]);
+        //         printf("valueBoundaryCoeffs = %.10lf\n", he.boundaryField()[patchi].valueBoundaryCoeffs(pw)()[i]);
+        //         printf("valueBoundaryCoeffs_CPU = %.10lf\n", valueBoundaryCoeffs[i]);
+        //         printf("patchGrad = %.10lf\n", patchGrad[i]);
+        //         printf("patchGradMau = %.10lf\n", patchGradMau[i]);
+        //         printf("patch = %d, cellID = %d\n", patchi, i);
+        //     }
+        // }
     }
     end1 = std::clock();
     time_monitor_EEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
@@ -95,7 +183,7 @@
     time_monitor_EEqn_mtxAssembly_GPU_run += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
     // check value of mtxAssembly, no time monitor
-    // EEqn_GPU.checkValue(false);
+    // EEqn_GPU.checkValue(true);
 
     start1 = std::clock();
     EEqn_GPU.solve();

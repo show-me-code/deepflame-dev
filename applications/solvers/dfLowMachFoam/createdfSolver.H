@@ -36,31 +36,30 @@ int num_boundary_cells;
 string settingPath;
 settingPath = CanteraTorchProperties.subDict("AmgxSettings").lookupOrDefault("UEqnSettingPath", string(""));
 
-dfMatrixDataBase dfDataBase(num_surfaces, num_cells, num_boundary_faces, Y.size(), num_boundary_cells, &neighbour[0], &owner[0], &mesh.V()[0], &mesh.surfaceInterpolation::weights()[0], 
-&mesh.Sf()[0][0], &mesh.magSf()[0], &mesh.nonOrthDeltaCoeffs()[0], boundary_face_vector_init, boundary_face_init, boundary_deltaCoeffs_init, boundaryCellIndex, patchTypes);
-
 #ifdef GPUSolver_
-dfRhoEqn rhoEqn_GPU(dfDataBase);
-dfUEqn UEqn_GPU(dfDataBase, "dDDI", settingPath);
-dfYEqn YEqn_GPU(dfDataBase, "dDDI", settingPath, inertIndex);
-dfEEqn EEqn_GPU(dfDataBase, "dDDI", settingPath);
+    dfMatrixDataBase dfDataBase(num_surfaces, num_cells, num_boundary_faces, Y.size(), num_boundary_cells, &neighbour[0], &owner[0], &mesh.V()[0], &mesh.surfaceInterpolation::weights()[0], 
+    &mesh.Sf()[0][0], &mesh.magSf()[0], &mesh.nonOrthDeltaCoeffs()[0], boundary_face_vector_init, boundary_face_init, boundary_deltaCoeffs_init, boundaryCellIndex, patchTypes);
+    dfRhoEqn rhoEqn_GPU(dfDataBase);
+    dfUEqn UEqn_GPU(dfDataBase, "dDDI", settingPath);
+    dfYEqn YEqn_GPU(dfDataBase, "dDDI", settingPath, inertIndex);
+    dfEEqn EEqn_GPU(dfDataBase, "dDDI", settingPath);
 
-double *ueqn_internalCoeffs_init, *ueqn_boundaryCoeffs_init, *boundary_pressure_init, *boundary_velocity_init,
-    *boundary_nuEff_init, *boundary_rho_init, *ueqn_laplac_internalCoeffs_init, *ueqn_laplac_boundaryCoeffs_init, *boundary_phi_init;
-cudaMallocHost(&ueqn_internalCoeffs_init, 3*num_boundary_faces*sizeof(double));
-cudaMallocHost(&ueqn_boundaryCoeffs_init, 3*num_boundary_faces*sizeof(double));
-cudaMallocHost(&ueqn_laplac_internalCoeffs_init, 3*num_boundary_faces*sizeof(double));
-cudaMallocHost(&ueqn_laplac_boundaryCoeffs_init, 3*num_boundary_faces*sizeof(double));
-cudaMallocHost(&boundary_velocity_init, 3*num_boundary_faces*sizeof(double));
-cudaMallocHost(&boundary_pressure_init, num_boundary_faces*sizeof(double));
-cudaMallocHost(&boundary_nuEff_init, num_boundary_faces*sizeof(double));
-cudaMallocHost(&boundary_rho_init, num_boundary_faces*sizeof(double));
-cudaMallocHost(&boundary_phi_init, num_boundary_faces*sizeof(double));
+    double *ueqn_internalCoeffs_init, *ueqn_boundaryCoeffs_init, *boundary_pressure_init, *boundary_velocity_init,
+        *boundary_nuEff_init, *boundary_rho_init, *ueqn_laplac_internalCoeffs_init, *ueqn_laplac_boundaryCoeffs_init, *boundary_phi_init;
+    cudaMallocHost(&ueqn_internalCoeffs_init, 3*num_boundary_faces*sizeof(double));
+    cudaMallocHost(&ueqn_boundaryCoeffs_init, 3*num_boundary_faces*sizeof(double));
+    cudaMallocHost(&ueqn_laplac_internalCoeffs_init, 3*num_boundary_faces*sizeof(double));
+    cudaMallocHost(&ueqn_laplac_boundaryCoeffs_init, 3*num_boundary_faces*sizeof(double));
+    cudaMallocHost(&boundary_velocity_init, 3*num_boundary_faces*sizeof(double));
+    cudaMallocHost(&boundary_pressure_init, num_boundary_faces*sizeof(double));
+    cudaMallocHost(&boundary_nuEff_init, num_boundary_faces*sizeof(double));
+    cudaMallocHost(&boundary_rho_init, num_boundary_faces*sizeof(double));
+    cudaMallocHost(&boundary_phi_init, num_boundary_faces*sizeof(double));
 
-double *boundary_alphaEff, *boundary_K, *boundary_gradient;
-cudaMallocHost(&boundary_K, num_boundary_faces*sizeof(double));
-cudaMallocHost(&boundary_alphaEff, num_boundary_faces*sizeof(double));
-cudaMallocHost(&boundary_gradient, num_boundary_faces * sizeof(double));
+    double *boundary_alphaEff, *boundary_K, *boundary_gradient;
+    cudaMallocHost(&boundary_K, num_boundary_faces*sizeof(double));
+    cudaMallocHost(&boundary_alphaEff, num_boundary_faces*sizeof(double));
+    cudaMallocHost(&boundary_gradient, num_boundary_faces * sizeof(double));
 
-bool updateBoundaryFields = true; // make sure that the boundary fields do H2D copy at 1st timestep
+    bool updateBoundaryFields = true; // make sure that the boundary fields do H2D copy at 1st timestep
 #endif

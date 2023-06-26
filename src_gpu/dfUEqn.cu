@@ -821,9 +821,9 @@ __global__ void fvm_laplacian_uncorrected_vector_boundary(int num_cells, int num
         internal_coeffs_x += gamma_magsf * gradient_internal_coeffs[i * 3 + 0];
         internal_coeffs_y += gamma_magsf * gradient_internal_coeffs[i * 3 + 1];
         internal_coeffs_z += gamma_magsf * gradient_internal_coeffs[i * 3 + 2];
-        boundary_coeffs_x += gamma_magsf * gradient_boundary_coeffs[i * 3 + 0];
-        boundary_coeffs_y += gamma_magsf * gradient_boundary_coeffs[i * 3 + 1];
-        boundary_coeffs_z += gamma_magsf * gradient_boundary_coeffs[i * 3 + 2];
+        boundary_coeffs_x -= gamma_magsf * gradient_boundary_coeffs[i * 3 + 0];
+        boundary_coeffs_y -= gamma_magsf * gradient_boundary_coeffs[i * 3 + 1];
+        boundary_coeffs_z -= gamma_magsf * gradient_boundary_coeffs[i * 3 + 2];
     }
 
     ueqn_internal_coeffs[cell_index * 3 + 0] += internal_coeffs_x * sign;
@@ -997,39 +997,59 @@ __global__ void addDiagDivVolume(int num_cells, const int *csr_row_index,
 
 __global__ void ueqn_update_BoundaryCoeffs_kernel(int num_boundary_faces, const double *boundary_phi, double *internal_coeffs,
                                                   double *boundary_coeffs, double *laplac_internal_coeffs,
-                                                  double *laplac_boundary_coeffs, const int *U_patch_type)
+                                                  double *laplac_boundary_coeffs, const int *U_patch_type,
+                                                  const double *boundary_velocity, const double *boundary_deltaCoeffs)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index >= num_boundary_faces)
         return;
 
     int patchIndex = U_patch_type[index];
-    double valueInternalCoeffs, valueBoundaryCoeffs, gradientInternalCoeffs, gradientBoundaryCoeffs;
-    switch (patchIndex)
-    {
-    case 0: // zeroGradient
-    {
-        valueInternalCoeffs = 1.;
-        valueBoundaryCoeffs = 0.;
-        gradientInternalCoeffs = 0.;
-        gradientBoundaryCoeffs = 0.;
-        break;
+    if (patchIndex == 0) { // zeroGradient
+        double bouPhi = boundary_phi[index];
+        internal_coeffs[index * 3 + 0] = bouPhi * 1.; // valueInternalCoeffs = 1.
+        internal_coeffs[index * 3 + 1] = bouPhi * 1.;
+        internal_coeffs[index * 3 + 2] = bouPhi * 1.;
+        boundary_coeffs[index * 3 + 0] = -bouPhi * 0.; // valueBoundaryCoeffs = 0.
+        boundary_coeffs[index * 3 + 1] = -bouPhi * 0.;
+        boundary_coeffs[index * 3 + 2] = -bouPhi * 0.;
+        laplac_internal_coeffs[index * 3 + 0] = 0.; // gradientInternalCoeffs = 0.
+        laplac_internal_coeffs[index * 3 + 1] = 0.;
+        laplac_internal_coeffs[index * 3 + 2] = 0.;
+        laplac_boundary_coeffs[index * 3 + 0] = 0.; // gradientBoundaryCoeffs = 0.
+        laplac_boundary_coeffs[index * 3 + 1] = 0.;
+        laplac_boundary_coeffs[index * 3 + 2] = 0.;
+    } else if (patchIndex == 1) { // fixedValue
+        double bouDeltaCoeffs = boundary_deltaCoeffs[index];
+        double bouPhi = boundary_phi[index];
+        internal_coeffs[index * 3 + 0] = bouPhi * 0.; // valueInternalCoeffs = 0.
+        internal_coeffs[index * 3 + 1] = bouPhi * 0.;
+        internal_coeffs[index * 3 + 2] = bouPhi * 0.;
+        boundary_coeffs[index * 3 + 0] = -bouPhi * boundary_velocity[index * 3 + 0]; // valueBoundaryCoeffs = boundaryValue
+        boundary_coeffs[index * 3 + 1] = -bouPhi * boundary_velocity[index * 3 + 0];
+        boundary_coeffs[index * 3 + 2] = -bouPhi * boundary_velocity[index * 3 + 0];
+        laplac_internal_coeffs[index * 3 + 0] = -1 * bouDeltaCoeffs; // gradientInternalCoeffs = -1 * boundaryDeltaCoeffs
+        laplac_internal_coeffs[index * 3 + 1] = -1 * bouDeltaCoeffs;
+        laplac_internal_coeffs[index * 3 + 2] = -1 * bouDeltaCoeffs;
+        laplac_boundary_coeffs[index * 3 + 0] = bouDeltaCoeffs * boundary_velocity[index * 3 + 0]; // gradientBoundaryCoeffs = boundaryDeltaCoeffs * boundaryValue
+        laplac_boundary_coeffs[index * 3 + 1] = bouDeltaCoeffs * boundary_velocity[index * 3 + 1];
+        laplac_boundary_coeffs[index * 3 + 2] = bouDeltaCoeffs * boundary_velocity[index * 3 + 2];
+    } else if (patchIndex == 2) { // empty
+        double bouPhi = boundary_phi[index];
+        internal_coeffs[index * 3 + 0] = bouPhi * 0.; // valueInternalCoeffs = 0.
+        internal_coeffs[index * 3 + 1] = bouPhi * 0.;
+        internal_coeffs[index * 3 + 2] = bouPhi * 0.;
+        boundary_coeffs[index * 3 + 0] = -bouPhi * 0.; // valueBoundaryCoeffs = 0.
+        boundary_coeffs[index * 3 + 1] = -bouPhi * 0.;
+        boundary_coeffs[index * 3 + 2] = -bouPhi * 0.;
+        laplac_internal_coeffs[index * 3 + 0] = 0.; // gradientInternalCoeffs = 0.
+        laplac_internal_coeffs[index * 3 + 1] = 0.;
+        laplac_internal_coeffs[index * 3 + 2] = 0.;
+        laplac_boundary_coeffs[index * 3 + 0] = 0.; // gradientBoundaryCoeffs = 0.
+        laplac_boundary_coeffs[index * 3 + 1] = 0.;
+        laplac_boundary_coeffs[index * 3 + 2] = 0.;
     }
-        // TODO implement coupled and fixedValue conditions
-    }
-
-    internal_coeffs[index * 3 + 0] = boundary_phi[index] * valueInternalCoeffs;
-    internal_coeffs[index * 3 + 1] = boundary_phi[index] * valueInternalCoeffs;
-    internal_coeffs[index * 3 + 2] = boundary_phi[index] * valueInternalCoeffs;
-    boundary_coeffs[index * 3 + 0] = -boundary_phi[index] * valueBoundaryCoeffs;
-    boundary_coeffs[index * 3 + 1] = -boundary_phi[index] * valueBoundaryCoeffs;
-    boundary_coeffs[index * 3 + 2] = -boundary_phi[index] * valueBoundaryCoeffs;
-    laplac_internal_coeffs[index * 3 + 0] = gradientInternalCoeffs;
-    laplac_internal_coeffs[index * 3 + 1] = gradientInternalCoeffs;
-    laplac_internal_coeffs[index * 3 + 2] = gradientInternalCoeffs;
-    laplac_boundary_coeffs[index * 3 + 0] = gradientBoundaryCoeffs;
-    laplac_boundary_coeffs[index * 3 + 1] = gradientBoundaryCoeffs;
-    laplac_boundary_coeffs[index * 3 + 2] = gradientBoundaryCoeffs;
+    // TODO implement coupled conditions
 }
 
 __global__ void ueqn_correct_BoundaryConditions_kernel(int num_cells, int num_boundary_cells,
@@ -1057,6 +1077,8 @@ __global__ void ueqn_correct_BoundaryConditions_kernel(int num_cells, int num_bo
                 break;
             }
             case 1:
+                break;
+            case 2:
                 break;
             // TODO implement coupled conditions
         }
@@ -1127,6 +1149,14 @@ void dfUEqn::fvm_div(double *boundary_pressure_init, double *boundary_velocity_i
     boundaryPermutation<<<blocks_per_grid, threads_per_block, 0, stream>>>(dataBase_.num_boundary_faces, dataBase_.d_bouPermedIndex, dataBase_.d_boundary_pressure_init,
             dataBase_.d_boundary_velocity_init, dataBase_.d_boundary_pressure, dataBase_.d_boundary_velocity, 
             dataBase_.d_boundary_nuEff_init, dataBase_.d_boundary_nuEff, dataBase_.d_boundary_rho_init, dataBase_.d_boundary_rho);
+
+    // initialize boundary coeffs (must after the update of d_boundary_velocity)
+    threads_per_block = 1024;
+    blocks_per_grid = (dataBase_.num_boundary_faces + threads_per_block - 1) / threads_per_block;
+    ueqn_update_BoundaryCoeffs_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(dataBase_.num_boundary_faces, dataBase_.d_boundary_phi,
+                                                                                         dataBase_.d_internal_coeffs, dataBase_.d_boundary_coeffs,
+                                                                                         dataBase_.d_laplac_internal_coeffs, dataBase_.d_laplac_boundary_coeffs,
+                                                                                         dataBase_.d_boundary_UpatchType, dataBase_.d_boundary_velocity, dataBase_.d_boundary_deltaCoeffs);
 
     blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
     fvm_div_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_faces,
@@ -1263,13 +1293,6 @@ void dfUEqn::initializeTimeStep()
     // initialize matrix value
     checkCudaErrors(cudaMemsetAsync(d_A_csr, 0, csr_value_vec_bytes, stream));
     checkCudaErrors(cudaMemsetAsync(d_b, 0, cell_vec_bytes, stream));
-    // initialize boundary coeffs
-    size_t threads_per_block = 1024;
-    size_t blocks_per_grid = (dataBase_.num_boundary_faces + threads_per_block - 1) / threads_per_block;
-    ueqn_update_BoundaryCoeffs_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(dataBase_.num_boundary_faces, dataBase_.d_boundary_phi,
-                                                                                         dataBase_.d_internal_coeffs, dataBase_.d_boundary_coeffs,
-                                                                                         dataBase_.d_laplac_internal_coeffs, dataBase_.d_laplac_boundary_coeffs,
-                                                                                         dataBase_.d_boundary_UpatchType);
 }
 
 void dfUEqn::checkValue(bool print)
