@@ -44,7 +44,8 @@ inline void checkVectorEqual(int count, const double* basevec, double* vec, doub
 enum boundaryConditions{
     zeroGradient,
     fixedValue,
-    coupled
+    coupled,
+    empty
 };
 
 void constructBoundarySelector(std::vector<int>& patchTypeSelector, const std::string& patchTypeStr, const int patchSize);

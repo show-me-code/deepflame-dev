@@ -9,6 +9,7 @@ void constructBoundarySelector(std::vector<int>& patchTypeSelector, const std::s
     static std::map<std::string, boundaryConditions> BCMap = {
         {"zeroGradient", zeroGradient},
         {"fixedValue", fixedValue},
+        {"empty", empty},
         {"coupled", coupled}
     };
     auto iter = BCMap.find(patchTypeStr);
@@ -31,9 +32,15 @@ void constructBoundarySelector(std::vector<int>& patchTypeSelector, const std::s
             patchTypeSelector.insert(patchTypeSelector.end(), tmpSelector.begin(), tmpSelector.end());
             break;
         }
-        case coupled:
+        case empty:
         {
             tmpSelector.resize(patchSize, 2);
+            patchTypeSelector.insert(patchTypeSelector.end(), tmpSelector.begin(), tmpSelector.end());
+            break;
+        }
+        case coupled:
+        {
+            tmpSelector.resize(patchSize, 3);
             patchTypeSelector.insert(patchTypeSelector.end(), tmpSelector.begin(), tmpSelector.end());
             break;
         }

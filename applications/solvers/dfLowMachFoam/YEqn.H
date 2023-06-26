@@ -19,6 +19,7 @@ forAll(Y, i)
 {
     sumYDiffError += chemistry->rhoD(i)*fvc::grad(Y[i]);
 }
+// Info << "sumYDiffError\n" << sumYDiffError << endl;
 const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
 start1 = std::clock();
 time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
@@ -43,18 +44,18 @@ time_monitor_YEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
         {
             cudaMallocHost(&boundary_Y[i], num_boundary_faces*sizeof(double));
         }
-        // const volScalarField& haii = chemistry->hai(i);
-        // const volScalarField& rhoDi = chemistry->rhoD(i);
+        const volScalarField& haii = chemistry->hai(i);
+        const volScalarField& rhoDi = chemistry->rhoD(i);
         // hai[i] = &haii[0];
-        // rhoD[i] = &rhoDi[0];
+        rhoD[i] = &rhoDi[0];
         // cudaMallocHost(&boundary_hai[i], num_boundary_faces*sizeof(double));
-        // cudaMallocHost(&boundary_rhoD[i], num_boundary_faces*sizeof(double));
+        cudaMallocHost(&boundary_rhoD[i], num_boundary_faces*sizeof(double));
         int offset = 0;
         forAll(Yi.boundaryField(), patchi)
         {
             const scalarField& patchYi = Yi.boundaryField()[patchi];
             // const scalarField& patchHaii = haii.boundaryField()[patchi];
-            // const scalarField& patchRhoDi = rhoDi.boundaryField()[patchi];
+            const scalarField& patchRhoDi = rhoDi.boundaryField()[patchi];
             int patchSize = patchYi.size();
 
             if (updateBoundaryFields)
@@ -62,10 +63,16 @@ time_monitor_YEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
                 memcpy(boundary_Y[i] + offset, &patchYi[0], patchSize*sizeof(double));
             }
             // memcpy(boundary_hai[i] + offset, &patchHaii[0], patchSize*sizeof(double));
-            // memcpy(boundary_rhoD[i] + offset, &patchRhoDi[0], patchSize*sizeof(double));
+            memcpy(boundary_rhoD[i] + offset, &patchRhoDi[0], patchSize*sizeof(double));
             offset += patchSize;
         }
+        // if (i == 5)
+        // {
+        //     Info << "rhoD_CPU" << rhoDi << endl;
+        // }
+        
     }
+    // Info << "rhoD from nuEff\n" << nuEff * rho / 0.7 << endl;
     updateBoundaryFields = false;
     volScalarField mut_sct = turbulence->mut().ref()/Sct;
     double *boundary_mutsct = nullptr;
@@ -77,6 +84,17 @@ time_monitor_YEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
         int patchSize = patchMut_sct.size();
         memcpy(boundary_mutsct + offset, &patchMut_sct[0], patchSize*sizeof(double));
         offset += patchSize;
+
+        // debug
+        // const fvsPatchScalarField& pw = mesh.surfaceInterpolation::weights().boundaryField()[patchi];
+        // Field<scalar> valueInternalCoeffs = Y[5].boundaryField()[patchi].valueInternalCoeffs(pw);
+        // Field<scalar> valueBoundaryCoeffs = Y[5].boundaryField()[patchi].valueBoundaryCoeffs(pw);
+        // Field<scalar> gradientInternalCoeffs = Y[5].boundaryField()[patchi].gradientInternalCoeffs();
+        // Field<scalar> gradientBoundaryCoeffs = Y[5].boundaryField()[patchi].gradientBoundaryCoeffs();
+        // Info << "valueInternalCoeffs\n" << valueInternalCoeffs << endl;
+        // Info << "valueBoundaryCoeffs\n" << valueBoundaryCoeffs << endl;
+        // Info << "gradientInternalCoeffs\n" << gradientInternalCoeffs << endl;
+        // Info << "gradientBoundaryCoeffs\n" << gradientBoundaryCoeffs << endl;
     }
     end1 = std::clock();
     time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
@@ -93,6 +111,7 @@ time_monitor_YEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
     YEqn_GPU.fvm_div_phi();
     YEqn_GPU.fvm_div_phiUc();
     YEqn_GPU.sync();
+    // YEqn_GPU.checkValue(true, "of_output_H2.txt");
     end1 = std::clock();
     time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_YEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
@@ -161,6 +180,21 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
                   :  (fvm::laplacian(DEff(), Yi) + combustion->R(Yi))
                  )
                 );
+            // debug
+            if (i == 0)
+            {
+                printf("b = %lf\n", YiEqn.source()[1]);
+                forAll(mesh.boundary(), patchi){
+                    labelUList sub_boundary = mesh.boundary()[patchi].faceCells();
+                    forAll(sub_boundary, i){
+                        if (sub_boundary[i] == 0){
+                            printf("patchID = %d, faceID = %d\n", patchi, i);
+                            printf("YiEqn = %.15lf\n", YiEqn.boundaryCoeffs()[patchi][i]);
+                        }
+                    }
+                }
+            }
+            
             end1 = std::clock();
             time_monitor_YEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
             // YiEqn.relax();

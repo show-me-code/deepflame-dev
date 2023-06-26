@@ -189,7 +189,7 @@ __global__ void eeqn_fvm_laplacian_uncorrected_boundary(int num_boundary_cells,
         double gamma = boundary_alphaEff[i];
         double gamma_magsf = gamma * boundary_magsf[i];
         internal_coeffs += gamma_magsf * gradient_internal_coeffs[i];
-        boundary_coeffs += gamma_magsf * gradient_boundary_coeffs[i];
+        boundary_coeffs -= gamma_magsf * gradient_boundary_coeffs[i];
     }
 
     A_csr_output[csr_index] = A_csr_input[csr_index] + internal_coeffs * sign;
@@ -631,8 +631,8 @@ void dfEEqn::add_to_source()
 
 void dfEEqn::checkValue(bool print)
 {
-    checkCudaErrors(cudaMemcpyAsync(h_A_csr, d_A_csr, csr_value_vec_bytes, cudaMemcpyDeviceToHost, stream));
-    checkCudaErrors(cudaMemcpyAsync(h_b, d_b, cell_vec_bytes, cudaMemcpyDeviceToHost, stream));
+    checkCudaErrors(cudaMemcpyAsync(h_A_csr, d_A_csr, (num_faces + num_cells) * sizeof(double), cudaMemcpyDeviceToHost, stream));
+    checkCudaErrors(cudaMemcpyAsync(h_b, d_b, num_cells * sizeof(double), cudaMemcpyDeviceToHost, stream));
 
     // Synchronize stream
     checkCudaErrors(cudaStreamSynchronize(stream));
@@ -644,7 +644,7 @@ void dfEEqn::checkValue(bool print)
             fprintf(stderr, "h_b[%d]: %.16lf\n", i, h_b[i]);
     }
 
-    char *input_file = "of_output.txt";
+    char *input_file = "of_output_E.txt";
     FILE *fp = fopen(input_file, "rb+");
     if (fp == NULL)
     {
@@ -672,9 +672,9 @@ void dfEEqn::checkValue(bool print)
     if (print)
     {
         for (int i = 0; i < (num_faces + num_cells); i++)
-            fprintf(stderr, "h_A_of_vec_1mtx[%d]: %.16lf\n", i, h_A_of_vec_1mtx[i]);
+            printf("h_A_of_vec_1mtx[%d]: %.16lf\n", i, h_A_of_vec_1mtx[i]);
         for (int i = 0; i < num_cells; i++)
-            fprintf(stderr, "h_b_of_vec[%d]: %.16lf\n", i, h_b_of_vec[i]);
+            printf("h_b_of_vec[%d]: %.16lf\n", i, h_b_of_vec[i]);
     }
 
     // check
