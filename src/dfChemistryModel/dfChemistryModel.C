@@ -65,6 +65,7 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
     hrtTemp_(mixture_.nSpecies()),
     cTemp_(mixture_.nSpecies()),
     RR_(mixture_.nSpecies()),
+    wrate_(mixture_.nSpecies()),
     alpha_(const_cast<volScalarField&>(thermo.alpha())),
     T_(thermo.T()),
     p_(thermo.p()),
@@ -231,7 +232,27 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
             )
         );
     }
-
+    forAll(wrate_, fieldi)
+    {
+        Info<<"here for create wrate_"<< endl;
+        wrate_.set
+        (
+            fieldi,
+            new volScalarField::Internal
+            (
+                IOobject
+                (
+                    "wrate." + Y_[fieldi].name(),
+                    mesh_.time().timeName(),
+                    mesh_,
+                    IOobject::NO_READ,
+                    IOobject::NO_WRITE
+                ),
+                mesh_,
+                dimensionedScalar(dimMass/dimVolume/dimTime, 0)
+            )
+        );
+    }
     forAll(rhoD_, i)
     {
         rhoD_.set
@@ -725,6 +746,34 @@ Foam::dfChemistryModel<ThermoType>::updateReactionRates
     }
 
     return deltaTMin;
+}
+
+template<class ThermoType>
+void Foam::dfChemistryModel<ThermoType>::calculateW()
+{
+    doublereal Yi[mixture_.nSpecies()];
+    doublereal twrate[mixture_.nSpecies()];
+
+    forAll(rho_, celli)
+    {
+        const scalar rhoi = rho_[celli];
+        const scalar Ti = T_[celli];
+        const scalar pi = p_[celli];
+
+        for (label i=0; i<mixture_.nSpecies(); i++)
+        {
+            Yi[i] = Y_[i][celli];
+        }
+
+        CanteraGas_->setState_TPY(Ti, pi, Yi);
+
+        CanteraKinetics_->getNetProductionRates(twrate);
+
+        for (label i=0; i<mixture_.nSpecies(); i++)
+        {
+            wrate_[i][celli] = twrate[i]*CanteraGas_->molecularWeight(i);
+        }
+    }
 }
 
 template<class ThermoType>
