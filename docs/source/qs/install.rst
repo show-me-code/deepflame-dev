@@ -81,13 +81,13 @@ Then source the bashrc file by:
 
     git clone https://github.com/deepmodeling/deepflame-dev.git
 
-If the user want to use the submodules inluded in DeepFlame: the `WENO scheme <https://github.com/WENO-OF/WENOEXT>`_ and the `libROUNDSchemes <https://github.com/advanCFD/libROUNDSchemes>`_, run
+If you want to use the submodules included in DeepFlame: the `WENO scheme <https://github.com/WENO-OF/WENOEXT>`_ and the `libROUNDSchemes <https://github.com/advanCFD/libROUNDSchemes>`_, run
 
 .. code-block:: bash
 
     git clone --recursive https://github.com/deepmodeling/deepflame-dev.git
 
-Detailed instructions for compiling these two submodules can be found in their repositories. 
+Detailed instructions for compiling these two submodules can be found in their original repositories. 
 
 
 **3. Configure the DeepFlame environment:**
