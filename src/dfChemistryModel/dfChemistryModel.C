@@ -234,7 +234,6 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
     }
     forAll(wrate_, fieldi)
     {
-        Info<<"here for create wrate_"<< endl;
         wrate_.set
         (
             fieldi,
