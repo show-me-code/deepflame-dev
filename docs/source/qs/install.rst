@@ -87,7 +87,7 @@ If the user want to use the submodules inluded in DeepFlame: the `WENO scheme <h
 
     git clone --recursive https://github.com/deepmodeling/deepflame-dev.git
 
-Detail instructions for compiling these two submodules can be found in their repositories. 
+Detailed instructions for compiling these two submodules can be found in their repositories. 
 
 
 **3. Configure the DeepFlame environment:**
