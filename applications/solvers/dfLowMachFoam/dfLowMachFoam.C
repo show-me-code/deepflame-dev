@@ -59,6 +59,7 @@ Description
 #include "basicThermo.H"
 #include "CombustionModel.H"
 
+#ifdef GPUSolver_
 #include "dfUEqn.H"
 #include "dfYEqn.H"
 #include "dfRhoEqn.H"
@@ -66,9 +67,7 @@ Description
 #include <cuda_runtime.h>
 #include <thread>
 #include "upwind.H"
-
-#define GPUSolver_
-// #define CPUSolver_
+#endif
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -79,10 +78,10 @@ int main(int argc, char *argv[])
 #endif
     #include "postProcess.H"
 
-    unsigned int flags = 0;
-    checkCudaErrors(cudaGetDeviceFlags(&flags));
-    flags |= cudaDeviceScheduleYield;
-    checkCudaErrors(cudaSetDeviceFlags(flags));
+    // unsigned int flags = 0;
+    // checkCudaErrors(cudaGetDeviceFlags(&flags));
+    // flags |= cudaDeviceScheduleYield;
+    // checkCudaErrors(cudaSetDeviceFlags(flags));
 
     // #include "setRootCaseLists.H"
     #include "listOptions.H"
@@ -158,7 +157,9 @@ int main(int argc, char *argv[])
     }
 
     start1 = std::clock();
+    #ifdef GPUSolver_
     #include "createdfSolver.H"
+    #endif
     end1 = std::clock();
     time_monitor_init += double(end1 - start1) / double(CLOCKS_PER_SEC);
 

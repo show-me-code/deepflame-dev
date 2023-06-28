@@ -7,15 +7,19 @@ unset LIBTORCH_DIR
 unset LIBCANTERA_DIR
 unset PYTORCH_INC
 unset PYTORCH_LIB
+unset USE_GPUSOLVER
+unset AMGX_DIR
 
 print_usage() {
-    echo "Usage: . install.sh --libtorch_no (default) | --libtorch_dir _path_to_libtorch | --libtorch_autodownload | --use_pytorch | --libcantera_dir _path_to_libcantera"
+    echo "Usage: . install.sh --libtorch_no (default) | --libtorch_dir _path_to_libtorch | --libtorch_autodownload | --use_pytorch | --libcantera_dir _path_to_libcantera
+        | --amgx_dir _path_to_amgx"
 }
 
 # default
 LIBTORCH_AUTO=false
 USE_LIBTORCH=false
 USE_PYTORCH=false
+USE_GPUSOLVER=false
 
 while test $# -gt 0; do
     case "$1" in
@@ -54,6 +58,17 @@ while test $# -gt 0; do
             shift
             if test $# -gt 0; then
                 LIBCANTERA_DIR=$1
+            else
+                print_usage
+            return
+            fi
+            shift
+            ;;
+        --amgx_dir)
+            shift
+            if test $# -gt 0; then
+                AMGX_DIR=$1
+                USE_GPUSOLVER=true
             else
                 print_usage
             return
@@ -148,6 +163,9 @@ if [ $USE_PYTORCH = true ]; then
     echo PYTORCH_LIB=$PYTORCH_LIB
     echo LIBTORCH_DIR=""
 fi
+if [ $USE_GPUSOLVER = true ]; then
+    echo AMGX_DIR=$AMGX_DIR
+fi
 
 cp bashrc.in bashrc
 sed -i "s#pwd#$PWD#g" ./bashrc
@@ -155,6 +173,7 @@ sed -i "s#LIBTORCH_DIR#$LIBTORCH_DIR#g" ./bashrc
 sed -i "s#PYTORCH_INC#$PYTORCH_INC#g" ./bashrc
 sed -i "s#PYTORCH_LIB#$PYTORCH_LIB#g" ./bashrc
 sed -i "s#LIBCANTERA_DIR#$LIBCANTERA_DIR#g" ./bashrc
+sed -i "s#@AMGX_DIR@#$AMGX_DIR#g" ./bashrc
 
 
 

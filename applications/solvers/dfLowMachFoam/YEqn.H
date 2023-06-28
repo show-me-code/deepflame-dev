@@ -12,20 +12,6 @@ tmp<fv::convectionScheme<scalar>> mvConvection
         mesh.divScheme("div(phi,Yi_h)")
     )
 );
-
-#ifdef CPUSolver_
-start1 = std::clock();
-forAll(Y, i)
-{
-    sumYDiffError += chemistry->rhoD(i)*fvc::grad(Y[i]);
-}
-// Info << "sumYDiffError\n" << sumYDiffError << endl;
-const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
-start1 = std::clock();
-time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
-time_monitor_YEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
-#endif
-
 #ifdef GPUSolver_
     start1 = std::clock();
     UEqn_GPU.solve();
@@ -124,6 +110,17 @@ time_monitor_YEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
     end1 = std::clock();
     time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_YEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
+#else
+    start1 = std::clock();
+    forAll(Y, i)
+    {
+        sumYDiffError += chemistry->rhoD(i)*fvc::grad(Y[i]);
+    }
+    // Info << "sumYDiffError\n" << sumYDiffError << endl;
+    const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
+    start1 = std::clock();
+    time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_YEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);  
 #endif
 
 //MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
