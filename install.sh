@@ -4,18 +4,17 @@ print_finish() {
     if [ ! -z "$LIBTORCH_ROOT" ]; then
         echo " = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = ="
         echo "| deepflame (linked with libcantera and libtorch) compiled successfully! Enjoy!! |"
+    elif [ ! -z "$PYTHON_LIB_DIR" ]; then
         echo " = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = ="
-        return
+        echo "| deepflame (linked with libcantera and pytorch) compiled successfully! Enjoy!!  |"
+    else
+        echo " = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = ="
+        echo "|     deepflame (linked with libcantera) compiled successfully! Enjoy!!          |"
     fi
-    if [ ! -z "$PYTHON_LIB_DIR" ]; then
-        echo " = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = ="
-        echo "| deepflame (linked with libcantera and pytorch) compiled successfully! Enjoy!! | "
-        echo " = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = ="
-	return
+    if [ ! -z "$AMGX_DIR" ]; then
+        echo "|        select the GPU solver coupled with AMGx library to solve PDE            |"
     fi
-    echo " = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = ="
-    echo "| deepflame (linked with libcantera) compiled successfully! Enjoy!! |"
-    echo " = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = ="
+    echo " = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = ="
 }
 if [ $USE_LIBTORCH = true ]; then
     cd "$DF_SRC/dfChemistryModel/DNNInferencer"
@@ -24,6 +23,14 @@ if [ $USE_LIBTORCH = true ]; then
     cmake ..
     make 
     export LD_LIBRARY_PATH=$DF_SRC/dfChemistryModel/DNNInferencer/build:$LD_LIBRARY_PATH
+fi
+if [ $USE_GPUSOLVER = true ]; then
+    cd "$DF_ROOT/src_gpu"
+    mkdir build
+    cd build
+    cmake ..
+    make 
+    export LD_LIBRARY_PATH=$DF_ROOT/src_gpu/build:$LD_LIBRARY_PATH
 fi
 cd $DF_ROOT
 ./Allwmake -j && print_finish

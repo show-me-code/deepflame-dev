@@ -25,3 +25,4 @@ wclean ./applications/solvers/dfHighSpeedFoam
 rm -rf src_orig/
 rm -rf bin/
 rm -rf lib/
+rm -rf src_gpu/build

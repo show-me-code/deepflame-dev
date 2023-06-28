@@ -1,47 +1,5 @@
 {
     volScalarField& he = thermo.he();
-
-#ifdef CPUSolver_
-    start1 = std::clock();
-    //debug
-    // {
-    //     const fvPatchScalarField& hew = he.boundaryField()[5];
-    //     const basicThermo& bThermo = basicThermo::lookupThermo(hew);
-    //     const scalarField& pw = bThermo.p().boundaryField()[5];
-    //     fvPatchScalarField& Tw =
-    //         const_cast<fvPatchScalarField&>(bThermo.T().boundaryField()[5]);
-    //     scalarField& Tw_v = Tw;
-
-    //     Tw.evaluate();
-
-    //     Info << "internal field" <<bThermo.he(pw, Tw, mesh.boundary()[5].faceCells()) << endl;
-    //     Info << "boundary field" <<bThermo.he(pw, Tw, 5) << endl;
-    //     Info << "calculated grad" << mesh.boundary()[5].deltaCoeffs() * (bThermo.he(pw, Tw, 5) - bThermo.he(pw, Tw, mesh.boundary()[5].faceCells())) << endl;
-    // }
-
-
-    fvScalarMatrix EEqn
-    (
-        fvm::ddt(rho, he) + fvm::div(phi, he)
-      + fvc::ddt(rho, K) + fvc::div(phi, K)
-      - dpdt
-      - fvm::laplacian(turbulence->alphaEff(), he)
-      + diffAlphaD
-     ==
-        fvc::div(hDiffCorrFlux)
-    );
-    end1 = std::clock();
-    time_monitor_EEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
-    time_monitor_EEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
-
-    // EEqn.relax();
-    start1 = std::clock();
-    EEqn.solve();
-    end1 = std::clock();
-    time_monitor_EEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
-    time_monitor_EEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
-#endif
-
 #ifdef GPUSolver_
     start1 = std::clock();
     UEqn_GPU.updatePsi(&U[0][0]);
@@ -51,9 +9,7 @@
     end1 = std::clock();
     time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_UEqn_correctBC += double(end1 - start1) / double(CLOCKS_PER_SEC);
-#endif
 
-#ifdef GPUSolver_
     // prepare data on CPU
     start1 = std::clock();
     start2 = std::clock();
@@ -148,5 +104,27 @@
     end1 = std::clock();
     time_monitor_EEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_EEqn_correctBC += double(end1 - start1) / double(CLOCKS_PER_SEC);
+#else
+    start1 = std::clock();
+    fvScalarMatrix EEqn
+    (
+        fvm::ddt(rho, he) + fvm::div(phi, he)
+      + fvc::ddt(rho, K) + fvc::div(phi, K)
+      - dpdt
+      - fvm::laplacian(turbulence->alphaEff(), he)
+      + diffAlphaD
+     ==
+        fvc::div(hDiffCorrFlux)
+    );
+    end1 = std::clock();
+    time_monitor_EEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_EEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
+
+    // EEqn.relax();
+    start1 = std::clock();
+    EEqn.solve();
+    end1 = std::clock();
+    time_monitor_EEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+    time_monitor_EEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
 #endif
 }

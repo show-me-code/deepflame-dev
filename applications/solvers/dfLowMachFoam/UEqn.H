@@ -79,16 +79,6 @@
         //     }
         // }
     // }
-    // const tmp<volTensorField> tgradU(fvc::grad(U));
-    // const volTensorField& gradU = tgradU();
-    // Pout << "gradU_of[1]\n" << gradU[1] << nl;
-    // Pout << "gradU_of[0][64]\n" << gradU.boundaryField()[0][64] << nl;
-    // Pout << "gradU_of[1][64]\n" << gradU.boundaryField()[1][64] << nl;
-    // Pout << "gradU_of[5][1]\n" << gradU.boundaryField()[5][1] << nl;
-    // Pout << "U[1][1]\n" << U[1] << nl;
-    // Pout << "Ubou[0][64]\n" << U.boundaryField()[0][64] << nl;
-    // Pout << "Ubou[1][64]\n" << U.boundaryField()[1][64] << nl;
-    // Pout << "Ubou[5][1]\n" << U.boundaryField()[5][1] << nl;
     // if (pimple.momentumPredictor())
     // {
     //     solve(UEqn);
