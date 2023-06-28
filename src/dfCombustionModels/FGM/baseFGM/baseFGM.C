@@ -44,7 +44,8 @@ Foam::combustionModels::baseFGM<ReactionThermo>::baseFGM
     combustion_(this->coeffs().lookupOrDefault("combustion", false)),
     solveEnthalpy_(this->coeffs().lookupOrDefault("solveEnthalpy", false)),
     flameletT_(this->coeffs().lookupOrDefault("flameletT", false)),
-    psi_(const_cast<volScalarField&>(dynamic_cast<psiThermo&>(thermo).psi())),
+    // psi_(const_cast<volScalarField&>(dynamic_cast<psiThermo&>(thermo).psi())),
+    psi_(const_cast<volScalarField&>(dynamic_cast<rhoThermo&>(thermo).psi())),
     Wt_ 
     (
         IOobject
@@ -282,6 +283,7 @@ Foam::combustionModels::baseFGM<ReactionThermo>::baseFGM
     ZcvarMax_(0.25),
     ZcvarMin_(-0.25),
     rho_(const_cast<volScalarField&>(this->mesh().objectRegistry::lookupObject<volScalarField>("rho"))),
+    rho_inRhoThermo_(dynamic_cast<rhoThermo&>(thermo).rho()),
     p_(this->thermo().p()),
     T_(this->thermo().T()),
     U_(this->mesh().objectRegistry::lookupObject<volVectorField>("U")),

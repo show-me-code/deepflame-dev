@@ -1,0 +1,6 @@
+[submodule "submodules/libROUNDSchemes"]
+	path = submodules/libROUNDSchemes
+	url = https://github.com/advanCFD/libROUNDSchemes.git
+[submodule "submodules/WENOEXT"]
+	path = submodules/WENOEXT
+	url = https://github.com/WENO-OF/WENOEXT.git

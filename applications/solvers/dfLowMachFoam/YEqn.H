@@ -166,36 +166,27 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
         {
             start1 = std::clock();
             tmp<volScalarField> DEff = chemistry->rhoD(i) + turbulence->mut()/Sct;
+
             fvScalarMatrix YiEqn
+            (
+                fvm::ddt(rho, Yi)
+            +
                 (
-                 fvm::ddt(rho, Yi)
-                 + mvConvection->fvmDiv(phi, Yi)
-                 + mvConvection->fvmDiv(phiUc, Yi)
-                 ==
-                 (
-                  splitting
-                  ?   fvm::laplacian(DEff(), Yi)
-                  :  (fvm::laplacian(DEff(), Yi) + combustion->R(Yi))
-                 )
-                );
-            // debug
-            if (i == 0)
-            {
-                printf("b = %lf\n", YiEqn.source()[1]);
-                forAll(mesh.boundary(), patchi){
-                    labelUList sub_boundary = mesh.boundary()[patchi].faceCells();
-                    forAll(sub_boundary, i){
-                        if (sub_boundary[i] == 0){
-                            printf("patchID = %d, faceID = %d\n", patchi, i);
-                            printf("YiEqn = %.15lf\n", YiEqn.boundaryCoeffs()[patchi][i]);
-                        }
-                    }
-                }
-            }
+                    turbName == "laminar"
+                    ?  (mvConvection->fvmDiv(phi, Yi) + mvConvection->fvmDiv(phiUc, Yi))
+                    :   mvConvection->fvmDiv(phi, Yi)
+                )
+            ==
+                (
+                    splitting
+                    ?   fvm::laplacian(DEff(), Yi)
+                    :  (fvm::laplacian(DEff(), Yi) + combustion->R(Yi))
+                    )
+            );
             
             end1 = std::clock();
             time_monitor_YEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
-            // YiEqn.relax();
+            YiEqn.relax();
 
             start1 = std::clock();
             YiEqn.solve("Yi");

@@ -37,7 +37,9 @@ Foam::combustionModels::PaSR<ReactionThermo>::PaSR
 )
 :
     laminar<ReactionThermo>(modelType, thermo, turb, combustionProperties),
-    mu_(const_cast<volScalarField&>(dynamic_cast<psiThermo&>(thermo).mu()())),
+    mixture_(dynamic_cast<CanteraMixture&>(thermo)),
+    // mu_(const_cast<volScalarField&>(dynamic_cast<psiThermo&>(thermo).mu()())),
+    mu_(const_cast<volScalarField&>(dynamic_cast<rhoThermo&>(thermo).mu()())),
     p_(this->thermo().p()),
     T_(this->thermo().T()),
     mixingScaleDict_(this->coeffs().subDict("mixingScale")),
@@ -273,54 +275,118 @@ void Foam::combustionModels::PaSR<ReactionThermo>::correct()
        const volScalarField& YCO2 = this->chemistryPtr_->Y()[specieCO2];
        const volScalarField& YH2 = this->chemistryPtr_->Y()[specieH2];
 
-     //- initialize fuel and oxidizer chemitry time scale
+     //- initialize fuel and oxidizer chemistry time scale
         volScalarField t_fuel=tc_;
-		volScalarField t_oxidizer=tc_;
-		volScalarField t_CO2=tc_;        
-		volScalarField t_H2=tc_;   
+	volScalarField t_oxidizer=tc_;
+	volScalarField t_CO2=tc_;        
+	volScalarField t_H2=tc_;   
 
-	   forAll(rho,cellI)
-	   {
+	forAll(rho,cellI)
+	{
 
-		scalar RR_fuel = this->chemistryPtr_->RR(specieFuel)[cellI];
-		scalar RR_oxidizer = this->chemistryPtr_->RR(specieOxidizer)[cellI];
-		scalar RR_CO2 = this->chemistryPtr_->RR(specieCO2)[cellI];
-		scalar RR_H2 = this->chemistryPtr_->RR(specieH2)[cellI];
+	    scalar RR_fuel = this->chemistryPtr_->RR(specieFuel)[cellI];
+	    scalar RR_oxidizer = this->chemistryPtr_->RR(specieOxidizer)[cellI];
+	    scalar RR_CO2 = this->chemistryPtr_->RR(specieCO2)[cellI];
+	    scalar RR_H2 = this->chemistryPtr_->RR(specieH2)[cellI];
 
-		if( (RR_oxidizer < 0.0)  &&  (Yoxidizer[cellI] > 1e-10) )							
-		{			
-			t_oxidizer[cellI] =  -rho[cellI] * Yoxidizer[cellI]/(RR_oxidizer);   
-		}
+	    if( (RR_oxidizer < 0.0)  &&  (Yoxidizer[cellI] > 1e-10) )							
+	    {			
+		t_oxidizer[cellI] =  -rho[cellI] * Yoxidizer[cellI]/(RR_oxidizer);   
+	    }
 	 
-		if	( (RR_fuel < 0.0) && (Yfuel[cellI] > 1e-10))
-		{								
-			t_fuel[cellI] =  -rho[cellI] * Yfuel[cellI]/(RR_fuel);   
-		}
+	    if	( (RR_fuel < 0.0) && (Yfuel[cellI] > 1e-10))
+	    {								
+		t_fuel[cellI] =  -rho[cellI] * Yfuel[cellI]/(RR_fuel);   
+	    }
 
-		if	( (RR_CO2 > 0.0) && (YCO2[cellI] > 1e-10))
-		{								
-			t_CO2[cellI] =  rho[cellI] * YCO2[cellI]/(RR_CO2);   
-		}        
+	    if	( (RR_CO2 > 0.0) && (YCO2[cellI] > 1e-10))
+	    {								
+		t_CO2[cellI] =  rho[cellI] * YCO2[cellI]/(RR_CO2);   
+	    }        
 
-        if	( (RR_H2 < 0.0) && (YH2[cellI] > 1e-10))
-		{								
-			t_H2[cellI] =  -rho[cellI] * YH2[cellI]/(RR_H2);   
-		}        
+            if( (RR_H2 < 0.0) && (YH2[cellI] > 1e-10))
+	    {								
+		t_H2[cellI] =  -rho[cellI] * YH2[cellI]/(RR_H2);   
+	    }        
 
-		tc_[cellI] = max(t_oxidizer[cellI],t_fuel[cellI]);     
+            tc_[cellI] = max(t_oxidizer[cellI],t_fuel[cellI]);     
 
-        tc_[cellI] = max(t_CO2[cellI],tc_[cellI]);     
+            tc_[cellI] = max(t_CO2[cellI],tc_[cellI]);     
 	 	
-        tc_[cellI] = max(t_H2[cellI],tc_[cellI]);     
+            tc_[cellI] = max(t_H2[cellI],tc_[cellI]);     
 	  }
 
     }
 
-    if(chemistryScaleType_=="formationRate")
+    else if(chemistryScaleType_=="formationRate")
     {
        tc_ = this->tc();
     }
 
+    else if(chemistryScaleType_=="reactionRate")
+    {
+        PtrList<volScalarField>& Y = this->chemistryPtr_->Y();  
+
+        doublereal fwdRate[mixture_.nReactions()];
+        doublereal revRate[mixture_.nReactions()];        
+        doublereal X[mixture_.nSpecies()];
+
+        forAll(rho, celli)
+        {
+            const scalar rhoi = rho[celli];
+            const scalar Ti = T_[celli];
+            const scalar pi = p_[celli];
+
+            scalar cSum = 0;
+
+            for (label i=0; i< mixture_.nSpecies(); i++)
+            {
+                X[i] = rhoi*Y[i][celli]/mixture_.CanteraGas()->molecularWeight(i);
+                cSum += X[i];
+            }
+		
+            mixture_.CanteraGas()->setState_TPX(Ti, pi, X);
+            mixture_.CanteraKinetics()->getFwdRatesOfProgress(fwdRate);
+            mixture_.CanteraKinetics()->getRevRatesOfProgress(revRate);
+ 
+            scalar sumW = 0, sumWRateByCTot = 0;
+ 
+            for (label i=0; i< mixture_.nReactions(); i++)
+            {
+
+                std::shared_ptr<Cantera::Reaction> R(mixture_.CanteraKinetics()->reaction(i));               
+
+                scalar wf = 0;
+                for (const auto& sp : R->products)
+                {
+                    wf += sp.second*fwdRate[i];
+                }
+                sumW += wf;
+                sumWRateByCTot += sqr(wf);
+
+                scalar wr = 0;
+                for (const auto& sp : R->reactants)
+                {
+                    wr += sp.second*revRate[i];
+                }
+                sumW += wr;
+                sumWRateByCTot += sqr(wr);                        
+            }
+
+            tc_[celli] = sumWRateByCTot == 0 ? vGreat : sumW/sumWRateByCTot*cSum;
+         } 
+
+         tc_.correctBoundaryConditions();
+    }   
+
+    else
+    {
+            FatalErrorInFunction
+            << "Unknown chemicalScaleType type "
+            << chemistryScaleType_
+            << ", not in table" << nl << nl
+            << exit(FatalError);        
+    }
 
     forAll(kappa_, cellI)
     {

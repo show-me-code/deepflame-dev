@@ -32,16 +32,31 @@ const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
         if (i != inertIndex)
         {
             tmp<volScalarField> DEff = chemistry->rhoD(i) + turbulence->mut()/Sct;
+            
             fvScalarMatrix YEqn
             (
+                turbName == "laminar"
+                ?
+                (
                 fvm::ddt(rho, Yi)
-              + mvConvection->fvmDiv(phi, Yi)
-              - fvm::laplacian(DEff(), Yi)
-              + mvConvection->fvmDiv(phiUc, Yi)
-             ==
+            +   mvConvection->fvmDiv(phi, Yi)
+            -   fvm::laplacian(DEff(), Yi)
+            +   mvConvection->fvmDiv(phiUc, Yi)
+            ==
                 parcels.SYi(i, Yi)
-              + combustion->R(Yi)
-              //+ fvOptions(rho, Yi)
+            +   combustion->R(Yi)
+            //+ fvOptions(rho, Yi)
+                )
+                :
+                (
+                fvm::ddt(rho, Yi)
+            +   mvConvection->fvmDiv(phi, Yi)
+            -   fvm::laplacian(DEff(), Yi)
+            ==
+                parcels.SYi(i, Yi)
+            +   combustion->R(Yi)
+            //+ fvOptions(rho, Yi)
+                )
             );
 
             YEqn.relax();
@@ -54,6 +69,7 @@ const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
 
             Yi.max(0.0);
             Yt += Yi;
+            
         }
     }
 

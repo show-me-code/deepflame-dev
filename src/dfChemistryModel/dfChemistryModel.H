@@ -62,7 +62,8 @@ SourceFiles
 #include "scalarField.H"
 #include "volFields.H"
 #include "hashedWordList.H"
-#include "psiThermo.H"
+// #include "psiThermo.H"
+#include "rhoThermo.H"
 #include "physicoChemicalConstants.H" // for R
 #include "ChemistryProblem.H"
 #include "ChemistrySolution.H"
@@ -92,6 +93,7 @@ public IOdictionary
         ThermoType& thermo_;
         CanteraMixture& mixture_;
         std::shared_ptr<Cantera::ThermoPhase> CanteraGas_;
+        std::shared_ptr<Cantera::Kinetics> CanteraKinetics_;
         const fvMesh& mesh_;
         Switch chemistry_;
 
@@ -106,7 +108,7 @@ public IOdictionary
         // species absolute enthalpy, [J/kg]
         PtrList<volScalarField> hai_;
         // species chemistry enthalpy, [J/kg]
-        scalarList hc_;
+        scalarList hc_;         
         // temp mass fraction
         mutable scalarList yTemp_;
         // temp mass diffusion coefficients
@@ -121,7 +123,7 @@ public IOdictionary
         volScalarField& alpha_;
         volScalarField& T_;
         const volScalarField& p_;
-        const volScalarField& rho_;
+        volScalarField& rho_;
         volScalarField& mu_;
         volScalarField& psi_;
         // heat release rate, [J/m^3/s]
@@ -283,6 +285,12 @@ public:
         //- Return access to chemical source terms [kg/m^3/s]
         volScalarField::Internal& RR(const label i) {return RR_[i];}
 
+        tmp<volScalarField::Internal> calculateRR
+        (
+            const label reactionI,
+            const label speciei
+        ) const;
+
         //- Return the heat release rate [J/m/s^3]
         const volScalarField& Qdot() const
         {
@@ -303,6 +311,37 @@ public:
         ThermoType& thermo() {return thermo_;}
 
         const CanteraMixture& mixture() {return mixture_;}
+
+        void setEnergyName(word name){
+            mixture_.setEnergyName(name);
+        }
+        void updateEnergy()
+        {
+            scalarField& heCells = thermo_.he().primitiveFieldRef();
+            const scalarField& pCells = p_;
+            const scalarField& TCells = T_;
+
+            forAll(heCells, celli)
+            {
+                heCells[celli] =
+                    mixture_.cellMixture(celli).HE(pCells[celli], TCells[celli]);
+            }
+
+            volScalarField::Boundary& heBf = thermo_.he().boundaryFieldRef();
+
+            forAll(heBf, patchi)
+            {
+                fvPatchScalarField& phe = heBf[patchi];
+                forAll(phe, facei)
+                {
+                    phe[facei] = mixture_.patchFaceMixture(patchi,facei).HE
+                    (
+                        p_.boundaryField()[patchi][facei],
+                        T_.boundaryField()[patchi][facei]
+                    );
+                }
+            }
+        }
 
     // profiling
 #if defined USE_LIBTORCH || defined USE_PYTORCH

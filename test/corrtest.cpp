@@ -10,8 +10,8 @@ float readmidTH2();
 float readmaxTH2();
 
 float readTGV(int k, string file);
-//float readHighSpeed();
-//float v = readHighSpeed();
+float readHighSpeed();
+float v = readHighSpeed();
 
 float H2maxT = readmaxTH2();
 float H2midT = readmidTH2();
@@ -41,17 +41,27 @@ TEST(corrtest,df0DFoam_H2){
 
 
 
-TEST(corrtest,dfLowMachFoam_TGV){
-    EXPECT_FLOAT_EQ(TGV500,1533.48);   // compare the maximum temperature along y direction in 2D TGV after 500 time steps
-    EXPECT_FLOAT_EQ(TGV400,1296.99);   //  ..........400 time steps
-    EXPECT_FLOAT_EQ(TGV300,878.07);
-    EXPECT_FLOAT_EQ(TGV200,545.818);
-    EXPECT_FLOAT_EQ(TGV100,364.018);
+//TEST(corrtest,dfLowMachFoam_TGV){
+//    EXPECT_FLOAT_EQ(TGV500,1533.48);   // compare the maximum temperature along y direction in 2D TGV after 500 time steps
+//    EXPECT_FLOAT_EQ(TGV400,1296.99);   //  ..........400 time steps
+//    EXPECT_FLOAT_EQ(TGV300,878.07);
+//    EXPECT_FLOAT_EQ(TGV200,545.818);
+//    EXPECT_FLOAT_EQ(TGV100,364.018);
+//}
+
+
+
+TEST(corrtest,dfHighSpeedFoam){
+   EXPECT_NEAR(v,1979.33,19.79); // within 1% of the theroetical value
 }
 
-//TEST(corrtest,dfHighSpeedFoam){
-//    EXPECT_NEAR(v,1979.33,19.79); // within 1% of the theroetical value
-//}
+TEST(corrtest,dfLowMachFoam_TGV){
+    EXPECT_FLOAT_EQ(TGV500,1532.92);   // compare the maximum temperature along y direction in 2D TGV after 500 time steps
+    EXPECT_FLOAT_EQ(TGV400,1297.64);   //  ..........400 time steps
+    EXPECT_FLOAT_EQ(TGV300,871.092);
+    EXPECT_FLOAT_EQ(TGV200,537.614);
+    EXPECT_FLOAT_EQ(TGV100,363.504);
+}
 
 TEST(corrtest,2DSandia){
     EXPECT_FLOAT_EQ(T1,802.1133601);   

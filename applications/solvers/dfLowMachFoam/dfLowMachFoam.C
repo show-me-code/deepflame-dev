@@ -35,7 +35,8 @@ Description
 
 #include "dfChemistryModel.H"
 #include "CanteraMixture.H"
-#include "hePsiThermo.H"
+// #include "hePsiThermo.H"
+#include "heRhoThermo.H"
 
 #ifdef USE_PYTORCH
 #include <pybind11/embed.h>
@@ -221,7 +222,7 @@ int main(int argc, char *argv[])
             end = std::clock();
             time_monitor_U += double(end - start) / double(CLOCKS_PER_SEC);
 
-            if(combModelName!="ESF" && combModelName!="flareFGM" )
+            if(combModelName!="ESF" && combModelName!="flareFGM" && combModelName!="DeePFGM")
             {
                 start = std::clock();
                 #include "YEqn.H"
@@ -276,11 +277,6 @@ int main(int argc, char *argv[])
         rho = thermo.rho();
 
         runTime.write();
-
-        Info << "output time index " << runTime.timeIndex() << endl;
-
-        Info<< "Init Time(createdfSolver)    = " << time_monitor_init << " s" << endl;
-
         Info<< "========Time Spent in diffenet parts========"<< endl;
         Info<< "loop Time                    = " << loop_time << " s" << endl;
         Info<< "other Time                   = " << time_monitor_other << " s" << endl;

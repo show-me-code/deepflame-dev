@@ -2,9 +2,10 @@
 
 Info<< "Reading thermophysical properties\n" << endl;
 
-fluidThermo* pThermo = new hePsiThermo<psiThermo, CanteraMixture>(mesh, word::null);
+// fluidThermo* pThermo = new hePsiThermo<psiThermo, CanteraMixture>(mesh, word::null);
+fluidThermo* pThermo = new heRhoThermo<rhoThermo, CanteraMixture>(mesh, word::null);
 fluidThermo& thermo = *pThermo;
-thermo.validate(args.executable(), "ha");
+// thermo.validate(args.executable(), "ha");
 
 const volScalarField& psi = thermo.psi();
 volScalarField& p = thermo.p();
@@ -79,14 +80,17 @@ autoPtr<CombustionModel<basicThermo>> combustion
 Info<< "end Creating reaction model\n" << endl;
 
 
-//const word combModelName(combustion->type());
 const word combModelName(mesh.objectRegistry::lookupObject<IOdictionary>("combustionProperties").lookup("combustionModel"));
 Info << "Combustion Model Name is confirmed as "<< combModelName << endl;
+
+const word turbName(mesh.objectRegistry::lookupObject<IOdictionary>("turbulenceProperties").lookup("simulationType"));
 
 dfChemistryModel<basicThermo>* chemistry = combustion->chemistry();
 PtrList<volScalarField>& Y = chemistry->Y();
 const word inertSpecie(chemistry->lookup("inertSpecie"));
 const label inertIndex(chemistry->species()[inertSpecie]);
+chemistry->setEnergyName("ha");
+chemistry->updateEnergy();
 
 
 chemistry->correctThermo();

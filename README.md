@@ -18,7 +18,7 @@
 
 DeepFlame is a deep learning empowered computational fluid dynamics package for single or multiphase, laminar or turbulent, reacting flows at all speeds. It aims to provide an open-source platform to combine the individual strengths of [OpenFOAM](https://openfoam.org), [Cantera](https://cantera.org), and [PyTorch](https://pytorch.org/) libraries for deep learning assisted reacting flow simulations. It also has the scope to leverage the next-generation heterogenous supercomputing and AI acceleration infrastructures such as GPU and FPGA.
 
-The deep learning algorithms and models used in the DeepFlame tutorial examples are developed and trained independently by our collaborators team – [DeepCombustion](https://github.com/deepcombustion/deepcombustion). Please refer to their website for detailed information.
+The deep learning algorithms and models used in the DeepFlame tutorial examples are developed and trained independently by our collaborators team – [Intelligent Combustion](https://github.com/intelligent-algorithm-team/intelligent-combustion.git). Please refer to their website for detailed information.
 
 ## Documentation
 Detailed guide for installation and tutorials is available on [our documentation website](https://deepflame.deepmodeling.com).

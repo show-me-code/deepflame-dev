@@ -46,20 +46,32 @@ Foam::CanteraMixture::CanteraMixture
             IOobject::NO_WRITE
         )
     ),
-    CanteraMechanismFile_(CanteraTorchProperties_.lookup("CanteraMechanismFile")),
-    CanteraSolution_(Cantera::newSolution(CanteraMechanismFile_, "")),
-    CanteraGas_(CanteraSolution_->thermo()),
+    CanteraMechanismFile_(fileName(CanteraTorchProperties_.lookup("CanteraMechanismFile")).expand()),
     transportModelName_(CanteraTorchProperties_.lookup("transportModel")),
-    CanteraTransport_(newTransportMgr(transportModelName_, CanteraGas_.get())),
-    Y_(nSpecies()),
     Tref_(mesh.objectRegistry::lookupObject<volScalarField>("T")),
     pref_(mesh.objectRegistry::lookupObject<volScalarField>("p")),
-    yTemp_(nSpecies()),
-    HaTemp_(nSpecies()),
-    CpTemp_(nSpecies()),
-    CvTemp_(nSpecies()),
-    muTemp_(nSpecies())
+    energyName_("energy")
 {
+    if(!isFile(CanteraMechanismFile_))
+    {
+        FatalErrorInFunction
+            <<"Chemical mechanism "
+            <<CanteraMechanismFile_
+            <<" doesn't exist!\n"
+            <<exit(FatalError);
+    }
+
+    CanteraSolution_=Cantera::newSolution(CanteraMechanismFile_, "");
+    CanteraGas_=CanteraSolution_->thermo();
+    CanteraKinetics_=CanteraSolution_->kinetics();
+    CanteraTransport_=newTransportMgr(transportModelName_, CanteraGas_.get());
+
+    Y_.resize(nSpecies());
+    yTemp_.resize(nSpecies());
+    HaTemp_.resize(nSpecies());
+    CpTemp_.resize(nSpecies());
+    CvTemp_.resize(nSpecies());
+    muTemp_.resize(nSpecies());
     forAll(Y_, i)
     {
         species_.append(CanteraGas_->speciesName(i));
@@ -211,8 +223,9 @@ Foam::scalar Foam::CanteraMixture::THE
     const scalar& T
 ) const
 {
-    CanteraGas_->setState_HP(h, p);
-    return CanteraGas_->temperature();
+    // In DeepFlame temperature field is updated in correctThermo()
+    // so there is no need to update T in this function
+    return T;
 }
 
 Foam::scalar Foam::CanteraMixture::Hc() const

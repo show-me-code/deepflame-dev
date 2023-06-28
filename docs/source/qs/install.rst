@@ -48,12 +48,30 @@ If you have installed using ``apt-get install``, then:
 .. code-block:: bash
 
     source /opt/openfoam7/etc/bashrc 
-    
+
 If you compiled from source following the `official guide <https://openfoam.org/download/7-source/>`_, then:
 
 .. code-block:: bash
 
     source $HOME/OpenFOAM/OpenFOAM-7/etc/bashrc
+
+To source the bashrc file automatically when opening your terminal, type
+
+.. code-block:: bash
+
+    echo "source /opt/openfoam7/etc/bashrc" >> ~/.bashrc
+
+or
+
+.. code-block:: bash
+
+     echo "source $HOME/OpenFOAM/OpenFOAM-7/etc/bashrc" >> ~/.bashrc
+    
+Then source the bashrc file by:
+
+.. code-block:: bash
+
+    source ~/.bashrc
 
 .. Note:: Check your environment using ``echo $FOAM_ETC`` and you should get the directory path for your OpenFOAM-7 bashrc you just used in the above step.
 
@@ -62,6 +80,15 @@ If you compiled from source following the `official guide <https://openfoam.org/
 .. code-block:: bash
 
     git clone https://github.com/deepmodeling/deepflame-dev.git
+
+If you want to use the submodules included in DeepFlame: the `WENO scheme <https://github.com/WENO-OF/WENOEXT>`_ and the `libROUNDSchemes <https://github.com/advanCFD/libROUNDSchemes>`_, run
+
+.. code-block:: bash
+
+    git clone --recursive https://github.com/deepmodeling/deepflame-dev.git
+
+Detailed instructions for compiling these two submodules can be found in their original repositories. 
+
 
 **3. Configure the DeepFlame environment:**
 

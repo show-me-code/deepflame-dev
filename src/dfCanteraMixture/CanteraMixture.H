@@ -39,6 +39,7 @@ SourceFiles
 #include "cantera/zerodim.h"
 #include "cantera/transport.h"
 #include "cantera/thermo/IdealGasPhase.h"
+#include "cantera/kinetics.h"
 #include "IOdictionary.H"
 #include "fvMesh.H"
 #include "word.H"
@@ -63,17 +64,18 @@ class CanteraMixture
     // Private Data
 
         IOdictionary CanteraTorchProperties_;
-        const word CanteraMechanismFile_;
+        const string CanteraMechanismFile_;
         std::shared_ptr<Cantera::Solution> CanteraSolution_;
         std::shared_ptr<Cantera::ThermoPhase> CanteraGas_;
+        std::shared_ptr<Cantera::Kinetics> CanteraKinetics_;
         word transportModelName_;
-        std::shared_ptr<Cantera::Transport> CanteraTransport_;
+        Cantera::Transport* CanteraTransport_;
         hashedWordList species_;
         PtrList<volScalarField> Y_;
         const volScalarField& Tref_;
         const volScalarField& pref_;
         mutable scalarList yTemp_;
-
+        word energyName_;
 
         //- Construct as copy (not implemented)
         CanteraMixture(const CanteraMixture&);
@@ -117,7 +119,33 @@ public:
             const scalar& T
         ) const
         {
-            return CanteraGas_->meanMolecularWeight()/CanteraGas_->RT();
+            const Cantera::AnyMap& map = CanteraGas_->input();
+            if(map["thermo"].asString()=="Peng-Robinson" || map["thermo"].asString()=="Redlich-Kwong")
+            {
+                // for non-ideal EoS, psi = \partial rho/ \partial p at constant enthalpy
+                // Currently, Peng-Robinson and Redlich-Kwong are available in Cantera
+                // The partial derivative was approximated using backward difference with a step size dx
+                double h0 = CanteraGas_->enthalpy_mass();
+                double dx = 0.0001;
+                double rho1 = CanteraGas_->density();
+                CanteraGas_->setState_HP(h0,p*(1-dx));
+                double rho2 = CanteraGas_->density();
+                return (rho1-rho2)/(dx*p);
+            }
+            else
+            {
+                // for ideal gas, psi = W/RT
+                return CanteraGas_->meanMolecularWeight()/CanteraGas_->RT();
+            }
+        }
+
+        scalar rho
+        (
+            const scalar& p,
+            const scalar& T
+        ) const
+        {
+            return CanteraGas_->density();
         }
 
         scalar mu
@@ -144,7 +172,8 @@ public:
             const scalar& T
         ) const
         {
-            return CanteraGas_->enthalpy_mass(); // J/kg
+            if(energyName_=="ha") return CanteraGas_->enthalpy_mass(); // J/kg
+            if(energyName_=="ea") return CanteraGas_->intEnergy_mass(); // J/kg
         }
 
         scalar Hc() const; // J/kg
@@ -199,7 +228,7 @@ public:
             return CanteraGas_->meanMolecularWeight();
         }
 
-        static inline word heName() {return "ha";}
+        inline word heName() {return energyName_;}
 
         PtrList<volScalarField>& Y() {return Y_;}
         const PtrList<volScalarField>& Y() const {return Y_;}
@@ -212,12 +241,15 @@ public:
 
         const hashedWordList& species() const {return species_;}
         int nSpecies() {return int(CanteraGas_->nSpecies());}
+        int nReactions() {return int(CanteraKinetics_->nReactions());} 
 
         std::shared_ptr<Cantera::ThermoPhase> CanteraGas() {return CanteraGas_;}
 
         std::shared_ptr<Cantera::Solution> CanteraSolution() {return CanteraSolution_;}
+  
+        std::shared_ptr<Cantera::Kinetics> CanteraKinetics() {return CanteraKinetics_;}
 
-        std::shared_ptr<Cantera::Transport> CanteraTransport() {return CanteraTransport_;}
+        Cantera::Transport* CanteraTransport() {return CanteraTransport_;}
 
         const word& transportModelName() {return transportModelName_;}
 
@@ -313,6 +345,8 @@ public:
 
     //- Read dictionary
     void read(const dictionary&);
+
+    void setEnergyName(word name){energyName_=name;}
 };
 
 

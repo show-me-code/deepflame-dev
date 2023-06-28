@@ -2,8 +2,10 @@
 
 Info<< "Reading thermophysical properties\n" << endl;
 
-psiThermo* pThermo = new hePsiThermo<psiThermo, CanteraMixture>(mesh, word::null);
-psiThermo& thermo = *pThermo;
+// psiThermo* pThermo = new hePsiThermo<psiThermo, CanteraMixture>(mesh, word::null);
+// psiThermo& thermo = *pThermo;
+rhoThermo* pThermo = new heRhoThermo<rhoThermo, CanteraMixture>(mesh, word::null);
+rhoThermo& thermo = *pThermo;
 
 //move from creatFieldRefs.H to createFields.H
 //p needed to be created before e
@@ -27,7 +29,7 @@ dictionary thermoDict
     )
 );
 
-bool inviscid(thermoDict.lookup("inviscid"));
+bool inviscid(thermoDict.lookupOrDefault("inviscid",false));
 
 Info<< "Reading field U\n" << endl;
 volVectorField U
@@ -56,9 +58,6 @@ volScalarField rho
     thermo.rho()
 );
 
-volScalarField e = thermo.he() - p/rho;
-volScalarField& ha = thermo.he();
-
 volVectorField rhoU
 (
     IOobject
@@ -70,19 +69,6 @@ volVectorField rhoU
         IOobject::NO_WRITE
     ),
     rho*U
-);
-
-volScalarField rhoE
-(
-    IOobject
-    (
-        "rhoE",
-        runTime.timeName(),
-        mesh,
-        IOobject::NO_READ,
-        IOobject::NO_WRITE
-    ),
-    rho*(e + 0.5*magSqr(U))
 );
 
 surfaceScalarField pos
@@ -135,6 +121,24 @@ dfChemistryModel<basicThermo>* chemistry = combustion->chemistry();
 PtrList<volScalarField>& Y = chemistry->Y();
 const word inertSpecie(chemistry->lookup("inertSpecie"));
 const label inertIndex(chemistry->species()[inertSpecie]);
+chemistry->setEnergyName("ea");
+chemistry->updateEnergy();
+
+volScalarField& ea = thermo.he();
+volScalarField ha = ea + p/rho;
+
+volScalarField rhoE
+(
+    IOobject
+    (
+        "rhoE",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    rho*(ea + 0.5*magSqr(U))
+);
 
 chemistry->correctThermo();
 Info<< "At initial time, min/max(T) = " << min(T).value() << ", " << max(T).value() << endl;
@@ -144,6 +148,28 @@ forAll(Y, i)
     fields.add(Y[i]);
 }
 fields.add(thermo.he());
+
+const label nspecies(chemistry->species().size());
+PtrList<volScalarField> rhoYi(nspecies);
+forAll(rhoYi,i)
+{
+    rhoYi.set
+    (
+        i,
+        new volScalarField
+        (
+            IOobject
+            (
+                "rhoYi" + Y[i].name(),
+                runTime.timeName(),
+                mesh,
+                IOobject::NO_READ,
+                IOobject::NO_WRITE
+            ),
+            rho*Y[i]
+        )
+    );
+}
 
 const scalar Sct = chemistry->lookupOrDefault("Sct", 1.);
 volScalarField diffAlphaD
