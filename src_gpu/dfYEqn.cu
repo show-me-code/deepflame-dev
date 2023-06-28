@@ -732,8 +732,8 @@ __global__ void yeqn_calculate_rhoD_alpha_via_nuEff_internal(int num_cells, int 
     alpha[index] = rhoD[index];
 }
 
-__global__ void yeqn_calculate_rhoD_alpha_via_nuEff_boundary(int num_boundary_face, int num_species, double *boundary_rhoD, const double *boundary_nuEff,
-        const double *boundary_rho, double *boundary_alpha)    
+__global__ void yeqn_calculate_rhoD_alpha_via_nuEff_boundary(int num_boundary_face, int num_species, int *permutIndex,
+        double *boundary_rhoD, const double *boundary_nuEff, const double *boundary_rho, double *boundary_alpha)    
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index >= num_boundary_face)
@@ -743,7 +743,7 @@ __global__ void yeqn_calculate_rhoD_alpha_via_nuEff_boundary(int num_boundary_fa
     //     boundary_rhoD[i * num_boundary_face + index] = boundary_nuEff[index] * boundary_rho[index] / 0.7;
     // }
 
-    boundary_alpha[index] = boundary_rhoD[index];
+    boundary_alpha[index] = boundary_rhoD[permutIndex[index]];
 }
 
 dfYEqn::dfYEqn(dfMatrixDataBase &dataBase, const std::string &modeStr, const std::string &cfgFile, const int inertIndex)
@@ -916,7 +916,7 @@ void dfYEqn::fvm_laplacian_and_sumYDiffError_diffAlphaD_hDiffCorrFlux(std::vecto
 
     blocks_per_grid = (num_boundary_faces + threads_per_block - 1) / threads_per_block;
     yeqn_calculate_rhoD_alpha_via_nuEff_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(
-            num_boundary_faces, num_species,
+            num_boundary_faces, num_species, dataBase_.d_bouPermedIndex,
             d_boundary_rhoD, dataBase_.d_boundary_nuEff, dataBase_.d_boundary_rho, dataBase_.d_boundary_alpha);
     clock_t end = std::clock();
     fprintf(stderr, "GPU memcpy time in YEqn = %lf s\n", double(end - start) / double(CLOCKS_PER_SEC));

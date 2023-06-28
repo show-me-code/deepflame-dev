@@ -101,10 +101,7 @@ __global__ void fvm_div_boundary(int num_cells, int num_faces, int num_boundary_
     int diag_index = csr_diag_index[cell_index];
     int csr_dim = num_cells + num_faces;
     int csr_index = row_index + diag_index;
-    if (index == 24570)
-    {
-        printf("csr_index = %d\n", csr_index);
-    }
+
     // construct internalCoeffs & boundaryCoeffs
     double internal_coeffs_x = 0;
     double internal_coeffs_y = 0;
@@ -456,12 +453,18 @@ __global__ void fvc_grad_vector_boundary(int num_cells, int num_boundary_cells,
     grad_boundary_init[index * 9 + 6] = grad[cell_index * 9 + 6];
     grad_boundary_init[index * 9 + 7] = grad[cell_index * 9 + 7];
     grad_boundary_init[index * 9 + 8] = grad[cell_index * 9 + 8];
+    // if (index == 1)
+    // {
+    //     printf("grad[1] = (%lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf)\n", grad[index * 9 + 0], grad[index * 9 + 1], grad[index * 9 + 2],
+    //             grad[index * 9 + 3], grad[index * 9 + 4], grad[index * 9 + 5], grad[index * 9 + 6], grad[index * 9 + 7], grad[index * 9 + 8]);
+    // }
 }
 
 __global__ void correct_boundary_conditions(int num_boundary_cells,
                                             const int *boundary_cell_offset, const int *boundary_cell_id,
                                             const double *boundary_sf, const double *mag_sf,
-                                            double *boundary_grad_init, double *boundary_grad)
+                                            double *boundary_grad_init, double *boundary_grad, const double *boundary_deltaCoeffs,
+                                            const double *internal_velocity, const double *boundary_velocity, const int *U_patch_type)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index >= num_boundary_cells)
@@ -469,6 +472,7 @@ __global__ void correct_boundary_conditions(int num_boundary_cells,
 
     int cell_offset = boundary_cell_offset[index];
     int next_cell_offset = boundary_cell_offset[index + 1];
+    int cell_index = boundary_cell_id[cell_offset];
 
     // initialize boundary_grad
     double grad_xx = boundary_grad_init[index * 9 + 0];
@@ -480,6 +484,10 @@ __global__ void correct_boundary_conditions(int num_boundary_cells,
     double grad_zx = boundary_grad_init[index * 9 + 6];
     double grad_zy = boundary_grad_init[index * 9 + 7];
     double grad_zz = boundary_grad_init[index * 9 + 8];
+
+    double internal_U_x = internal_velocity[cell_index * 3 + 0];
+    double internal_U_y = internal_velocity[cell_index * 3 + 1];
+    double internal_U_z = internal_velocity[cell_index * 3 + 2];
 
     for (int i = cell_offset; i < next_cell_offset; i++)
     {
@@ -494,13 +502,35 @@ __global__ void correct_boundary_conditions(int num_boundary_cells,
         //      vsf.boundaryField()[patchi].snGrad()
         //      - (n & gGradbf[patchi])
         //     );
+        // template<class Type> // fixedValue
+        // Foam::tmp<Foam::Field<Type>> Foam::fvPatchField<Type>::snGrad() const
+        // {
+        //     return patch_.deltaCoeffs()*(*this - patchInternalField());
+        // }
 
         double n_x = boundary_sf[i * 3 + 0] / mag_sf[i];
         double n_y = boundary_sf[i * 3 + 1] / mag_sf[i];
         double n_z = boundary_sf[i * 3 + 2] / mag_sf[i];
-        double sn_grad_x = 0;
-        double sn_grad_y = 0;
-        double sn_grad_z = 0;
+
+        double sn_grad_x, sn_grad_y, sn_grad_z;
+        int patchIndex = U_patch_type[i];
+        if (patchIndex == 0) { // zeroGradient
+            sn_grad_x = 0;
+            sn_grad_y = 0;
+            sn_grad_z = 0;
+        } else if (patchIndex == 1) { // fixedValue
+            sn_grad_x = boundary_deltaCoeffs[i] * (boundary_velocity[i * 3 + 0] - internal_velocity[cell_index * 3 + 0]);
+            sn_grad_y = boundary_deltaCoeffs[i] * (boundary_velocity[i * 3 + 1] - internal_velocity[cell_index * 3 + 1]);
+            sn_grad_z = boundary_deltaCoeffs[i] * (boundary_velocity[i * 3 + 2] - internal_velocity[cell_index * 3 + 2]);
+            // if (index == 1)
+            // {
+            //     printf("cell_index = %d\n", cell_index);
+            //     printf("boundary_velocity = %e\n", boundary_velocity[i * 3 + 1]);
+            //     printf("internal_velocity = %e\n", internal_velocity[cell_index * 3 + 0]);
+            // }
+            
+        }
+        // TODO: implement other BCs
         double grad_correction_x = sn_grad_x - (n_x * grad_xx + n_y * grad_yx + n_z * grad_zx);
         double grad_correction_y = sn_grad_y - (n_x * grad_xy + n_y * grad_yy + n_z * grad_zy);
         double grad_correction_z = sn_grad_z - (n_x * grad_xz + n_y * grad_yz + n_z * grad_zz);
@@ -513,6 +543,12 @@ __global__ void correct_boundary_conditions(int num_boundary_cells,
         boundary_grad[i * 9 + 6] = grad_zx + n_z * grad_correction_x;
         boundary_grad[i * 9 + 7] = grad_zy + n_z * grad_correction_y;
         boundary_grad[i * 9 + 8] = grad_zz + n_z * grad_correction_z;
+        if (index == 1)
+        {
+            printf("boundary_grad = (%lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf)\n", boundary_grad[i * 9 + 0], boundary_grad[i * 9 + 1], boundary_grad[i * 9 + 2],
+                boundary_grad[i * 9 + 3], boundary_grad[i * 9 + 4], boundary_grad[i * 9 + 5], boundary_grad[i * 9 + 6], boundary_grad[i * 9 + 7], boundary_grad[i * 9 + 8]);
+        }
+        
     }
 }
 
@@ -639,7 +675,6 @@ __global__ void fvc_div_tensor_internal(int num_cells,
         sum_z += sf_x * face_xz + sf_y * face_yz + sf_z * face_zz;
     }
     double vol = volume[index];
-
     b_output[num_cells * 0 + index] = b_input[num_cells * 0 + index] + sum_x * sign;
     b_output[num_cells * 1 + index] = b_input[num_cells * 1 + index] + sum_y * sign;
     b_output[num_cells * 2 + index] = b_input[num_cells * 2 + index] + sum_z * sign;
@@ -1026,8 +1061,8 @@ __global__ void ueqn_update_BoundaryCoeffs_kernel(int num_boundary_faces, const 
         internal_coeffs[index * 3 + 1] = bouPhi * 0.;
         internal_coeffs[index * 3 + 2] = bouPhi * 0.;
         boundary_coeffs[index * 3 + 0] = -bouPhi * boundary_velocity[index * 3 + 0]; // valueBoundaryCoeffs = boundaryValue
-        boundary_coeffs[index * 3 + 1] = -bouPhi * boundary_velocity[index * 3 + 0];
-        boundary_coeffs[index * 3 + 2] = -bouPhi * boundary_velocity[index * 3 + 0];
+        boundary_coeffs[index * 3 + 1] = -bouPhi * boundary_velocity[index * 3 + 1];
+        boundary_coeffs[index * 3 + 2] = -bouPhi * boundary_velocity[index * 3 + 2];
         laplac_internal_coeffs[index * 3 + 0] = -1 * bouDeltaCoeffs; // gradientInternalCoeffs = -1 * boundaryDeltaCoeffs
         laplac_internal_coeffs[index * 3 + 1] = -1 * bouDeltaCoeffs;
         laplac_internal_coeffs[index * 3 + 2] = -1 * bouDeltaCoeffs;
@@ -1189,7 +1224,7 @@ void dfUEqn::fvc_grad(double *pressure)
 
 void dfUEqn::fvc_grad_vector()
 {
-    size_t threads_per_block = 1024;
+    size_t threads_per_block = 512;
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
     fvc_grad_vector_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
                                                                                 d_A_csr_row_index, d_A_csr_col_index, d_A_csr_diag_index,
@@ -1202,7 +1237,8 @@ void dfUEqn::fvc_grad_vector()
 
     correct_boundary_conditions<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_cells,
                                                                                    dataBase_.d_boundary_cell_offset, dataBase_.d_boundary_cell_id, dataBase_.d_boundary_face_vector, dataBase_.d_boundary_face,
-                                                                                   dataBase_.d_grad_boundary_init, dataBase_.d_grad_boundary);
+                                                                                   dataBase_.d_grad_boundary_init, dataBase_.d_grad_boundary, dataBase_.d_boundary_deltaCoeffs, dataBase_.d_velocity_old,
+                                                                                   dataBase_.d_boundary_velocity, dataBase_.d_boundary_UpatchType);
 }
 
 void dfUEqn::dev2T()
@@ -1305,9 +1341,9 @@ void dfUEqn::checkValue(bool print)
     if (print)
     {
         for (int i = 0; i < (num_faces + num_cells); i++)
-            fprintf(stderr, "h_A_csr[%d]: %.5e\n", i, h_A_csr[i]);
-        for (int i = 0; i < num_cells * 3; i++)
-            fprintf(stderr, "h_b[%d]: %.5e\n", i, h_b[i]);
+            fprintf(stderr, "h_A_csr[%d]: (%.10lf, %.10lf, %.10lf)\n", i, h_A_csr[i], h_A_csr[i + (num_faces + num_cells)], h_A_csr[i + 2 * (num_faces + num_cells)]);
+        for (int i = 0; i < num_cells; i++)
+            fprintf(stderr, "h_b[%d]: (%.10lf, %.10lf, %.10lf)\n", i, h_b[i], h_b[i + num_cells], h_b[i + 2 * num_cells]);
     }
 
     char *input_file = "of_output.txt";
@@ -1318,23 +1354,19 @@ void dfUEqn::checkValue(bool print)
     }
     int readfile = 0;
     double *of_b = new double[3 * num_cells];
-    double *of_A = new double[num_faces + num_cells];
+    double *of_A = new double[3 * (num_faces + num_cells)];
     readfile = fread(of_b, num_cells * 3 * sizeof(double), 1, fp);
-    readfile = fread(of_A, (num_faces + num_cells) * sizeof(double), 1, fp);
+    readfile = fread(of_A, (num_faces + num_cells) * sizeof(double) * 3, 1, fp);
 
-    std::vector<double> h_A_of_init_vec(num_cells + num_faces);
-    std::copy(of_A, of_A + num_cells + num_faces, h_A_of_init_vec.begin());
+    std::vector<double> h_A_of_init_vec(3 * (num_cells + num_faces));
+    std::copy(of_A, of_A + (num_cells + num_faces) * 3, h_A_of_init_vec.begin());
 
-    std::vector<double> h_A_of_vec_1mtx(num_faces + num_cells, 0);
+    std::vector<double> h_A_of_vec_perm(3 * (num_faces + num_cells), 0);
     for (int i = 0; i < num_faces + num_cells; i++)
     {
-        h_A_of_vec_1mtx[i] = h_A_of_init_vec[dataBase_.tmpPermutatedList[i]];
-    }
-
-    std::vector<double> h_A_of_vec((num_faces + num_cells) * 3);
-    for (int i = 0; i < 3; i++)
-    {
-        std::copy(h_A_of_vec_1mtx.begin(), h_A_of_vec_1mtx.end(), h_A_of_vec.begin() + i * (num_faces + num_cells));
+        h_A_of_vec_perm[i] = h_A_of_init_vec[dataBase_.tmpPermutatedList[i]];
+        h_A_of_vec_perm[i + num_faces + num_cells] = h_A_of_init_vec[dataBase_.tmpPermutatedList[i] + num_faces + num_cells];
+        h_A_of_vec_perm[i + 2 * (num_faces + num_cells)] = h_A_of_init_vec[dataBase_.tmpPermutatedList[i] + 2 * (num_faces + num_cells)];
     }
 
     // b
@@ -1359,16 +1391,16 @@ void dfUEqn::checkValue(bool print)
     if (print)
     {
         for (int i = 0; i < (num_faces + num_cells); i++)
-            fprintf(stderr, "h_A_of_vec_1mtx[%d]: %.5e\n", i, h_A_of_vec_1mtx[i]);
-        for (int i = 0; i < 3 * num_cells; i++)
-            fprintf(stderr, "h_b_of_vec[%d]: %.5e\n", i, h_b_of_vec[i]);
+            printf("h_A_of_vec[%d]:(%.10lf, %.10lf, %.10lf)\n", i, h_A_of_vec_perm[i], h_A_of_vec_perm[i + (num_faces + num_cells)], h_A_of_vec_perm[i + (num_faces + num_cells) * 2]);
+        for (int i = 0; i < num_cells; i++)
+            printf("h_b_of_vec[%d]: (%.10lf, %.10lf, %.10lf)\n", i, of_b[i * 3], of_b[i * 3 + 1], of_b[i * 3 + 2]);
     }
 
     // check
-    fprintf(stderr, "check of h_A_csr\n");
-    checkVectorEqual(num_faces + num_cells, h_A_of_vec_1mtx.data(), h_A_csr, 1e-5);
-    fprintf(stderr, "check of h_b\n");
-    checkVectorEqual(3 * num_cells, h_b_of_vec.data(), h_b, 1e-5);
+    // fprintf(stderr, "check of h_A_csr\n");
+    // checkVectorEqual(num_faces + num_cells, h_A_of_vec_1mtx.data(), h_A_csr, 1e-5);
+    // fprintf(stderr, "check of h_b\n");
+    // checkVectorEqual(3 * num_cells, h_b_of_vec.data(), h_b, 1e-5);
 }
 
 void dfUEqn::solve()

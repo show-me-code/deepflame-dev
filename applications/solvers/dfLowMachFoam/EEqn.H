@@ -30,9 +30,22 @@
      ==
         fvc::div(hDiffCorrFlux)
     );
-    printf("EEqn = %.15lf\n", EEqn.boundaryCoeffs()[0][64]);
-    printf("EEqn = %.15lf\n", EEqn.boundaryCoeffs()[1][64]);
-    printf("EEqn = %.15lf\n", EEqn.boundaryCoeffs()[5][1]);
+    tmp<volScalarField> tmpAlpha = turbulence->alphaEff();
+    volScalarField alphaEff = tmpAlpha.ref();
+
+    forAll(alphaEff.boundaryField(), patchi){
+        labelUList sub_boundary = mesh.boundary()[patchi].faceCells();
+        forAll(sub_boundary, i){
+            if (sub_boundary[i] == 23){
+                printf("patchi = %d, i = %d\n", patchi, i);
+                printf("EEqn = %.15lf\n", EEqn.boundaryCoeffs()[patchi][i]);
+                printf("gamma_magsf = %.20lf\n", alphaEff.boundaryField()[patchi][i]);
+                printf("mesh.magSf() = %.20lf\n", mesh.magSf().boundaryField()[patchi][i]);
+                printf("gradientBoundaryCoeffs = %.15lf\n\n", he.boundaryField()[patchi].gradientBoundaryCoeffs()()[i]);
+            }
+        }
+    }
+
     end1 = std::clock();
     time_monitor_EEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_EEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
@@ -107,9 +120,13 @@
         const scalarField& patchK = K.boundaryField()[patchi];
         // const scalarField& patchAlphaEff = alphaEff.boundaryField()[patchi];
         const scalarField& patchGrad = he.boundaryField()[patchi].gradientBoundaryCoeffs(); // gradient_
+
+        // const DimensionedField<scalar, volMesh>& patchHa_ = he.boundaryField()[patchi];
+        // const gradientEnergyFvPatchScalarField patchHa(mesh.boundary()[patchi], patchHa_);
+        // const scalarField& patchGrad = patchHa.gradient(); // gradient_
         memcpy(boundary_K + eeqn_offset, &patchK[0], patchSize*sizeof(double));
         // memcpy(boundary_alphaEff + eeqn_offset, &patchAlphaEff[0], patchSize*sizeof(double));
-        memcpy(boundary_gradient + eeqn_offset, &patchGrad[0], patchSize*sizeof(double));
+        memcpy(boundary_gradient + eeqn_offset, &patchGradMau[0], patchSize*sizeof(double));
 
         eeqn_offset += patchSize;
 
@@ -159,6 +176,8 @@
 
     // prepare data on GPU
     start1 = std::clock();
+    he.oldTime();
+    K.oldTime();
     EEqn_GPU.prepare_data(&he.oldTime()[0], &K[0], &K.oldTime()[0], alphaEff,
             &dpdt[0], boundary_K, boundary_alphaEff, boundary_gradient);
     EEqn_GPU.sync();
@@ -194,6 +213,7 @@
     start1 = std::clock();
     EEqn_GPU.updatePsi(&he[0]);
     he.correctBoundaryConditions();
+    he.write();
     end1 = std::clock();
     time_monitor_EEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_EEqn_correctBC += double(end1 - start1) / double(CLOCKS_PER_SEC);

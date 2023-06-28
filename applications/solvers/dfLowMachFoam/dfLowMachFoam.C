@@ -67,8 +67,8 @@ Description
 #include <thread>
 #include "upwind.H"
 
-// #define GPUSolver_
-#define CPUSolver_
+#define GPUSolver_
+// #define CPUSolver_
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
