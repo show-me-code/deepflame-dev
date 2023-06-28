@@ -154,7 +154,9 @@ To begin, you will need to install AMGX. You can find the instructions for insta
     . install.sh
 
 Also, you will need to add configuration files for AMGX for each euqation under ``system`` folder and name them in the pattern of ``amgxpOptions``, ``amgxUOptions`` . Please refer to the AMGX official website to find out detailed instructions. 
+
 **If you have compiled DeepFlame with GPU solver successfully, you should see the print message in your terminal:**
+
 .. code-block::
 
      = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
