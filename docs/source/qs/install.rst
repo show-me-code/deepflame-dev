@@ -144,6 +144,8 @@ If ``df-notorch`` not activated (or you have a self-complied libcantera), specif
 
 **3. If you wish to employ dfMatrix and the AMGX library for accelerating PDE solving using GPU:**
 
+.. Note:: This is still under developement.
+
 To begin, you will need to install AMGX. You can find the instructions for installing AMGX on its official website. Follow the instructions provided to install AMGX on your system. Once you have installed AMGX, navigate to the DeepFlame directory and follow the commands below.
 
 .. code-block:: bash
