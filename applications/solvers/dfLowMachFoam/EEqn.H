@@ -30,22 +30,6 @@
      ==
         fvc::div(hDiffCorrFlux)
     );
-    tmp<volScalarField> tmpAlpha = turbulence->alphaEff();
-    volScalarField alphaEff = tmpAlpha.ref();
-
-    forAll(alphaEff.boundaryField(), patchi){
-        labelUList sub_boundary = mesh.boundary()[patchi].faceCells();
-        forAll(sub_boundary, i){
-            if (sub_boundary[i] == 23){
-                printf("patchi = %d, i = %d\n", patchi, i);
-                printf("EEqn = %.15lf\n", EEqn.boundaryCoeffs()[patchi][i]);
-                printf("gamma_magsf = %.20lf\n", alphaEff.boundaryField()[patchi][i]);
-                printf("mesh.magSf() = %.20lf\n", mesh.magSf().boundaryField()[patchi][i]);
-                printf("gradientBoundaryCoeffs = %.15lf\n\n", he.boundaryField()[patchi].gradientBoundaryCoeffs()()[i]);
-            }
-        }
-    }
-
     end1 = std::clock();
     time_monitor_EEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_EEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
@@ -80,23 +64,6 @@
     int eeqn_offset = 0;
     int patchNum = 0;
 
-    //debug
-    // {
-    //     const fvPatchScalarField& hew = he.boundaryField()[5];
-    //     const basicThermo& bThermo = basicThermo::lookupThermo(hew);
-    //     const scalarField& pw = bThermo.p().boundaryField()[5];
-    //     fvPatchScalarField& Tw =
-    //         const_cast<fvPatchScalarField&>(bThermo.T().boundaryField()[5]);
-    //     scalarField& Tw_v = Tw;
-
-    //     Tw.evaluate();
-
-    //     Info << "internal field" <<bThermo.he(pw, Tw, mesh.boundary()[5].faceCells()) << endl;
-    //     Info << "boundary field" <<bThermo.he(pw, Tw, 5) << endl;
-    //     Info << "calculated grad" << 
-    //         mesh.boundary()[5].deltaCoeffs() * (bThermo.he(pw, Tw, 5) - bThermo.he(pw, Tw, mesh.boundary()[5].faceCells())) << endl;
-    // }
-
     forAll(he.boundaryField(), patchi)
     {
         patchNum++;
@@ -118,8 +85,8 @@
         const scalarField patchGradMau = patchDeltaCoeff * (heInternal - heBoundary);
 
         const scalarField& patchK = K.boundaryField()[patchi];
-        // const scalarField& patchAlphaEff = alphaEff.boundaryField()[patchi];
-        const scalarField& patchGrad = he.boundaryField()[patchi].gradientBoundaryCoeffs(); // gradient_
+        // const scalarField& patchAlphaEff = alphaEff.boundaryField()[patchi]; // not H2Dcopy when use UnityLewis
+        // const scalarField& patchGrad = he.boundaryField()[patchi].gradientBoundaryCoeffs(); // gradient_
 
         // const DimensionedField<scalar, volMesh>& patchHa_ = he.boundaryField()[patchi];
         // const gradientEnergyFvPatchScalarField patchHa(mesh.boundary()[patchi], patchHa_);
@@ -129,42 +96,6 @@
         memcpy(boundary_gradient + eeqn_offset, &patchGradMau[0], patchSize*sizeof(double));
 
         eeqn_offset += patchSize;
-
-        // debug
-        // const fvsPatchScalarField& patchFlux = phi.boundaryField()[patchi];
-        // // Field<scalar> valueInternalCoeffs = patchFlux*he.boundaryField()[patchi].valueInternalCoeffs(pw);
-        // // Field<scalar> valueBoundaryCoeffs = -patchFlux*he.boundaryField()[patchi].valueBoundaryCoeffs(pw);
-        // Field<scalar> valueInternalCoeffs = patchFlux*he.boundaryField()[patchi].valueInternalCoeffs(pw);
-        // Field<scalar> valueBoundaryCoeffs = -patchFlux*he.boundaryField()[patchi].valueBoundaryCoeffs(pw);
-        // Field<scalar> gradientInternalCoeffs = he.boundaryField()[patchi].gradientInternalCoeffs();
-        // Field<scalar> gradientBoundaryCoeffs = he.boundaryField()[patchi].gradientBoundaryCoeffs();
-        // labelUList sub_boundary = mesh.boundary()[patchi].faceCells();
-
-        // calculate grad manually
-        // const fvPatchScalarField& hew = he.boundaryField()[patchi];
-        // const basicThermo& bThermo = basicThermo::lookupThermo(hew);
-        // const scalarField& ppw = bThermo.p().boundaryField()[patchi];
-        // fvPatchScalarField& Tw =
-        //     const_cast<fvPatchScalarField&>(bThermo.T().boundaryField()[patchi]);
-        // scalarField& Tw_v = Tw;
-
-        // Tw.evaluate();
-        // const scalarField& patchDeltaCoeff = mesh.boundary()[patchi].deltaCoeffs();
-        // const scalarField heInternal = bThermo.he(ppw, Tw, patchi)();
-        // const scalarField heBoundary = bThermo.he(ppw, Tw, mesh.boundary()[patchi].faceCells())();
-        // const scalarField patchGradMau = patchDeltaCoeff * (heInternal - heBoundary);
-                
-        // forAll(sub_boundary, i){
-        //     if (sub_boundary[i] == 1)
-        //     {
-        //         printf("\npatchFlux = %.10lf\n", patchFlux[i]);
-        //         printf("valueBoundaryCoeffs = %.10lf\n", he.boundaryField()[patchi].valueBoundaryCoeffs(pw)()[i]);
-        //         printf("valueBoundaryCoeffs_CPU = %.10lf\n", valueBoundaryCoeffs[i]);
-        //         printf("patchGrad = %.10lf\n", patchGrad[i]);
-        //         printf("patchGradMau = %.10lf\n", patchGradMau[i]);
-        //         printf("patch = %d, cellID = %d\n", patchi, i);
-        //     }
-        // }
     }
     end1 = std::clock();
     time_monitor_EEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);

@@ -543,11 +543,11 @@ __global__ void correct_boundary_conditions(int num_boundary_cells,
         boundary_grad[i * 9 + 6] = grad_zx + n_z * grad_correction_x;
         boundary_grad[i * 9 + 7] = grad_zy + n_z * grad_correction_y;
         boundary_grad[i * 9 + 8] = grad_zz + n_z * grad_correction_z;
-        if (index == 1)
-        {
-            printf("boundary_grad = (%lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf)\n", boundary_grad[i * 9 + 0], boundary_grad[i * 9 + 1], boundary_grad[i * 9 + 2],
-                boundary_grad[i * 9 + 3], boundary_grad[i * 9 + 4], boundary_grad[i * 9 + 5], boundary_grad[i * 9 + 6], boundary_grad[i * 9 + 7], boundary_grad[i * 9 + 8]);
-        }
+        // if (index == 1)
+        // {
+        //     printf("boundary_grad = (%lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf)\n", boundary_grad[i * 9 + 0], boundary_grad[i * 9 + 1], boundary_grad[i * 9 + 2],
+        //         boundary_grad[i * 9 + 3], boundary_grad[i * 9 + 4], boundary_grad[i * 9 + 5], boundary_grad[i * 9 + 6], boundary_grad[i * 9 + 7], boundary_grad[i * 9 + 8]);
+        // }
         
     }
 }

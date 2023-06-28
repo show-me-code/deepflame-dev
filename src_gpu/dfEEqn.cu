@@ -190,12 +190,6 @@ __global__ void eeqn_fvm_laplacian_uncorrected_boundary(int num_boundary_cells,
         double gamma_magsf = gamma * boundary_magsf[i];
         internal_coeffs += gamma_magsf * gradient_internal_coeffs[i];
         boundary_coeffs -= gamma_magsf * gradient_boundary_coeffs[i];
-        if (index == 23){
-            printf("\ngamma = %.20lf\n", gamma);
-            printf("\nboundary_magsf = %.20lf\n", boundary_magsf[i]);
-            printf("gradient_boundary_coeffs = %.15lf\n", gradient_boundary_coeffs[i]);
-            printf("final result = %.15lf\n", gamma_magsf * gradient_boundary_coeffs[i]);
-        }
     }
 
     A_csr_output[csr_index] = A_csr_input[csr_index] + internal_coeffs * sign;
