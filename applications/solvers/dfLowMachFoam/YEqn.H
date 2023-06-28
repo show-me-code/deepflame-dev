@@ -39,6 +39,7 @@ time_monitor_YEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
     for (size_t i = 0; i < Y.size(); ++i)
     {
         volScalarField& Yi = Y[i];
+        Yi.oldTime();
         Y_old[i] = &Yi.oldTime()[0];
         if (updateBoundaryFields)
         {

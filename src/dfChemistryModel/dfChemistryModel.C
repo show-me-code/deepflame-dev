@@ -387,8 +387,10 @@ void Foam::dfChemistryModel<ThermoType>::correctThermo()
         psi_[celli] = CanteraGas_->meanMolecularWeight()/CanteraGas_->RT();
 
         mu_[celli] = mixture_.CanteraTransport()->viscosity(); // Pa-s
+        
 
-        alpha_[celli] = mixture_.CanteraTransport()->thermalConductivity()/(CanteraGas_->cp_mass()); // kg/(m*s)
+        // alpha_[celli] = mixture_.CanteraTransport()->thermalConductivity()/(CanteraGas_->cp_mass()); // kg/(m*s) mu/alpha = 0.7
+        alpha_[celli] = mu_[celli] / 0.7;
         // thermalConductivity() W/m/K
         // cp_mass()   J/kg/K
 
@@ -457,7 +459,8 @@ void Foam::dfChemistryModel<ThermoType>::correctThermo()
 
                 pmu[facei] = mixture_.CanteraTransport()->viscosity();
 
-                palpha[facei] = mixture_.CanteraTransport()->thermalConductivity()/(CanteraGas_->cp_mass());
+                // palpha[facei] = mixture_.CanteraTransport()->thermalConductivity()/(CanteraGas_->cp_mass());
+                palpha[facei] = pmu[facei] / 0.7;
 
                 if (mixture_.transportModelName() == "UnityLewis")
                 {

@@ -30,6 +30,7 @@
 
     start1 = std::clock();
     UEqn_GPU.initializeTimeStep();
+    U.oldTime();
     UEqn_GPU.fvm_ddt(&U.oldTime()[0][0]);
     UEqn_GPU.fvm_div(boundary_pressure_init, boundary_velocity_init, boundary_nuEff_init, boundary_rho_init);
     UEqn_GPU.fvc_grad(&p[0]);
@@ -57,13 +58,44 @@
     // time_monitor_UEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
     // check value
+    // U.oldTime();
+    // tmp<fvVectorMatrix> tUEqn
+    // (
+        // fvm::ddt(rho, U) 
+        // + 
+        // fvm::div(phi, U)
+        // + 
+        // turbulence->divDevRhoReff(U) 
+        // == -fvc::grad(p)
+    // );
+    // fvVectorMatrix& UEqn = tUEqn.ref();
+    // printf("b_cpu = %e\n", UEqn.source()[1][1]);
+    // forAll(U.boundaryField(), patchi){
+        // labelUList sub_boundary = mesh.boundary()[patchi].faceCells();
+        // forAll(sub_boundary, i){
+        //     if (sub_boundary[i] == 1){
+        //         printf("b_cpu_bou = %e\n", UEqn.boundaryCoeffs()[patchi][i][1]);
+        //         printf("patchi = %d, i = %d\n", patchi, i);
+        //     }
+        // }
+    // }
+    // const tmp<volTensorField> tgradU(fvc::grad(U));
+    // const volTensorField& gradU = tgradU();
+    // Pout << "gradU_of[1]\n" << gradU[1] << nl;
+    // Pout << "gradU_of[0][64]\n" << gradU.boundaryField()[0][64] << nl;
+    // Pout << "gradU_of[1][64]\n" << gradU.boundaryField()[1][64] << nl;
+    // Pout << "gradU_of[5][1]\n" << gradU.boundaryField()[5][1] << nl;
+    // Pout << "U[1][1]\n" << U[1] << nl;
+    // Pout << "Ubou[0][64]\n" << U.boundaryField()[0][64] << nl;
+    // Pout << "Ubou[1][64]\n" << U.boundaryField()[1][64] << nl;
+    // Pout << "Ubou[5][1]\n" << U.boundaryField()[5][1] << nl;
     // if (pimple.momentumPredictor())
     // {
     //     solve(UEqn);
-
+    //     Info << "U_CPU\n" << U << endl;
     //     K = 0.5*magSqr(U);
     // }
-    // UEqn_GPU.checkValue(false);
+    // UEqn_GPU.checkValue(true);
 #else
     start1 = std::clock();
     tmp<fvVectorMatrix> tUEqn
