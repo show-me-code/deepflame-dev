@@ -440,8 +440,7 @@ void Foam::dfChemistryModel<ThermoType>::correctThermo()
 
         volScalarField::Boundary& TBf = T_.boundaryFieldRef();
 
-        volScalarField::Boundary& psiBf = 
-          .boundaryFieldRef();
+        volScalarField::Boundary& psiBf = psi_.boundaryFieldRef();
 
         volScalarField::Boundary& hBf = thermo_.he().boundaryFieldRef();
 
