@@ -100,7 +100,7 @@
     time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_UEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
-    // UEqn.relax();
+    UEqn.relax();
     start1 = std::clock();
     if (pimple.momentumPredictor())
     {
