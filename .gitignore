@@ -70,3 +70,6 @@ __pycache__/
 lib/
 bin/
 .vscode/
+result/
+*result*
+*profile*
