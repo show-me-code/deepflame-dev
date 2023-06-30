@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
+import time
 class BasicBlock(nn.Module):
     def __init__(self, n_input,n_hidden):
         super(BasicBlock, self).__init__()
@@ -43,7 +44,18 @@ class ResNet(nn.Module):
         out = F.relu(out)
         out = self.output_layer(out)
         return out   
-def FGM(z,c,gz,gc,gzc,phinum,dimension):
+def load_model(phinum):
+    phis_s=[3,3,3,3,3,3,2,2,1,1,1]
+    networktype="networks-2D"
+    name_s=["omegac","omegac","omegac","cp","cp","cp","T","T","YH2O","YCO","YCO2"]
+    name=name_s[phinum]
+    model = ResNet(BasicBlock,6,200,2,phis_s[phinum])
+    params = torch.load("./FGMinference/"+networktype+"/model_res_"+name+".pth") # 加载参数
+    model.load_state_dict(params) # 应用到网络结构中
+    print("load sucess "+name_s[phinum])
+    # print(params)
+    return model
+def FGM(z,c,gz,gc,gzc,phinum,dimension,models):
     try:
         z=np.array(z)
         c=np.array(c)
@@ -57,41 +69,49 @@ def FGM(z,c,gz,gc,gzc,phinum,dimension):
         phis_s=[3,3,3,3,3,3,2,2,1,1,1]
         diff_s=[0,0,0,3,3,3,6,6,8,9,10]
         name=name_s[phinum]
-        layers=9
-        neurons=300
+        layers=6
+        neurons=200
         phis=phis_s[phinum]
         diff=diff_s[phinum]
-        dimension=4
-        worktype="data-4D"
-        networktype="networks-4D"
-        x=np.stack((z, c , gz ,gc), axis=1)
-        xmax=np.load("/home/whx/deepflame-dev/src/dfCombustionModels/FGM/DeePFGM/FGMinference/"+worktype+"/process_params/xmax.npy")
-        xmin=np.load("/home/whx/deepflame-dev/src/dfCombustionModels/FGM/DeePFGM/FGMinference/"+worktype+"/process_params/xmin.npy")
-        for i in range(4):
+        dimension=2
+        worktype="data-2D"
+        networktype="networks-2D"
+        x=np.stack((z, c), axis=1)#(z, c , gz ,gc)
+        xmax=np.load("./FGMinference/"+worktype+"/process_params/xmax.npy")
+        xmin=np.load("./FGMinference/"+worktype+"/process_params/xmin.npy")
+        for i in range(2):
             x[:,i]=(x[:,i]-xmin[i])/(xmax[i]-xmin[i])
         x = torch.tensor(x,dtype=torch.float)
-        # print(np.shape(x))
-        # print(name)
-        #     device = torch.device("cuda")          # 使用CUDA
-        # else:
-        # device = torch.device("cpu")           # 使用CPU
-        # print("当前设备：",device)
+        time1=time.time()
         x=x.to("cuda")
-        model = ResNet(BasicBlock,layers,neurons,dimension,phis)
-        params = torch.load("/home/whx/deepflame-dev/src/dfCombustionModels/FGM/DeePFGM/FGMinference/"+networktype+"/model_res_"+name+".pth") # 加载参数
-        model.load_state_dict(params) # 应用到网络结构中
-        model=model.to("cuda")
-        # print(params)
-        # print("begin inference")
+        time2=time.time()
+        # print("cuda time",time2-time1)
+        # model = ResNet(BasicBlock,layers,neurons,dimension,phis)
+        # # params = torch.load("./FGMinference/"+networktype+"/model_res_"+name+".pth") # 加载参数
+        # model.load_state_dict(models) # 应用到网络结构中
+        # print(models)
+        # model = ResNet(BasicBlock,layers,neurons,dimension,phis)
+        # params=models[phinum]
+        # model.load_state_dict(params)
+        time3=time.time()
+        # print("load model time",time3-time2)
+        model=models.to("cuda")
+        time4=time.time()
+        # print("cuda model time",time4-time3)
         with torch.no_grad():   
             predictions=model(x)
-        # print("end inference")
+        time5=time.time()
+        # print("prediction time",time5-time4)
         predictions=predictions.to("cpu")
         predictions=predictions.data.numpy()
-        phimax=np.load("/home/whx/deepflame-dev/src/dfCombustionModels/FGM/DeePFGM/FGMinference/"+worktype+"/process_params/phimax_"+name+".npy")
-        phimin=np.load("/home/whx/deepflame-dev/src/dfCombustionModels/FGM/DeePFGM/FGMinference/"+worktype+"/process_params/phimin_"+name+".npy")
-        lambdas=np.load("/home/whx/deepflame-dev/src/dfCombustionModels/FGM/DeePFGM/FGMinference/"+worktype+"/process_params/lambdas_"+name+".npy")
-        constants=np.load("/home/whx/deepflame-dev/src/dfCombustionModels/FGM/DeePFGM/FGMinference/"+worktype+"/process_params/constants_"+name+".npy")
+        time6=time.time()
+        # print("prediction cpu time",time6-time5)
+        phimax=np.load("./FGMinference/"+worktype+"/process_params/phimax_"+name+".npy")
+        phimin=np.load("./FGMinference/"+worktype+"/process_params/phimin_"+name+".npy")
+        lambdas=np.load("./FGMinference/"+worktype+"/process_params/lambdas_"+name+".npy")
+        constants=np.load("./FGMinference/"+worktype+"/process_params/constants_"+name+".npy")
+        time7=time.time()
+        # print("load params time",time7-time6)
         ind=phinum
         predictions[:,ind-diff]=predictions[:,ind-diff]*(phimax[ind]-phimin[ind])+phimin[ind]
         # print("begin inv_coxbox")
@@ -104,6 +124,8 @@ def FGM(z,c,gz,gc,gzc,phinum,dimension):
         predictions[nan_positions,ind-diff]=0
         result=predictions[:,ind-diff]
         result = result.tolist()
+        time8=time.time()
+        # print("result out time",time8-time7)
         # if(phinum==0):
         #     print("x",x)
         #     print("z",z)

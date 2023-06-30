@@ -10,6 +10,7 @@ EDC/EDCs.C
 FGM/flameletTableSolver/tableSolver.C
 FGM/baseFGM/baseFGMs.C
 FGM/flareFGM/flareFGMs.C
+FGM/DeePFGM/DeePFGMs.C
 
 laminar/laminars.C
 

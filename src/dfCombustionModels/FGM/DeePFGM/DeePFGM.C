@@ -45,9 +45,59 @@ Foam::combustionModels::DeePFGM<ReactionThermo>::DeePFGM
                )
 {
     //- retrieval data from table
-    PyObject* module=initialize_module();
-    PyObject* func=initialize_function(module);
-    retrieval(module,func);
+    module=initialize_module();
+    func=initialize_function(module);
+    func_load=initialize_load(module);
+    // model_omegac = PyObject_CallObject(func_load, PyTuple_Pack(1, PyLong_FromLong(0)));
+    // model_cp = PyObject_CallObject(func_load, PyTuple_Pack(1, PyLong_FromLong(3)));
+    // model_T = PyObject_CallObject(func_load, PyTuple_Pack(1, PyLong_FromLong(6)));
+    // model_YH2O = PyObject_CallObject(func_load, PyTuple_Pack(1, PyLong_FromLong(8)));
+    // model_YCO = PyObject_CallObject(func_load, PyTuple_Pack(1, PyLong_FromLong(9)));
+    // model_YCO2 = PyObject_CallObject(func_load, PyTuple_Pack(1, PyLong_FromLong(10)));
+    // PyObject* models = PyList_New(11);
+    model_omegac=PyObject_CallObject(func_load, PyTuple_Pack(1, PyLong_FromLong(0)));
+    model_cp=PyObject_CallObject(func_load, PyTuple_Pack(1, PyLong_FromLong(3)));
+    model_T=PyObject_CallObject(func_load, PyTuple_Pack(1, PyLong_FromLong(6)));
+    model_YH2O=PyObject_CallObject(func_load, PyTuple_Pack(1, PyLong_FromLong(8)));
+    model_YCO=PyObject_CallObject(func_load, PyTuple_Pack(1, PyLong_FromLong(9)));
+    model_YCO2=PyObject_CallObject(func_load, PyTuple_Pack(1, PyLong_FromLong(10)));
+    // for(int i=0;i<11;i++)
+    // {
+    //     int phinum[11]={0,0,0,3,3,3,6,6,8,9,10};
+    //     PyObject* args = PyTuple_Pack(1, PyLong_FromLong(phinum[i]));
+    //     PyObject* py_result = PyObject_CallObject(func_load, args);
+    //     PyList_SET_ITEM(models,i, py_result);
+    // }
+    // retrieval(module,func);
+}
+template<class ReactionThermo>
+void Foam::combustionModels::DeePFGM<ReactionThermo>::correct()
+{
+    //- initialize flame kernel
+    baseFGM<ReactionThermo>::initialiseFalmeKernel();
+
+    //- solve transport equation
+    baseFGM<ReactionThermo>::transport();
+
+    //update enthalpy using lookup data
+    if(!(this->solveEnthalpy_))
+    {
+        this->He_ = this->Z_*(H_fuel-H_ox) + H_ox;
+    }
+    // PyObject* module=initialize_module();
+    // PyObject* func=initialize_function(module);
+    // PyObject* func_load=initialize_load(module);
+    // PyObject* models = PyList_New(6);
+    // for(int i=0;i<6;i++)
+    // {
+    //     int phinum[6]={0,3,6,8,9,10};
+    //     PyObject* args = PyTuple_Pack(1, PyLong_FromLong(phinum[i]));
+    //     PyObject* py_result = PyObject_CallObject(func_load, args);
+    //     PyList_SET_ITEM(models, i, py_result);
+    // }
+    //- retrieval data from table
+    retrieval(module,func,model_omegac,model_cp,model_T,model_YH2O,model_YCO,model_YCO2);
+    
 }
 
 
@@ -67,11 +117,13 @@ PyObject* Foam::combustionModels::DeePFGM<ReactionThermo>::initialize_module()
     }
     // 2、初始化python系统文件路径，保证可以访问到 .py文件
     PyRun_SimpleString("import sys");
-    PyRun_SimpleString("sys.path.append('/home/whx/deepflame-dev/src/dfCombustionModels/FGM/DeePFGM/FGMinference')");
+    PyRun_SimpleString("import numpy");
+    PyRun_SimpleString("sys.path.append(os.getcwd()+'/FGMinference')");
     PyObject* module = PyImport_ImportModule("inference");
-    if (module == nullptr)
+    if (module == nullptr) 
     {
         std::cout <<"module not found: inference" << std::endl;
+        PyErr_Print();
     }
     return module;
 }
@@ -83,39 +135,37 @@ PyObject* Foam::combustionModels::DeePFGM<ReactionThermo>::initialize_function(P
     if (!func || !PyCallable_Check(func))
     {
         std::cout <<"function not found: FGM" << std::endl;
+        PyErr_Print();
     }
     else
     {
-        cout <<"function  found: FGM" << std::endl;
+        std::cout <<"function found: FGM" << std::endl;
     }
     return func;
 }
 
 template<class ReactionThermo>
-void Foam::combustionModels::DeePFGM<ReactionThermo>::correct()
+PyObject* Foam::combustionModels::DeePFGM<ReactionThermo>::initialize_load(PyObject* module)
 {
-    //- initialize flame kernel
-    baseFGM<ReactionThermo>::initialiseFalmeKernel();
-
-    //- solve transport equation
-    baseFGM<ReactionThermo>::transport();
-
-    //update enthalpy using lookup data
-    if(!(this->solveEnthalpy_))
+    PyObject* func = PyObject_GetAttrString(module, "load_model");
+    if (!func || !PyCallable_Check(func))
     {
-        this->He_ = this->Z_*(H_fuel-H_ox) + H_ox;
+        std::cout <<"function not found: load_model" << std::endl;
+        PyErr_Print();
     }
-    PyObject* module=initialize_module();
-    PyObject* func=initialize_function(module);
-    //- retrieval data from table
-    retrieval(module,func);
-    
+    else
+    {
+        std::cout <<"function found: load_model" << std::endl;
+    }
+    return func;
 }
+
+
 template<class ReactionThermo>
 int Foam::combustionModels::DeePFGM<ReactionThermo>::prediction
     (
         double z_s[], double c_s[], double gz_s[], double gc_s[],
-        double gzc_s[],  int phinum, int dimension,double* result,int size,PyObject* module,PyObject* func
+        double gzc_s[],  int phinum, int dimension,double* result,int size,PyObject* module,PyObject* func,PyObject* model
     )
     {
         PyObject* py_phinum = PyLong_FromLong(phinum);
@@ -133,8 +183,10 @@ int Foam::combustionModels::DeePFGM<ReactionThermo>::prediction
             PyList_SET_ITEM(py_gc, i, PyFloat_FromDouble(gc_s[i]));
             PyList_SET_ITEM(py_gzc, i, PyFloat_FromDouble(gzc_s[i]));
         }
-        PyObject* args = PyTuple_Pack(7, py_z, py_c,py_gz,py_gc,py_gzc,py_phinum,py_dimension);
+    
+        PyObject* args = PyTuple_Pack(8, py_z, py_c,py_gz,py_gc,py_gzc,py_phinum,py_dimension,model);
         PyObject* py_result = PyObject_CallObject(func, args);
+        
         // 5、调用函数
         // PyObject_CallObject(func, nullptr);
         if (PyList_Check(py_result)) {
@@ -164,7 +216,7 @@ int Foam::combustionModels::DeePFGM<ReactionThermo>::prediction
                 
     }
 template<class ReactionThermo>
-void Foam::combustionModels::DeePFGM<ReactionThermo>::retrieval(PyObject* module,PyObject* func)
+void Foam::combustionModels::DeePFGM<ReactionThermo>::retrieval(PyObject* module,PyObject* func,PyObject* model_omegac,PyObject* model_cp,PyObject* model_T,PyObject* model_YH2O,PyObject* model_YCO,PyObject* model_YCO2)
 {
 
     tmp<volScalarField> tk(this->turbulence().k());
@@ -227,9 +279,6 @@ void Foam::combustionModels::DeePFGM<ReactionThermo>::retrieval(PyObject* module
     double mu_s[Ncells]={};
     double c_s[Ncells]={};
 
-    // double gz{cal_gvar(this->ZCells_[celli],this->ZvarCells_[celli])};   
-    // double gcz{cal_gcor(this->ZCells_[celli],this->cCells_[celli],this->ZvarCells_[celli],this->cvarCells_[celli],this->ZcvarCells_[celli])},
-    //         Ycmax{-1.0},cNorm{},gc{};    
 
     forAll(this->rho_, celli)
     {
@@ -244,29 +293,9 @@ void Foam::combustionModels::DeePFGM<ReactionThermo>::retrieval(PyObject* module
         {
             c_s[celli]=this->cCells_[celli];
         }
-        // Info<<"Sclaed PV"<<endl;
     } 
-
-    // if(scaledPV_)    
-    // {
-    //     cNorm = this->cCells_[celli];  
-    // }
-    // else
-    // {
-    //     Ycmax = this->lookup5d(NZ,z_Tb3,this->ZCells_[celli],
-    //                           NC,c_Tb3,0.0,
-    //                           NGZ,gz_Tb3,gz,
-    //                           NGC,gc_Tb3,0.0,
-    //                           NZC,gzc_Tb3,0.0,
-    //                           Ycmax_Tb3);    
-    //     Ycmax = max(this->smaller,Ycmax);    
-    //     cNorm = this->cCells_[celli]/Ycmax; 
-    // }
-
-    // gc = cal_gvar(this->cCells_[celli],this->cvarCells_[celli],Ycmax);  
-
-    prediction(z_s,c_s,gz_s,gc_s,gcz_s,4,dim,Wt_s,Ncells,module,func);
-    prediction(z_s,c_s,gz_s,gc_s,gcz_s,7,dim,mu_s,Ncells,module,func);
+    prediction(z_s,c_s,gz_s,gc_s,gcz_s,4,dim,Wt_s,Ncells,module,func,model_cp);
+    prediction(z_s,c_s,gz_s,gc_s,gcz_s,7,dim,mu_s,Ncells,module,func,model_T);
     // Info<< "pause4" << endl;
     forAll(this->rho_, celli)
     {
@@ -280,9 +309,9 @@ void Foam::combustionModels::DeePFGM<ReactionThermo>::retrieval(PyObject* module
         double YH2O_s[Ncells]={};
         double YCO_s[Ncells]={};
         double YCO2_s[Ncells]={};
-        prediction(z_s,c_s,gz_s,gc_s,gcz_s,8,dim,YH2O_s,Ncells,module,func);
-        prediction(z_s,c_s,gz_s,gc_s,gcz_s,9,dim,YCO_s,Ncells,module,func);
-        prediction(z_s,c_s,gz_s,gc_s,gcz_s,10,dim,YCO2_s,Ncells,module,func);
+        prediction(z_s,c_s,gz_s,gc_s,gcz_s,8,dim,YH2O_s,Ncells,module,func,model_YH2O);
+        prediction(z_s,c_s,gz_s,gc_s,gcz_s,9,dim,YCO_s,Ncells,module,func,model_YCO);
+        prediction(z_s,c_s,gz_s,gc_s,gcz_s,10,dim,YCO2_s,Ncells,module,func,model_YCO2);
         forAll(this->rho_, celli)
         {
             this->YH2OCells_[celli]=YH2O_s[celli];
@@ -296,9 +325,9 @@ void Foam::combustionModels::DeePFGM<ReactionThermo>::retrieval(PyObject* module
     double omegac_s[Ncells]={};
     double comegac_s[Ncells]={};
     double zomegac_s[Ncells]={};
-    prediction(z_s,c_s,gz_s,gc_s,gcz_s,0,dim,omegac_s,Ncells,module,func);
-    prediction(z_s,c_s,gz_s,gc_s,gcz_s,1,dim,comegac_s,Ncells,module,func);
-    prediction(z_s,c_s,gz_s,gc_s,gcz_s,2,dim,zomegac_s,Ncells,module,func);
+    prediction(z_s,c_s,gz_s,gc_s,gcz_s,0,dim,omegac_s,Ncells,module,func,model_omegac);
+    prediction(z_s,c_s,gz_s,gc_s,gcz_s,1,dim,comegac_s,Ncells,module,func,model_omegac);
+    prediction(z_s,c_s,gz_s,gc_s,gcz_s,2,dim,zomegac_s,Ncells,module,func,model_omegac);
     forAll(this->rho_, celli)
     {
         this->omega_cCells_[celli]=(omegac_s[celli]+ (
@@ -325,7 +354,7 @@ void Foam::combustionModels::DeePFGM<ReactionThermo>::retrieval(PyObject* module
     if(flameletT_)   
     {
         double T_s[Ncells]={};
-        prediction(z_s,c_s,gz_s,gc_s,gcz_s,6,dim,T_s,Ncells,module,func);
+        prediction(z_s,c_s,gz_s,gc_s,gcz_s,6,dim,T_s,Ncells,module,func,model_T);
         forAll(this->rho_, celli)
         {
             this->TCells_[celli]=T_s[celli];
@@ -335,8 +364,8 @@ void Foam::combustionModels::DeePFGM<ReactionThermo>::retrieval(PyObject* module
     {
         double Cp_s[Ncells]={};
         double Hf_s[Ncells]={};
-        prediction(z_s,c_s,gz_s,gc_s,gcz_s,3,dim,Cp_s,Ncells,module,func);
-        prediction(z_s,c_s,gz_s,gc_s,gcz_s,5,dim,Hf_s,Ncells,module,func);
+        prediction(z_s,c_s,gz_s,gc_s,gcz_s,3,dim,Cp_s,Ncells,module,func,model_cp);
+        prediction(z_s,c_s,gz_s,gc_s,gcz_s,5,dim,Hf_s,Ncells,module,func,model_cp);
         forAll(this->rho_, celli)
         { 
             this->CpCells_[celli]=Cp_s[celli];
@@ -428,8 +457,8 @@ void Foam::combustionModels::DeePFGM<ReactionThermo>::retrieval(PyObject* module
                 c_t[facei]=pc[facei];
             }
         }
-        prediction(z_t,c_t,gz_t,gc_t,gcz_t,4,dim,Wt_t,Npatch,module,func);
-        prediction(z_t,c_t,gz_t,gc_t,gcz_t,7,dim,mu_t,Npatch,module,func);
+        prediction(z_t,c_t,gz_t,gc_t,gcz_t,4,dim,Wt_t,Npatch,module,func,model_cp);
+        prediction(z_t,c_t,gz_t,gc_t,gcz_t,7,dim,mu_t,Npatch,module,func,model_T);
         forAll(prho_, facei)
         {
             pWt[facei]=Wt_t[facei];
@@ -438,9 +467,9 @@ void Foam::combustionModels::DeePFGM<ReactionThermo>::retrieval(PyObject* module
         double omegac_t[Npatch]={};
         double comegac_t[Npatch]={};
         double zomegac_t[Npatch]={};
-        prediction(z_t,c_t,gz_t,gc_t,gcz_t,0,dim,omegac_t,Npatch,module,func);
-        prediction(z_t,c_t,gz_t,gc_t,gcz_t,1,dim,comegac_t,Npatch,module,func);
-        prediction(z_t,c_t,gz_t,gc_t,gcz_t,2,dim,zomegac_t,Npatch,module,func);
+        prediction(z_t,c_t,gz_t,gc_t,gcz_t,0,dim,omegac_t,Npatch,module,func,model_omegac);
+        prediction(z_t,c_t,gz_t,gc_t,gcz_t,1,dim,comegac_t,Npatch,module,func,model_omegac);
+        prediction(z_t,c_t,gz_t,gc_t,gcz_t,2,dim,zomegac_t,Npatch,module,func,model_omegac);
         forAll(prho_, facei)
         {
             pomega_c[facei]=(omegac_t[facei]+ (
@@ -466,7 +495,7 @@ void Foam::combustionModels::DeePFGM<ReactionThermo>::retrieval(PyObject* module
             if(flameletT_)   
             {
                 double T_t[Npatch]={};
-                prediction(z_t,c_t,gz_t,gc_t,gcz_t,6,dim,T_t,Npatch,module,func);
+                prediction(z_t,c_t,gz_t,gc_t,gcz_t,6,dim,T_t,Npatch,module,func,model_T);
                 forAll(prho_, facei)
                 { 
                     pT[facei]=T_t[facei];
@@ -476,8 +505,8 @@ void Foam::combustionModels::DeePFGM<ReactionThermo>::retrieval(PyObject* module
             {
                 double Cp_t[Npatch]={};
                 double Hf_t[Npatch]={};
-                prediction(z_t,c_t,gz_t,gc_t,gcz_t,3,dim,Cp_t,Npatch,module,func);
-                prediction(z_t,c_t,gz_t,gc_t,gcz_t,5,dim,Hf_t,Npatch,module,func);
+                prediction(z_t,c_t,gz_t,gc_t,gcz_t,3,dim,Cp_t,Npatch,module,func,model_cp);
+                prediction(z_t,c_t,gz_t,gc_t,gcz_t,5,dim,Hf_t,Npatch,module,func,model_cp);
                 forAll(prho_, facei)
                 { 
                     pCp[facei]=Cp_t[facei];
