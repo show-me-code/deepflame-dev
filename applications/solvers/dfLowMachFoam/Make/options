@@ -1,12 +1,15 @@
 -include $(GENERAL_RULES)/mplibType
 
 EXE_INC = -std=c++14 \
+    -g \
+    -fopenmp \
     -Wno-unused-variable \
     -Wno-unused-but-set-variable \
     -Wno-old-style-cast \
     $(PFLAGS) $(PINC) \
     $(if $(LIBTORCH_ROOT),-DUSE_LIBTORCH,) \
     $(if $(PYTHON_INC_DIR),-DUSE_PYTORCH,) \
+    $(if $(AMGX_DIR),-DGPUSolver_,) \
     -I$(LIB_SRC)/transportModels/compressible/lnInclude \
     -I$(LIB_SRC)/thermophysicalModels/basic/lnInclude \
     -I$(LIB_SRC)/TurbulenceModels/turbulenceModels/lnInclude \
@@ -23,7 +26,10 @@ EXE_INC = -std=c++14 \
     -I$(CANTERA_ROOT)/include \
     $(if $(LIBTORCH_ROOT),-I$(LIBTORCH_ROOT)/include,) \
     $(if $(LIBTORCH_ROOT),-I$(LIBTORCH_ROOT)/include/torch/csrc/api/include,) \
-    $(PYTHON_INC_DIR)
+    $(PYTHON_INC_DIR) \
+    $(if $(AMGX_DIR), -I$(DF_ROOT)/src_gpu,) \
+    $(if $(AMGX_DIR), -I/usr/local/cuda-11.6/include,) \
+    $(if $(AMGX_DIR), -I$(AMGX_DIR)/include,)
 
 EXE_LIBS = \
     -lcompressibleTransportModels \
@@ -44,4 +50,8 @@ EXE_LIBS = \
     $(if $(LIBTORCH_ROOT),-lpthread,) \
     $(if $(LIBTORCH_ROOT),$(DF_SRC)/dfChemistryModel/DNNInferencer/build/libDNNInferencer.so,) \
     $(if $(PYTHON_LIB_DIR),-L$(PYTHON_LIB_DIR),) \
-    $(if $(PYTHON_LIB_DIR),-lpython3.8,)
+    $(if $(PYTHON_LIB_DIR),-lpython3.8,) \
+    $(if $(AMGX_DIR), /usr/local/cuda-11.6/lib64/libcudart.so,) \
+    $(if $(AMGX_DIR), $(DF_ROOT)/src_gpu/build/libdfMatrix.so,) \
+    $(if $(AMGX_DIR), $(AMGX_DIR)/build/libamgxsh.so,)
+

@@ -1,5 +1,43 @@
 #include "createRDeltaT.H"
 
+word ddtSchemes("Euler");
+if (mesh.schemesDict().readIfPresent("timeScheme", ddtSchemes))
+{
+    if(ddtSchemes == "RK2SSP" || ddtSchemes == "RK3SSP")
+    {
+        Info<< "ddtSchemes: " << ddtSchemes << endl;
+    }
+}
+
+word chemScheme("ode");
+mesh.schemesDict().readIfPresent("chemScheme", chemScheme);
+
+if ((chemScheme == "direct") || (chemScheme == "ode"))
+{
+    Info<< "chemScheme: " << chemScheme << endl;
+}
+else
+{
+    FatalErrorInFunction
+        << "chemScheme: " << chemScheme
+        << " is not a valid choice. "
+        << "Options are: 'ode' | 'direct'"
+        << abort(FatalError);
+}
+
+
+if((ddtSchemes != "RK2SSP") && (ddtSchemes != "RK3SSP"))
+{
+    if(chemScheme == "direct")
+    {
+        FatalErrorInFunction
+            << "This combination is not a valid choice. "
+            << "If you want to use direct integrate for chemistry, please use RK2SSP or RK3SSP scheme."
+            << abort(FatalError);
+    }
+}
+
+
 Info<< "Reading thermophysical properties\n" << endl;
 
 // psiThermo* pThermo = new hePsiThermo<psiThermo, CanteraMixture>(mesh, word::null);

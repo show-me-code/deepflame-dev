@@ -81,6 +81,15 @@ Then source the bashrc file by:
 
     git clone https://github.com/deepmodeling/deepflame-dev.git
 
+If you want to use the submodules included in DeepFlame: the `WENO scheme <https://github.com/WENO-OF/WENOEXT>`_ and the `libROUNDSchemes <https://github.com/advanCFD/libROUNDSchemes>`_, run
+
+.. code-block:: bash
+
+    git clone --recursive https://github.com/deepmodeling/deepflame-dev.git
+
+Detailed instructions for compiling these two submodules can be found in their original repositories. 
+
+
 **3. Configure the DeepFlame environment:**
 
 .. code-block:: bash
@@ -160,27 +169,29 @@ If ``df-notorch`` not activated (or you have a self-complied libcantera), specif
     . install.sh
 
 
-**3. If you wish to employ the AMGX library for accelerating PDE solving using GPU:**
+**3. If you wish to employ dfMatrix and the AMGX library for accelerating PDE solving using GPU:**
+
+.. Note:: This is still under developement.
 
 To begin, you will need to install AMGX. You can find the instructions for installing AMGX on its official website. Follow the instructions provided to install AMGX on your system. Once you have installed AMGX, navigate to the DeepFlame directory and follow the commands below.
 
 .. code-block:: bash
 
-    cd ${DF_ROOT}/src/dfMatrix/solver/amgx/
-    export AMGX_DIR=/your/path/to/AMGX/
-    cmake -B build
-    cd build
-    make
+    cd deepflame-dev
+    . configure.sh --amgx_dir /your/path/to/AMGX/
+    source ./bashrc
+    . install.sh
 
-After this, two libraries for enabling DeepFlame with AMGX are available in ``${DF_ROOT}/src/dfMatrix/solver/amgx/build``.
-Beforing using AMGX, run:
+Also, you will need to add configuration files for AMGX for each euqation under ``system`` folder and name them in the pattern of ``amgxpOptions``, ``amgxUOptions`` . Please refer to the AMGX official website to find out detailed instructions. 
 
-.. code-block:: bash
+**If you have compiled DeepFlame with GPU solver successfully, you should see the print message in your terminal:**
 
-    export LD_LIBRARY_PATH=${DF_ROOT}/src/dfMatrix/solver/amgx/build:$LD_LIBRARY_PATH
+.. code-block::
 
-
-If you want to use AMGX, you will need to add configuration files for AMGX for each euqation under ``system`` folder and name them in the pattern of ``amgxpOptions``, ``amgxUOptions`` . Please refer to the AMGX official website to find out detailed instructions. 
+     = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+    |     deepflame (linked with libcantera) compiled successfully! Enjoy!!          |
+    |        select the GPU solver coupled with AMGx library to solve PDE            |
+     = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 
 **4. If you wish to install DeepFlame with CMake**

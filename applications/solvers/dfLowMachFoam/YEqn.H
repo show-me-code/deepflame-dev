@@ -1,5 +1,3 @@
-start = std::clock();
-
 hDiffCorrFlux = Zero;
 diffAlphaD = Zero;
 sumYDiffError = Zero;
@@ -15,18 +13,20 @@ tmp<fv::convectionScheme<scalar>> mvConvection
     )
 );
 
+start1 = std::clock();
 forAll(Y, i)
 {
     sumYDiffError += chemistry->rhoD(i)*fvc::grad(Y[i]);
 }
 const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
+start1 = std::clock();
+time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
+time_monitor_YEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);  
 
 //MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
 label flag_mpi_init;
 MPI_Initialized(&flag_mpi_init);
 if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
-end = std::clock();
-time_monitor_corrDiff += double(end - start) / double(CLOCKS_PER_SEC);
 
 {
     if (!splitting)
@@ -41,39 +41,43 @@ time_monitor_corrDiff += double(end - start) / double(CLOCKS_PER_SEC);
         time_monitor_chem += processingTime.count();
     }
 
+    start2 = std::clock();
     volScalarField Yt(0.0*Y[0]);
-
-    start = std::clock();
     forAll(Y, i)
     {
         volScalarField& Yi = Y[i];
         hDiffCorrFlux += chemistry->hai(i)*(chemistry->rhoD(i)*fvc::grad(Yi) - Yi*sumYDiffError);
         diffAlphaD += fvc::laplacian(thermo.alpha()*chemistry->hai(i), Yi);
-
         if (i != inertIndex)
         {
+            start1 = std::clock();
             tmp<volScalarField> DEff = chemistry->rhoD(i) + turbulence->mut()/Sct;
 
             fvScalarMatrix YiEqn
+            (
+                fvm::ddt(rho, Yi)
+            +
                 (
-                    fvm::ddt(rho, Yi)
-                +
-                    (
-                        turbName == "laminar"
-                        ?  (mvConvection->fvmDiv(phi, Yi) + mvConvection->fvmDiv(phiUc, Yi))
-                        :   mvConvection->fvmDiv(phi, Yi)
+                    turbName == "laminar"
+                    ?  (mvConvection->fvmDiv(phi, Yi) + mvConvection->fvmDiv(phiUc, Yi))
+                    :   mvConvection->fvmDiv(phi, Yi)
+                )
+            ==
+                (
+                    splitting
+                    ?   fvm::laplacian(DEff(), Yi)
+                    :  (fvm::laplacian(DEff(), Yi) + combustion->R(Yi))
                     )
-                ==
-                    (
-                        splitting
-                        ?   fvm::laplacian(DEff(), Yi)
-                        :  (fvm::laplacian(DEff(), Yi) + combustion->R(Yi))
-                        )
-                );
-
+            );
+            
+            end1 = std::clock();
+            time_monitor_YEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
             YiEqn.relax();
 
+            start1 = std::clock();
             YiEqn.solve("Yi");
+            end1 = std::clock();
+            time_monitor_YEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
             Yi.max(0.0);
             Yt += Yi;
@@ -82,7 +86,6 @@ time_monitor_corrDiff += double(end - start) / double(CLOCKS_PER_SEC);
 
     Y[inertIndex] = scalar(1) - Yt;
     Y[inertIndex].max(0.0);
-
-    end = std::clock();
-    time_monitor_Y += double(end - start) / double(CLOCKS_PER_SEC);
+    end2 = std::clock();
+    time_monitor_YEqn += double(end2 - start2) / double(CLOCKS_PER_SEC);
 }

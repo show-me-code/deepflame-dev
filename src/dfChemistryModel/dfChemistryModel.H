@@ -119,6 +119,8 @@ public IOdictionary
         mutable scalarList cTemp_;
         // mass change rate, [kg/m^3/s]
         PtrList<volScalarField::Internal> RR_;
+        // net production rates, [kg/m^3/s]
+        PtrList<volScalarField::Internal> wrate_;
         hashedWordList species_;
         volScalarField& alpha_;
         volScalarField& T_;
@@ -284,6 +286,10 @@ public:
 
         //- Return access to chemical source terms [kg/m^3/s]
         volScalarField::Internal& RR(const label i) {return RR_[i];}
+
+        void calculateW();
+
+        volScalarField::Internal& wrate(const label i) {return wrate_[i];}
 
         tmp<volScalarField::Internal> calculateRR
         (
