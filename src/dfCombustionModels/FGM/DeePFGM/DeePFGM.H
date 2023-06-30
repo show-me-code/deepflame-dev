@@ -82,7 +82,7 @@ public:
 
 
     //- Destructor
-    virtual ~DeePFGM();
+        virtual ~DeePFGM();
 
 
     // Member Operators
@@ -93,16 +93,25 @@ public:
         //- retrieval data from table
         // virtual void retrieval();
 
-        virtual void retrieval(PyObject* module,PyObject* func);
+        virtual void retrieval(PyObject* module,PyObject* func,PyObject* model_omegac,PyObject* model_cp,PyObject* model_T,PyObject* model_YH2O,PyObject* model_YCO,PyObject* model_YCO2);
         virtual int prediction(
         double z_s[], double c_s[], double gz_s[], double gc_s[],
-        double gcz_s[],  int phinum, int dimension,double* result,int size,PyObject* module,PyObject* func
+        double gcz_s[],  int phinum, int dimension,double* result,int size,PyObject* module,PyObject* func,PyObject* model
     );
         virtual PyObject* initialize_module();
         virtual PyObject* initialize_function(PyObject* module);
-
+        virtual PyObject* initialize_load(PyObject* module);
         //- Disallow default bitwise assignment
         void operator=(const DeePFGM&) = delete;
+        PyObject* module;
+        PyObject* func;
+        PyObject* func_load;
+        PyObject* model_omegac;
+        PyObject* model_cp;
+        PyObject* model_T;
+        PyObject* model_YH2O;
+        PyObject* model_YCO;
+        PyObject* model_YCO2;
 };
 
 
