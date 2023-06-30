@@ -76,6 +76,7 @@ int main(int argc, char *argv[])
     #include "createTime.H"
     #include "createDynamicFvMesh.H"
     #include "createFields.H"
+    #include "createFields_rk2.H"
     #include "createTimeControls.H"
 
     double time_monitor_flow=0;
@@ -96,6 +97,27 @@ int main(int argc, char *argv[])
     // Courant numbers used to adjust the time-step
     scalar CoNum = 0.0;
     scalar meanCoNum = 0.0;
+
+    std::vector<double> rkcoe1(3);
+    std::vector<double> rkcoe2(3);
+    std::vector<double> rkcoe3(3);
+    scalar rk;
+    label nrk=0;
+
+    if(ddtSchemes == "RK2SSP")
+    {
+        rkcoe1[0]=1.0; rkcoe2[0]=0.0; rkcoe3[0]=1.0;
+        rkcoe1[1]=0.5; rkcoe2[1]=0.5; rkcoe3[1]=0.5;
+        rkcoe1[2]=0.0; rkcoe2[2]=0.0; rkcoe3[2]=0.0;
+        rk=2;
+    }
+    else if(ddtSchemes == "RK3SSP")
+    {
+        rkcoe1[0]=1.0; rkcoe2[0]=0.0; rkcoe3[0]=1.0;
+        rkcoe1[1]=0.75; rkcoe2[1]=0.25; rkcoe3[1]=0.25;
+        rkcoe1[2]=0.33; rkcoe2[2]=0.66; rkcoe3[2]=0.66;
+        rk=3;
+    }
 
     Info<< "\nStarting time loop\n" << endl;
 
@@ -127,197 +149,89 @@ int main(int argc, char *argv[])
             
         }
 
-        // --- Directed interpolation of primitive fields onto faces
+        volScalarField rho_rhs("rho_rhs",rho_save/runTime.deltaT());
+        volVectorField rhoU_rhs("rhoU_rhs",rhoU_save/runTime.deltaT());
+        volScalarField rhoYi_rhs("rhoYi_rhs",rhoYi_save[0]/runTime.deltaT());
+        volScalarField rhoE_rhs("rhoE_rhs",rhoE_save/runTime.deltaT());
 
-        surfaceScalarField rho_pos(interpolate(rho, pos));
-        surfaceScalarField rho_neg(interpolate(rho, neg));
-
-        PtrList<surfaceScalarField> rhoYi_pos(nspecies);
-        PtrList<surfaceScalarField> rhoYi_neg(nspecies);
-        forAll(rhoYi_pos,i)
+        if ((ddtSchemes == "RK2SSP") || (ddtSchemes == "RK3SSP"))
         {
-            rhoYi_pos.set
-            (
-                i,
-                new surfaceScalarField
-                (
-                    IOobject
-                    (
-                        "rhoYi_pos" + Y[i].name(),
-                        runTime.timeName(),
-                        mesh,
-                        IOobject::NO_READ,
-                        IOobject::NO_WRITE
-                    ),
-                    interpolate(rhoYi[i], pos,"Yi")
-                )
-            );
-        }
+            for( nrk=0 ; nrk<rk ; nrk++)
+            {
+                Info <<"into rk"<< nrk+1 << nl << endl;
 
-        forAll(rhoYi_neg,i)
+                #include "preCal.H"
+                #include "phiCal.H"
+
+                Info <<"\n in rk"<< nrk+1 << " finish pre-calculation"<< nl << endl;
+
+                if (nrk == 0)
+                {
+                    #include "centralCourantNo.H"
+                    if (LTS)
+                    {
+                        #include "setRDeltaT.H"
+                        runTime++;
+                    }
+
+                    Info<< "Time = " << runTime.timeName() << nl << endl;
+
+                    #include "updateFieldsSave.H"
+                }
+
+                // --- Solve density
+                #include "rhoEqn.H"
+
+                start = std::clock();
+                // --- Solve momentum
+                #include "rhoUEqn.H"
+                end = std::clock();
+                time_monitor_flow += double(end - start) / double(CLOCKS_PER_SEC);
+
+                // --- Solve species
+                #include "rhoYEqn.H"
+
+                // --- Solve energy
+                #include "rhoEEqn.H"
+
+                if ((nrk == rk-1) && (chemScheme == "RR"))
+                {
+                    #include "calculateR.H"
+                }
+
+            }
+            
+        }
+        else
         {
-            rhoYi_neg.set
-            (
-                i,
-                new surfaceScalarField
-                (
-                    IOobject
-                    (
-                        "rhoYi_neg" + Y[i].name(),
-                        runTime.timeName(),
-                        mesh,
-                        IOobject::NO_READ,
-                        IOobject::NO_WRITE
-                    ),
-                    interpolate(rhoYi[i], neg,"Yi")
-                )
-            );
+            #include "preCal.H"
+            #include "centralCourantNo.H"
+
+            if (LTS)
+            {
+                #include "setRDeltaT.H"
+                runTime++;
+            }
+
+            Info<< "Time = " << runTime.timeName() << nl << endl;
+
+            #include "phiCal.H"
+
+            // --- Solve density
+            #include "rhoEqn.H"
+
+            start = std::clock();
+            // --- Solve momentum
+            #include "rhoUEqn.H"
+            end = std::clock();
+            time_monitor_flow += double(end - start) / double(CLOCKS_PER_SEC);
+
+            // --- Solve species
+            #include "rhoYEqn.H"
+
+            // --- Solve energy
+            #include "rhoEEqn.H"
         }
-
-        surfaceVectorField rhoU_pos(interpolate(rhoU, pos, U.name()));
-        surfaceVectorField rhoU_neg(interpolate(rhoU, neg, U.name()));
-
-        volScalarField rPsi("rPsi", 1.0/psi);
-        surfaceScalarField rPsi_pos(interpolate(rPsi, pos, T.name()));
-        surfaceScalarField rPsi_neg(interpolate(rPsi, neg, T.name()));
-
-        surfaceScalarField ea_pos(interpolate(ea, pos, T.name()));
-        surfaceScalarField ea_neg(interpolate(ea, neg, T.name()));
-
-        surfaceVectorField U_pos("U_pos", rhoU_pos/rho_pos);
-        surfaceVectorField U_neg("U_neg", rhoU_neg/rho_neg);
-
-        surfaceScalarField p_pos("p_pos", rho_pos*rPsi_pos);
-        surfaceScalarField p_neg("p_neg", rho_neg*rPsi_neg);
-
-        surfaceScalarField phiv_pos("phiv_pos", U_pos & mesh.Sf());
-        surfaceScalarField phiv_neg("phiv_neg", U_neg & mesh.Sf());
-
-        // Make fluxes relative to mesh-motion
-        if (mesh.moving())
-        {
-            phiv_pos -= mesh.phi();
-            phiv_neg -= mesh.phi();
-        }
-
-        volScalarField c("c", sqrt(thermo.Cp()/thermo.Cv()*rPsi));
-        surfaceScalarField cSf_pos
-        (
-            "cSf_pos",
-            interpolate(c, pos, T.name())*mesh.magSf()
-        );
-        surfaceScalarField cSf_neg
-        (
-            "cSf_neg",
-            interpolate(c, neg, T.name())*mesh.magSf()
-        );
-
-        surfaceScalarField ap
-        (
-            "ap",
-            max(max(phiv_pos + cSf_pos, phiv_neg + cSf_neg), v_zero)
-        );
-        surfaceScalarField am
-        (
-            "am",
-            min(min(phiv_pos - cSf_pos, phiv_neg - cSf_neg), v_zero)
-        );
-
-        surfaceScalarField a_pos("a_pos", ap/(ap - am));
-
-        surfaceScalarField amaxSf("amaxSf", max(mag(am), mag(ap)));
-
-        surfaceScalarField aSf("aSf", am*a_pos);
-
-        if (fluxScheme == "Tadmor")
-        {
-            aSf = -0.5*amaxSf;
-            a_pos = 0.5;
-        }
-
-        surfaceScalarField a_neg("a_neg", 1.0 - a_pos);
-
-        phiv_pos *= a_pos;
-        phiv_neg *= a_neg;
-
-        surfaceScalarField aphiv_pos("aphiv_pos", phiv_pos - aSf);
-        surfaceScalarField aphiv_neg("aphiv_neg", phiv_neg + aSf);
-
-        // Reuse amaxSf for the maximum positive and negative fluxes
-        // estimated by the central scheme
-        amaxSf = max(mag(aphiv_pos), mag(aphiv_neg));
-
-        #include "centralCourantNo.H"
-
-        if (LTS)
-        {
-            #include "setRDeltaT.H"
-            runTime++;
-        }
-
-        Info<< "Time = " << runTime.timeName() << nl << endl;
-
-        phi = aphiv_pos*rho_pos + aphiv_neg*rho_neg;
-
-        PtrList<surfaceScalarField> phiYi(nspecies);
-        forAll(phiYi,i)
-        {
-            phiYi.set
-            (
-                i,
-                new surfaceScalarField
-                (
-                    IOobject
-                    (
-                        "phiYi_" + Y[i].name(),
-                        runTime.timeName(),
-                        mesh,
-                        IOobject::NO_READ,
-                        IOobject::NO_WRITE
-                    ),
-                    aphiv_pos*rhoYi_pos[i] + aphiv_neg*rhoYi_neg[i]
-                )
-            );
-        }
-
-        surfaceVectorField phiUp
-        (
-            (aphiv_pos*rhoU_pos + aphiv_neg*rhoU_neg)
-          + (a_pos*p_pos + a_neg*p_neg)*mesh.Sf()
-        );
-
-        surfaceScalarField phiEp
-        (
-            "phiEp",
-            aphiv_pos*(rho_pos*(ea_pos + 0.5*magSqr(U_pos)) + p_pos)
-          + aphiv_neg*(rho_neg*(ea_neg + 0.5*magSqr(U_neg)) + p_neg)
-          + aSf*p_pos - aSf*p_neg
-        );
-
-        // Make flux for pressure-work absolute
-        if (mesh.moving())
-        {
-            phiEp += mesh.phi()*(a_pos*p_pos + a_neg*p_neg);
-        }
-
-        volScalarField muEff("muEff", turbulence->muEff());
-        volTensorField tauMC("tauMC", muEff*dev2(Foam::T(fvc::grad(U))));
-
-        // --- Solve density
-        #include "rhoEqn.H"
-
-        start = std::clock();
-        // --- Solve momentum
-        #include "rhoUEqn.H"
-        end = std::clock();
-        time_monitor_flow += double(end - start) / double(CLOCKS_PER_SEC);
-
-
-        // --- Solve species
-        #include "rhoYEqn.H"
-
-        // --- Solve energy
-       #include "rhoEEqn.H"
 
         turbulence->correct();
 
