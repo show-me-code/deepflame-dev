@@ -12,8 +12,6 @@ find_package(MPI REQUIRED)
 find_package(CUDAToolkit REQUIRED)
 find_library(LIBAMGXSH amgxsh PATHS $ENV{AMGX_DIR}/build)
 
-add_compile_options(-arch=sm_70)
-
 include_directories(
     ${MPI_INCLUDE_PATH}
     ${CUDA_INCLUDE_DIRS}
@@ -22,6 +20,11 @@ include_directories(
 
 add_library(${PROJECT_NAME} 
     SHARED 
+        dfUEqn.cu 
+        dfRhoEqn.cu 
+        dfYEqn.cu
+        dfEEqn.cu
+        AmgXSolver.cu
         dfMatrixDataBase.cu)
 
 target_link_libraries(${PROJECT_NAME}
