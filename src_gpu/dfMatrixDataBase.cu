@@ -1,5 +1,46 @@
 #include "dfMatrixDataBase.H"
 
+void constructBoundarySelectorPerPatch(int *patchTypeSelector, const std::string& patchTypeStr)
+{
+    boundaryConditions patchCondition;
+    std::vector<int> tmpSelector;
+    static std::map<std::string, boundaryConditions> BCMap = {
+        {"zeroGradient", zeroGradient},
+        {"fixedValue", fixedValue},
+        {"empty", empty},
+        {"coupled", coupled}
+    };
+    auto iter = BCMap.find(patchTypeStr);
+    if (iter != BCMap.end()) {
+        patchCondition = iter->second;
+    } else {
+        throw std::runtime_error("Unknown boundary condition: " + patchTypeStr);
+    }
+    // zeroGradient labeled as 0, fixedValue labeled as 1, coupled labeled as 2
+    switch (patchCondition){
+        case zeroGradient:
+        {
+            *patchTypeSelector = 0;
+            break;
+        }
+        case fixedValue:
+        {
+            *patchTypeSelector = 1;
+            break;
+        }
+        case empty:
+        {
+            *patchTypeSelector = 2;
+            break;
+        }
+        case coupled:
+        {
+            *patchTypeSelector = 3;
+            break;
+        }
+    }
+}
+
 dfMatrixDataBase::dfMatrixDataBase() {
     checkCudaErrors(cudaStreamCreate(&stream));
 }
@@ -15,14 +56,14 @@ dfMatrixDataBase::~dfMatrixDataBase() {
 }
 
 void dfMatrixDataBase::setConstantValues(int num_cells, int num_surfaces, int num_boundary_surfaces,
-                   int num_patches, std::vector<int> patch_sizes,
+                   int num_patches, std::vector<int> patch_size,
                    int num_species, double rdelta_t) {
     // constant values -- basic
     this->num_cells = num_cells;
     this->num_surfaces = num_surfaces;
     this->num_boundary_surfaces = num_boundary_surfaces;
     this->num_patches = num_patches;
-    this->patch_sizes = patch_sizes;
+    this->patch_size = patch_size;
     this->num_species = num_species;
     this->rdelta_t = rdelta_t;
 

@@ -21,8 +21,9 @@ include_directories(
 )
 
 add_library(${PROJECT_NAME} 
-    SHARED 
-        dfMatrixDataBase.cu)
+    SHARED
+        dfMatrixDataBase.cu
+        dfMatrixOpBase.cu)
 
 target_link_libraries(${PROJECT_NAME}
     ${MPI_LIBRARIES}

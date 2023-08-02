@@ -45,11 +45,14 @@ Description
 #include "basicThermo.H"
 #include "CombustionModel.H"
 
-#include "dfMatrixDataBase.H"
 #include <cuda_runtime.h>
 #include <thread>
 #include "upwind.H"
+
+#include "dfMatrixDataBase.H"
+#include "dfMatrixOpBase.H"
 #include "createGPUSolver.H"
+#include "GPUTestBase.H"
 
 int main(int argc, char *argv[])
 {
@@ -93,6 +96,10 @@ int main(int argc, char *argv[])
         }
 
         createGPUBase(mesh, Y);
+
+        // unittest of fvm::div(phi, U)
+        test_fvm_div_scalar(dfDataBase, mesh, phi, U, initType::original);
+        test_fvm_div_scalar(dfDataBase, mesh, phi, U, initType::randomInit);
     }
     return 0;
 }

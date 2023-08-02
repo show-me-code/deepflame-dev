@@ -48,6 +48,7 @@ enum boundaryConditions{
     empty
 };
 
+void constructBoundarySelectorPerPatch(int *patchTypeSelector, const std::string& patchTypeStr);
 void constructBoundarySelector(std::vector<int>& patchTypeSelector, const std::string& patchTypeStr, const int patchSize);
 
 struct dfMatrixDataBase
@@ -66,7 +67,7 @@ struct dfMatrixDataBase
     int num_boundary_surfaces = 0;
     int num_patches = 0;
     int num_species = 0;
-    std::vector<int> patch_sizes;
+    std::vector<int> patch_size;
     double rdelta_t = 0;
 
     // constant values -- ldu bytesize
@@ -169,7 +170,7 @@ struct dfMatrixDataBase
 
     // member function
     void setConstantValues(int num_cells, int num_surfaces, int num_boundary_surfaces,
-                   int num_patches, std::vector<int> patch_sizes,
+                   int num_patches, std::vector<int> patch_size,
                    int num_species, double rdelta_t);             
     void setConstantIndexes(const int *owner, const int *neighbor);
 

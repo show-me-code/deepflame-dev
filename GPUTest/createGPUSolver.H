@@ -1,32 +1,29 @@
+
 dfMatrixDataBase dfDataBase;
 
 void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
-    // obtain variables from fvMesh
+    // prepare constant values: num_cells, num_surfaces, num_boundary_surfaces, num_patches, patch_size, num_species, rdelta_t
     const labelUList& owner = mesh.owner();
     const labelUList& neighbour = mesh.neighbour();
     int num_cells = mesh.nCells();
     int num_surfaces = neighbour.size();
-
-    
-    // prepare num_cells, num_surfaces, num_boundary_surfaces, num_patches, patch_sizes, num_species, rdelta_t
-    // - obtain boundary size info from mesh
-    int patchSize = 0, num_patches = 0, num_boundary_surfaces = 0;
-    std::vector<int> patch_sizes;
+    int num_boundary_surfaces = 0;
+    int num_patches = 0;
+    std::vector<int> patch_size;
     forAll(mesh.boundary(), patchi) {
         labelUList sub_boundary = mesh.boundary()[patchi].faceCells();
-        patchSize = sub_boundary.size();
-
-        patch_sizes.push_back(patchSize);
-        num_boundary_surfaces += patchSize;
-        num_patches ++;
+        int patchsize = sub_boundary.size();
+        patch_size.push_back(patchsize);
+        num_boundary_surfaces += patchsize;
+        num_patches++;
     }
-    dfDataBase.setConstantValues(num_cells, num_surfaces, num_boundary_surfaces, num_patches, patch_sizes, Y.size(), 1e-6); // TODO: get deltaT fomr time API
+    // TODO: get deltaT fomr time API
+    dfDataBase.setConstantValues(num_cells, num_surfaces, num_boundary_surfaces, num_patches, patch_size, Y.size(), 1e-6);
     
-    // prepare owner, neighbor
+    // prepare constant indexes: owner, neighbor
     dfDataBase.setConstantIndexes(&owner[0], &neighbour[0]);
     
     // prepare internal and boundary of sf, mag_sf, weights, delta_coeffs, volume
-    // - obtain boundary field info from mesh
     double *boundary_sf = new double[3 * num_boundary_surfaces];
     double *boundary_mag_sf = new double[num_boundary_surfaces];
     double *boundary_delta_coeffs = new double[num_boundary_surfaces];
@@ -36,12 +33,12 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
         const scalarField& pMagSf = mesh.magSf().boundaryField()[patchi];
         const scalarField& pDeltaCoeffs = mesh.nonOrthDeltaCoeffs().boundaryField()[patchi];
 
-        patchSize = pMagSf.size();
+        int patchsize = pMagSf.size();
 
-        memcpy(boundary_sf + 3*offset, &pSf[0][0], 3*patchSize*sizeof(double));
-        memcpy(boundary_mag_sf + offset, &pMagSf[0], patchSize*sizeof(double));
-        memcpy(boundary_delta_coeffs + offset, &pDeltaCoeffs[0], patchSize*sizeof(double));
-        offset += patchSize;
+        memcpy(boundary_sf + 3*offset, &pSf[0][0], 3*patchsize*sizeof(double));
+        memcpy(boundary_mag_sf + offset, &pMagSf[0], patchsize*sizeof(double));
+        memcpy(boundary_delta_coeffs + offset, &pDeltaCoeffs[0], patchsize*sizeof(double));
+        offset += patchsize;
     }
 
     dfDataBase.createConstantFieldsInternal();
@@ -49,23 +46,20 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
     dfDataBase.initConstantFieldsInternal(&mesh.Sf()[0][0], &mesh.magSf()[0], &mesh.surfaceInterpolation::weights()[0], &mesh.nonOrthDeltaCoeffs()[0], &mesh.V()[0]);
     dfDataBase.initConstantFieldsBoundary(boundary_sf, boundary_mag_sf, boundary_delta_coeffs);
     
-    // prepare internal and boundary of xxx
-    // - obtain init_Y
-    double *h_Y = new double[Y.size() * num_cells];
-    double *boundary_Y = new double[Y.size() * num_boundary_surfaces];
+    // prepare internal and boundary of Y
+    dfDataBase.createNonConstantFieldsInternal();
+    dfDataBase.createNonConstantFieldsBoundary();
     forAll(Y, speciesI) {
         volScalarField& Yi = Y[speciesI];
-        memcpy(h_Y + speciesI * num_cells, &Yi[0], num_cells * sizeof(double));
+        memcpy(dfDataBase.h_y + speciesI * num_cells, &Yi[0], num_cells * sizeof(double));
         offset = 0;
         forAll(Yi.boundaryField(), patchi) {
             const scalarField& patchYi = Yi.boundaryField()[patchi];
-            patchSize = patchYi.size();
-            memcpy(boundary_Y + speciesI * num_boundary_surfaces + offset, &patchYi[0], patchSize*sizeof(double));
-            offset += patchSize;
+            int patchsize = patchYi.size();
+            memcpy(dfDataBase.h_boundary_y + speciesI * num_boundary_surfaces + offset, &patchYi[0], patchsize*sizeof(double));
+            offset += patchsize;
         }
     }
-    dfDataBase.createNonConstantFieldsInternal();
-    dfDataBase.createNonConstantFieldsBoundary();
-    dfDataBase.initNonConstantFieldsInternal(h_Y);
-    dfDataBase.initNonConstantFieldsBoundary(boundary_Y);
+    dfDataBase.initNonConstantFieldsInternal(dfDataBase.h_y);
+    dfDataBase.initNonConstantFieldsBoundary(dfDataBase.h_boundary_y);
 };
