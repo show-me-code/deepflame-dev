@@ -12,7 +12,7 @@
 #include <iostream>
 #include <ctime>
 #include <cmath>
-
+#include <unordered_map>
 
 static const char *_cudaGetErrorEnum(cudaError_t error) {
   return cudaGetErrorName(error);
@@ -30,16 +30,28 @@ void check(T result, char const *const func, const char *const file,
 
 #define checkCudaErrors(val) check((val), #val, __FILE__, __LINE__)
 
-inline void checkVectorEqual(int count, const double* basevec, double* vec, double max_relative_error) {
+inline void checkVectorEqual(int count, const double* basevec, double* vec, double max_relative_error, bool print = false) {
     for (size_t i = 0; i < count; ++i)
     {
         double abs_diff = fabs(basevec[i] - vec[i]);
         double rel_diff = fabs(basevec[i] - vec[i]) / fabs(basevec[i]);
+        if (print)
+            fprintf(stderr, "index %d, cpu data: %.16lf, gpu data: %.16lf, relative error: %.16lf\n", i, basevec[i], vec[i], rel_diff);
         // if (abs_diff > 1e-12 && rel_diff > max_relative_error && !std::isinf(rel_diff))
         if (abs_diff > 1e-15 && rel_diff > max_relative_error)
             fprintf(stderr, "mismatch index %d, cpu data: %.16lf, gpu data: %.16lf, relative error: %.16lf\n", i, basevec[i], vec[i], rel_diff);
     }
 }
+
+enum location {
+    cpu,
+    gpu
+};
+
+enum position {
+    internal,
+    boundary
+};
 
 enum boundaryConditions{
     zeroGradient,
@@ -162,6 +174,8 @@ struct dfMatrixDataBase
     double *h_boundary_p= nullptr;
     double *h_boundary_phi= nullptr;
 
+    std::unordered_map<std::string, double*> fieldPointerMap;
+
     // constructor
     dfMatrixDataBase();
 
@@ -186,5 +200,7 @@ struct dfMatrixDataBase
     void initNonConstantFieldsInternal(const double *y);
     void initNonConstantFieldsBoundary(const double *boundary_y);
 
+    // getter
+    double* getFieldPointer(const char* fieldAlias, location loc, position pos);
 };
 
