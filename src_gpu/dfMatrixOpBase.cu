@@ -4,6 +4,28 @@
 #include <cuda_runtime.h>
 #include "cuda_profiler_api.h"
 
+__global__ void permute_vector_d2h_kernel(int num_cells, const double *input, double *output)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_cells)
+        return;
+
+    output[index * 3 + 0] = input[num_cells * 0 + index];
+    output[index * 3 + 1] = input[num_cells * 1 + index];
+    output[index * 3 + 2] = input[num_cells * 2 + index];
+}
+
+__global__ void permute_vector_h2d_kernel(int num_cells, const double *input, double *output)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_cells)
+        return;
+
+    output[num_cells * 0 + index] = input[index * 3 + 0];
+    output[num_cells * 1 + index] = input[index * 3 + 1];
+    output[num_cells * 2 + index] = input[index * 3 + 2];
+}
+
 __global__ void update_boundary_coeffs_zeroGradient_vector(int num, int offset,
         double *value_internal_coeffs, double *value_boundary_coeffs,
         double *gradient_internal_coeffs, double *gradient_boundary_coeffs)
@@ -45,6 +67,7 @@ __global__ void fvm_div_scalar_internal(int num_surfaces,
 
     lower[index] += (-w) * f;
     upper[index] += (1 - w) * f;
+    // if (index == 0) printf("index = 0, lower: %.16lf, upper:%.16lf\n", lower[index], upper[index]);
 
     int l = lower_index[index];
     int u = upper_index[index];
@@ -68,6 +91,20 @@ __global__ void fvm_div_scalar_boundary(int num, int offset,
     boundary_coeffs[start_index * 3 + 0] = boundary_f * value_boundary_coeffs[start_index * 3 + 0];
     boundary_coeffs[start_index * 3 + 1] = boundary_f * value_boundary_coeffs[start_index * 3 + 1];
     boundary_coeffs[start_index * 3 + 2] = boundary_f * value_boundary_coeffs[start_index * 3 + 2];
+}
+
+void permute_vector_d2h(cudaStream_t stream, int num_cells, const double *input, double *output)
+{
+    size_t threads_per_block = 256;
+    size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
+    permute_vector_d2h_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, input, output);
+}
+
+void permute_vector_h2d(cudaStream_t stream, int num_cells, const double *input, double *output)
+{
+    size_t threads_per_block = 256;
+    size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
+    permute_vector_h2d_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, input, output);
 }
 
 void ldu_to_csr(cudaStream_t stream, int num_cells, int num_surfaces,

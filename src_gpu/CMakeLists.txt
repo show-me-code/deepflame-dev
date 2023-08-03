@@ -22,8 +22,10 @@ include_directories(
 
 add_library(${PROJECT_NAME} 
     SHARED
+        AmgXSolver.cu
         dfMatrixDataBase.cu
-        dfMatrixOpBase.cu)
+        dfMatrixOpBase.cu
+        dfUEqn.cu)
 
 target_link_libraries(${PROJECT_NAME}
     ${MPI_LIBRARIES}

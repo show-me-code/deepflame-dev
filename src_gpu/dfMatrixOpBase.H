@@ -1,5 +1,8 @@
 #pragma once
 
+void permute_vector_d2h(cudaStream_t stream, int num_cells, const double *input, double *output);
+void permute_vector_h2d(cudaStream_t stream, int num_cells, const double *input, double *output);
+
 void ldu_to_csr(cudaStream_t stream, int num_cells, int num_surfaces,
         const int *lower_to_csr_index, const int *upper_to_csr_index, const int *diag_to_csr_index, 
         const double *lower, const double *upper, const double *diag, const double *source,
