@@ -16,7 +16,7 @@ void update_boundary_coeffs_vector(cudaStream_t stream, int num_patches,
 
 // void fvm_ddt();
 
-void fvm_div_scalar(cudaStream_t stream, int num_surfaces, const int *lowerAddr, const int *upperAddr,
+void fvm_div_vector(cudaStream_t stream, int num_surfaces, const int *lowerAddr, const int *upperAddr,
         const double *phi, const double *weight,
         double *lower, double *upper, double *diag, // end for internal
         int num_patches, const int *patch_size, const int *patch_type,

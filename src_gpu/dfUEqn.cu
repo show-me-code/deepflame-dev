@@ -99,7 +99,7 @@ void dfUEqn::preProcessForRhoEqn(const double *h_phi, const double *h_boundary_p
 
 void dfUEqn::process() {
   // run each fvc or fvm function
-  fvm_div_scalar(dataBase_.stream, dataBase_.num_surfaces, dataBase_.d_owner, dataBase_.d_neighbor,
+  fvm_div_vector(dataBase_.stream, dataBase_.num_surfaces, dataBase_.d_owner, dataBase_.d_neighbor,
           dataBase_.d_phi, dataBase_.d_weight,
           d_lower, d_upper, d_diag, // end for internal
           dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),

@@ -53,7 +53,7 @@ __global__ void update_boundary_coeffs_zeroGradient_vector(int num, int offset,
     gradient_boundary_coeffs[start_index * 3 + 2] = 0;
 }
 
-__global__ void fvm_div_scalar_internal(int num_surfaces,
+__global__ void fvm_div_vector_internal(int num_surfaces,
         const int *lower_index, const int *upper_index,
         const double *phi, const double *weight,
         double *lower, double *upper, double *diag)
@@ -75,7 +75,7 @@ __global__ void fvm_div_scalar_internal(int num_surfaces,
     atomicAdd(&(diag[u]), (w - 1) * f);
 }
 
-__global__ void fvm_div_scalar_boundary(int num, int offset,
+__global__ void fvm_div_vector_boundary(int num, int offset,
         const double *boundary_phi, const double *value_internal_coeffs, const double *value_boundary_coeffs,
         double *internal_coeffs, double *boundary_coeffs)
 {
@@ -142,7 +142,7 @@ void update_boundary_coeffs_vector(cudaStream_t stream, int num_patches,
     }
 }
 
-void fvm_div_scalar(cudaStream_t stream, int num_surfaces, const int *lowerAddr, const int *upperAddr,
+void fvm_div_vector(cudaStream_t stream, int num_surfaces, const int *lowerAddr, const int *upperAddr,
         const double *phi, const double *weight,
         double *lower, double *upper, double *diag, // end for internal
         int num_patches, const int *patch_size, const int *patch_type,
@@ -153,7 +153,7 @@ void fvm_div_scalar(cudaStream_t stream, int num_surfaces, const int *lowerAddr,
     size_t blocks_per_grid = 1;
 
     blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
-    fvm_div_scalar_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_surfaces,
+    fvm_div_vector_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_surfaces,
             lowerAddr, upperAddr,
             phi, weight, lower, upper, diag);
 
@@ -165,7 +165,7 @@ void fvm_div_scalar(cudaStream_t stream, int num_surfaces, const int *lowerAddr,
         if (patch_type[i] == boundaryConditions::zeroGradient
                 || patch_type[i] == boundaryConditions::fixedValue) {
             // TODO: just vector version now
-            fvm_div_scalar_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
+            fvm_div_vector_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
                     boundary_phi, value_internal_coeffs, value_boundary_coeffs,
                     internal_coeffs, boundary_coeffs);
         } else if (0) {

@@ -174,7 +174,7 @@ void compareResultVector(const dfMatrixDataBase& dfDataBase, const testGPUDataBa
 }
 
 // unittest of fvm::div(phi, U)
-void test_fvm_div_scalar(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, surfaceScalarField& phi, volVectorField& U, initType type) {
+void test_fvm_div_vector(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, surfaceScalarField& phi, volVectorField& U, initType type) {
     if (type == initType::randomInit) {
       randomInitSurfaceScalar(phi);
       // TODO: random init weight failed, weight is const.
@@ -194,7 +194,7 @@ void test_fvm_div_scalar(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, surfa
     updateBoundaryCoeffsVector(dfDataBase, testData);
 
     // run GPU
-    fvm_div_scalar(dfDataBase.stream, dfDataBase.num_surfaces, dfDataBase.d_owner, dfDataBase.d_neighbor,
+    fvm_div_vector(dfDataBase.stream, dfDataBase.num_surfaces, dfDataBase.d_owner, dfDataBase.d_neighbor,
             dfDataBase.d_phi, dfDataBase.d_weight,
             testData.d_lower, testData.d_upper, testData.d_diag, // end for internal
             dfDataBase.num_patches, dfDataBase.patch_size.data(), testData.patch_type.data(),

@@ -98,8 +98,8 @@ int main(int argc, char *argv[])
         createGPUBase(mesh, Y);
 
         // unittest of fvm::div(phi, U)
-        test_fvm_div_scalar(dfDataBase, mesh, phi, U, initType::original);
-        test_fvm_div_scalar(dfDataBase, mesh, phi, U, initType::randomInit);
+        test_fvm_div_vector(dfDataBase, mesh, phi, U, initType::original);
+        test_fvm_div_vector(dfDataBase, mesh, phi, U, initType::randomInit);
     }
     return 0;
 }
