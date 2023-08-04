@@ -97,6 +97,9 @@ int main(int argc, char *argv[])
 
         createGPUBase(mesh, Y);
 
+        // unittest of fvm::ddt(rho, U)
+        test_fvm_ddt_vector(dfDataBase, mesh, rho, U, initType::original);
+        test_fvm_ddt_vector(dfDataBase, mesh, rho, U, initType::randomInit);
         // unittest of fvm::div(phi, U)
         test_fvm_div_vector(dfDataBase, mesh, phi, U, initType::original);
         test_fvm_div_vector(dfDataBase, mesh, phi, U, initType::randomInit);

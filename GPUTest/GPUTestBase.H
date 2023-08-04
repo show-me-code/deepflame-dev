@@ -55,7 +55,7 @@ void randomInitSurfaceScalar(surfaceScalarField& field) {
       int offset = 0;
       forAll(field.boundaryField(), patchi)
       {
-          fvsPatchScalarField& patchField = field.boundaryFieldRef()[patchi];
+          auto& patchField = field.boundaryFieldRef()[patchi];
           int patchsize = patchField.size();
           double *field_boundary_ptr = &patchField[0];
           std::vector<double> init_field_boundary;
@@ -66,6 +66,97 @@ void randomInitSurfaceScalar(surfaceScalarField& field) {
           memcpy(field_boundary_ptr, init_field_boundary.data(), patchsize * sizeof(double));
           offset += patchsize;
       }
+}
+
+void randomInitVolScalar(volScalarField& field) {
+      // random init field value to (-0.5, 0.5)
+      // internal
+      double *field_internal_ptr = &field[0];
+      std::vector<double> init_field_internal;
+      init_field_internal.resize(dfDataBase.num_cells);
+      for (int i = 0; i < dfDataBase.num_cells; i++) {
+          init_field_internal[i] = (rand() % 10000 - 5000) / 10000.0;
+      }
+      memcpy(field_internal_ptr, init_field_internal.data(), dfDataBase.cell_value_bytes);
+      // boundary
+      int offset = 0;
+      forAll(field.boundaryField(), patchi)
+      {
+          auto& patchField = field.boundaryFieldRef()[patchi];
+          int patchsize = patchField.size();
+          double *field_boundary_ptr = &patchField[0];
+          std::vector<double> init_field_boundary;
+          init_field_boundary.resize(patchsize);
+          for (int i = 0; i < patchsize; i++) {
+              init_field_boundary[i] = (rand() % 10000 - 5000) / 10000.0;
+          }
+          memcpy(field_boundary_ptr, init_field_boundary.data(), patchsize * sizeof(double));
+          offset += patchsize;
+      }
+}
+
+// rho_old need special treatment
+void uploadRhoOld(dfMatrixDataBase& dfDataBase, const volScalarField& field) {
+    double *h_internal_field = dfDataBase.getFieldPointer("rho", location::cpu, position::internal);
+    double *h_boundary_field = dfDataBase.getFieldPointer("rho", location::cpu, position::boundary);
+    double *d_internal_field = dfDataBase.getFieldPointer("rho_old", location::gpu, position::internal);
+    double *d_boundary_field = dfDataBase.getFieldPointer("rho_old", location::gpu, position::boundary);
+    // internal
+    memcpy(h_internal_field, &field[0], dfDataBase.cell_value_bytes);
+    // boundary
+    int offset = 0;
+    forAll(field.boundaryField(), patchi)
+    {
+        const auto& patchField = field.boundaryField()[patchi];
+        int patchsize = patchField.size();
+        memcpy(h_boundary_field + offset, &patchField[0], patchsize * sizeof(double));
+        offset += patchsize;
+    }
+    // transfer
+    checkCudaErrors(cudaMemcpyAsync(d_internal_field, h_internal_field, dfDataBase.cell_value_bytes, cudaMemcpyHostToDevice, dfDataBase.stream));
+    checkCudaErrors(cudaMemcpyAsync(d_boundary_field, h_boundary_field, dfDataBase.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dfDataBase.stream));
+}
+
+void uploadVolScalar(dfMatrixDataBase& dfDataBase, const volScalarField& field, const char* fieldAlias) {
+    double *h_internal_field = dfDataBase.getFieldPointer(fieldAlias, location::cpu, position::internal);
+    double *h_boundary_field = dfDataBase.getFieldPointer(fieldAlias, location::cpu, position::boundary);
+    double *d_internal_field = dfDataBase.getFieldPointer(fieldAlias, location::gpu, position::internal);
+    double *d_boundary_field = dfDataBase.getFieldPointer(fieldAlias, location::gpu, position::boundary);
+    // internal
+    memcpy(h_internal_field, &field[0], dfDataBase.cell_value_bytes);
+    // boundary
+    int offset = 0;
+    forAll(field.boundaryField(), patchi)
+    {
+        const auto& patchField = field.boundaryField()[patchi];
+        int patchsize = patchField.size();
+        memcpy(h_boundary_field + offset, &patchField[0], patchsize * sizeof(double));
+        offset += patchsize;
+    }
+    // transfer
+    checkCudaErrors(cudaMemcpyAsync(d_internal_field, h_internal_field, dfDataBase.cell_value_bytes, cudaMemcpyHostToDevice, dfDataBase.stream));
+    checkCudaErrors(cudaMemcpyAsync(d_boundary_field, h_boundary_field, dfDataBase.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dfDataBase.stream));
+}
+
+void uploadVolVector(dfMatrixDataBase& dfDataBase, const volVectorField& field, const char* fieldAlias) {
+    double *h_internal_field = dfDataBase.getFieldPointer(fieldAlias, location::cpu, position::internal);
+    double *h_boundary_field = dfDataBase.getFieldPointer(fieldAlias, location::cpu, position::boundary);
+    double *d_internal_field = dfDataBase.getFieldPointer(fieldAlias, location::gpu, position::internal);
+    double *d_boundary_field = dfDataBase.getFieldPointer(fieldAlias, location::gpu, position::boundary);
+    // internal
+    memcpy(h_internal_field, &field[0], dfDataBase.cell_value_vec_bytes);
+    // boundary
+    int offset = 0;
+    forAll(field.boundaryField(), patchi)
+    {
+        const auto& patchField = field.boundaryField()[patchi];
+        int patchsize = patchField.size();
+        memcpy(h_boundary_field + offset * 3, &patchField[0], patchsize * 3 * sizeof(double));
+        offset += patchsize;
+    }
+    // transfer
+    checkCudaErrors(cudaMemcpyAsync(d_internal_field, h_internal_field, dfDataBase.cell_value_vec_bytes, cudaMemcpyHostToDevice, dfDataBase.stream));
+    checkCudaErrors(cudaMemcpyAsync(d_boundary_field, h_boundary_field, dfDataBase.boundary_surface_value_vec_bytes, cudaMemcpyHostToDevice, dfDataBase.stream));
 }
 
 void uploadSurfaceScalar(dfMatrixDataBase& dfDataBase, const surfaceScalarField& field, const char* fieldAlias) {
@@ -79,7 +170,7 @@ void uploadSurfaceScalar(dfMatrixDataBase& dfDataBase, const surfaceScalarField&
     int offset = 0;
     forAll(field.boundaryField(), patchi)
     {
-        const fvsPatchScalarField& patchField = field.boundaryField()[patchi];
+        const auto& patchField = field.boundaryField()[patchi];
         int patchsize = patchField.size();
         memcpy(h_boundary_field + offset, &patchField[0], patchsize * sizeof(double));
         offset += patchsize;
@@ -89,18 +180,31 @@ void uploadSurfaceScalar(dfMatrixDataBase& dfDataBase, const surfaceScalarField&
     checkCudaErrors(cudaMemcpyAsync(d_boundary_field, h_boundary_field, dfDataBase.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dfDataBase.stream));
 }
 
-void buildTestGPUDataBaseVector(const dfMatrixDataBase& dfDataBase, testGPUDataBase& testData, const volVectorField& field) {
+void buildTestGPUDataBaseVector(const dfMatrixDataBase& dfDataBase, testGPUDataBase& testData, const volVectorField& field,
+        bool lowerFlag, bool upperFlag, bool diagFlag, bool sourceFlag, bool internalCoeffsFlag, bool boundaryCoeffsFlag,
+        bool valueInternalCoeffsFlag, bool valueBoundaryCoeffsFlag, bool gradientInternalCoeffsFlag, bool gradientBoundaryCoeffsFlag) {
     // ldu
-    checkCudaErrors(cudaMalloc((void**)&testData.d_lower, dfDataBase.surface_value_bytes));
-    checkCudaErrors(cudaMalloc((void**)&testData.d_upper, dfDataBase.surface_value_bytes));
-    checkCudaErrors(cudaMalloc((void**)&testData.d_diag, dfDataBase.cell_value_bytes));
-    checkCudaErrors(cudaMalloc((void**)&testData.d_internal_coeffs, dfDataBase.boundary_surface_value_vec_bytes));
-    checkCudaErrors(cudaMalloc((void**)&testData.d_boundary_coeffs, dfDataBase.boundary_surface_value_vec_bytes));
+    if (lowerFlag)
+        checkCudaErrors(cudaMalloc((void**)&testData.d_lower, dfDataBase.surface_value_bytes));
+    if (upperFlag)
+        checkCudaErrors(cudaMalloc((void**)&testData.d_upper, dfDataBase.surface_value_bytes));
+    if (diagFlag)
+        checkCudaErrors(cudaMalloc((void**)&testData.d_diag, dfDataBase.cell_value_bytes));
+    if (sourceFlag)
+        checkCudaErrors(cudaMalloc((void**)&testData.d_source, dfDataBase.cell_value_vec_bytes));
+    if (internalCoeffsFlag)
+        checkCudaErrors(cudaMalloc((void**)&testData.d_internal_coeffs, dfDataBase.boundary_surface_value_vec_bytes));
+    if (boundaryCoeffsFlag)
+        checkCudaErrors(cudaMalloc((void**)&testData.d_boundary_coeffs, dfDataBase.boundary_surface_value_vec_bytes));
     // boundary coeffs
-    checkCudaErrors(cudaMalloc((void**)&testData.d_value_internal_coeffs, dfDataBase.boundary_surface_value_vec_bytes));
-    checkCudaErrors(cudaMalloc((void**)&testData.d_value_boundary_coeffs, dfDataBase.boundary_surface_value_vec_bytes));
-    checkCudaErrors(cudaMalloc((void**)&testData.d_gradient_internal_coeffs, dfDataBase.boundary_surface_value_vec_bytes));
-    checkCudaErrors(cudaMalloc((void**)&testData.d_gradient_boundary_coeffs, dfDataBase.boundary_surface_value_vec_bytes));
+    if (valueInternalCoeffsFlag)
+        checkCudaErrors(cudaMalloc((void**)&testData.d_value_internal_coeffs, dfDataBase.boundary_surface_value_vec_bytes));
+    if (valueBoundaryCoeffsFlag)
+        checkCudaErrors(cudaMalloc((void**)&testData.d_value_boundary_coeffs, dfDataBase.boundary_surface_value_vec_bytes));
+    if (gradientInternalCoeffsFlag)
+        checkCudaErrors(cudaMalloc((void**)&testData.d_gradient_internal_coeffs, dfDataBase.boundary_surface_value_vec_bytes));
+    if (gradientBoundaryCoeffsFlag)
+        checkCudaErrors(cudaMalloc((void**)&testData.d_gradient_boundary_coeffs, dfDataBase.boundary_surface_value_vec_bytes));
     // patch type
     testData.patch_type.resize(dfDataBase.num_patches);
     forAll(field.boundaryField(), patchi)
@@ -139,7 +243,7 @@ void compareResultVector(const dfMatrixDataBase& dfDataBase, const testGPUDataBa
         std::vector<double> h_source;
         h_source.resize(dfDataBase.num_cells * 3);
         checkCudaErrors(cudaMemcpy(h_source.data(), testData.d_source, dfDataBase.cell_value_vec_bytes, cudaMemcpyDeviceToHost));
-        checkVectorEqual(dfDataBase.num_cells, &dfMatrix.source()[0][0], h_source.data(), 1e-14, printFlag);
+        checkVectorEqual(dfDataBase.num_cells * 3, &dfMatrix.source()[0][0], h_source.data(), 1e-14, printFlag);
     }
     if (testData.d_internal_coeffs) {
         std::vector<double> h_internal_coeffs;
@@ -173,6 +277,37 @@ void compareResultVector(const dfMatrixDataBase& dfDataBase, const testGPUDataBa
     }
 }
 
+// unittest of fvm::ddt(rho, U)
+void test_fvm_ddt_vector(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, volScalarField& rho, volVectorField& U, initType type) {
+
+    if (type == initType::randomInit) {
+      // random init rho and rho.old
+      randomInitVolScalar(rho);
+      rho.oldTime();
+    }
+
+    // run CPU
+    fvVectorMatrix dfMatrix = fvm::ddt(rho, U);
+
+    // prepare for run GPU
+    // prepare rho, rho.old, U
+    uploadVolScalar(dfDataBase, rho, "rho");
+    uploadRhoOld(dfDataBase, rho.oldTime());
+    uploadVolVector(dfDataBase, U.oldTime(), "u");
+    // prepare testData
+    testGPUDataBase testData;
+    // only use diag and source
+    buildTestGPUDataBaseVector(dfDataBase, testData, U, false, false, true, true, false, false, false, false, false, false);
+    // run GPU
+    fvm_ddt_vector(dfDataBase.stream, dfDataBase.num_cells, dfDataBase.rdelta_t,
+            dfDataBase.d_rho, dfDataBase.d_rho_old, dfDataBase.d_u, dfDataBase.d_volume,
+            testData.d_diag, testData.d_source);
+
+    // compare result
+    bool printFlag = false;
+    compareResultVector(dfDataBase, testData, dfMatrix, printFlag);
+}
+
 // unittest of fvm::div(phi, U)
 void test_fvm_div_vector(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, surfaceScalarField& phi, volVectorField& U, initType type) {
     if (type == initType::randomInit) {
@@ -188,7 +323,9 @@ void test_fvm_div_vector(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, surfa
     uploadSurfaceScalar(dfDataBase, phi, "phi");
     // prepare testData
     testGPUDataBase testData;
-    buildTestGPUDataBaseVector(dfDataBase, testData, U);
+    // not use source
+    // gradient_internal_coeffs, gradient_boundary_coeffs are not needed actually, but updateBoundaryCoeffsVector will access them
+    buildTestGPUDataBaseVector(dfDataBase, testData, U, true, true, true, false, true, true, true, true, true, true);
     // prepare boundary coeffs
     // TODO: updating boundary coeffs should be complemented later
     updateBoundaryCoeffsVector(dfDataBase, testData);

@@ -21,7 +21,8 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
         num_patches++;
     }
     // TODO: get deltaT fomr time API
-    dfDataBase.setConstantValues(num_cells, num_surfaces, num_boundary_surfaces, num_patches, patch_size, Y.size(), 1e-6);
+    double rDeltaT = 1 / 1e-6;
+    dfDataBase.setConstantValues(num_cells, num_surfaces, num_boundary_surfaces, num_patches, patch_size, Y.size(), rDeltaT);
     
     // prepare constant indexes: owner, neighbor
     dfDataBase.setConstantIndexes(&owner[0], &neighbour[0]);

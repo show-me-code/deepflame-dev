@@ -1,5 +1,6 @@
 #pragma once
 
+// tools
 void permute_vector_d2h(cudaStream_t stream, int num_cells, const double *input, double *output);
 void permute_vector_h2d(cudaStream_t stream, int num_cells, const double *input, double *output);
 
@@ -14,7 +15,11 @@ void update_boundary_coeffs_vector(cudaStream_t stream, int num_patches,
         double *value_internal_coeffs, double *value_boundary_coeffs,
         double *gradient_internal_coeffs, double *gradient_boundary_coeffs);
 
-// void fvm_ddt();
+// fvm ops
+
+void fvm_ddt_vector(cudaStream_t stream, int num_cells, double rDeltaT,
+        const double *rho, const double *rho_old, const double *vf, const double *volume,
+        double *diag, double *source);
 
 void fvm_div_vector(cudaStream_t stream, int num_surfaces, const int *lowerAddr, const int *upperAddr,
         const double *phi, const double *weight,
@@ -23,10 +28,12 @@ void fvm_div_vector(cudaStream_t stream, int num_surfaces, const int *lowerAddr,
         const double *boundary_phi, const double *value_internal_coeffs, const double *value_boundary_coeffs,
         double *internal_coeffs, double *boundary_coeffs);
 
-// void fvm_laplacian();
-// 
-// void fvc_ddt();
-// 
+void fvm_laplacian();
+
+// fvc ops
+
+void fvc_ddt();
+
 // void fvc_grad_surface();
 // 
 // void fvc_div_cell();

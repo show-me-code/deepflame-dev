@@ -134,10 +134,10 @@ struct dfMatrixDataBase
     // fields solved by eqns - old 
     // TODO: not all fields need to store oldTime
     double *d_rho_old = nullptr;
-    double *d_u_old = nullptr;
-    double *d_y_old = nullptr;
-    double *d_he_old = nullptr;
-    double *d_p_old = nullptr;
+    //double *d_u_old = nullptr;
+    //double *d_y_old = nullptr;
+    //double *d_he_old = nullptr;
+    //double *d_p_old = nullptr;
     // other shared fields between eqns
     double *d_phi = nullptr;
     // computed on GPU, used on CPU, need memcpyd2h - host
@@ -159,10 +159,10 @@ struct dfMatrixDataBase
     double *d_boundary_p = nullptr;
     // fields solved by eqns - old
     double *d_boundary_rho_old = nullptr;
-    double *d_boundary_u_old = nullptr;
-    double *d_boundary_y_old = nullptr;
-    double *d_boundary_he_old = nullptr;
-    double *d_boundary_p_old = nullptr;
+    //double *d_boundary_u_old = nullptr;
+    //double *d_boundary_y_old = nullptr;
+    //double *d_boundary_he_old = nullptr;
+    //double *d_boundary_p_old = nullptr;
     // other shared fields between eqns
     double *d_boundary_phi = nullptr;
     // computed on GPU, used on CPU, need memcpyd2h - host

@@ -53,6 +53,21 @@ __global__ void update_boundary_coeffs_zeroGradient_vector(int num, int offset,
     gradient_boundary_coeffs[start_index * 3 + 2] = 0;
 }
 
+__global__ void fvm_ddt_vector_kernel(int num_cells, double rDeltaT,
+        const double *rho, const double *rho_old, const double *vf, const double *volume,
+        double *diag, double *source)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_cells)
+        return;
+
+    diag[index] += rDeltaT * rho[index] * volume[index];
+    // TODO: skip moving
+    source[index * 3 + 0] += rDeltaT * rho_old[index] * vf[index * 3 + 0] * volume[index];
+    source[index * 3 + 1] += rDeltaT * rho_old[index] * vf[index * 3 + 1] * volume[index];
+    source[index * 3 + 2] += rDeltaT * rho_old[index] * vf[index * 3 + 2] * volume[index];
+}
+
 __global__ void fvm_div_vector_internal(int num_surfaces,
         const int *lower_index, const int *upper_index,
         const double *phi, const double *weight,
@@ -140,6 +155,16 @@ void update_boundary_coeffs_vector(cudaStream_t stream, int num_patches,
         }
         offset += patch_size[i];
     }
+}
+
+void fvm_ddt_vector(cudaStream_t stream, int num_cells, double rDeltaT,
+        const double *rho, const double *rho_old, const double *vf, const double *volume,
+        double *diag, double *source)
+{
+    size_t threads_per_block = 1024;
+    size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
+    fvm_ddt_vector_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
+            rDeltaT, rho, rho_old, vf, volume, diag, source);
 }
 
 void fvm_div_vector(cudaStream_t stream, int num_surfaces, const int *lowerAddr, const int *upperAddr,
