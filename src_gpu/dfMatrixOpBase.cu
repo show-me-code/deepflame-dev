@@ -85,12 +85,12 @@ __global__ void fvm_div_scalar_boundary(int num, int offset,
 
     int start_index = offset + index;
     double boundary_f = boundary_phi[start_index];
-    internal_coeffs[start_index * 3 + 0] = boundary_f * value_internal_coeffs[start_index * 3 + 0];
-    internal_coeffs[start_index * 3 + 1] = boundary_f * value_internal_coeffs[start_index * 3 + 1];
-    internal_coeffs[start_index * 3 + 2] = boundary_f * value_internal_coeffs[start_index * 3 + 2];
-    boundary_coeffs[start_index * 3 + 0] = boundary_f * value_boundary_coeffs[start_index * 3 + 0];
-    boundary_coeffs[start_index * 3 + 1] = boundary_f * value_boundary_coeffs[start_index * 3 + 1];
-    boundary_coeffs[start_index * 3 + 2] = boundary_f * value_boundary_coeffs[start_index * 3 + 2];
+    internal_coeffs[start_index * 3 + 0] += boundary_f * value_internal_coeffs[start_index * 3 + 0];
+    internal_coeffs[start_index * 3 + 1] += boundary_f * value_internal_coeffs[start_index * 3 + 1];
+    internal_coeffs[start_index * 3 + 2] += boundary_f * value_internal_coeffs[start_index * 3 + 2];
+    boundary_coeffs[start_index * 3 + 0] += boundary_f * value_boundary_coeffs[start_index * 3 + 0];
+    boundary_coeffs[start_index * 3 + 1] += boundary_f * value_boundary_coeffs[start_index * 3 + 1];
+    boundary_coeffs[start_index * 3 + 2] += boundary_f * value_boundary_coeffs[start_index * 3 + 2];
 }
 
 void permute_vector_d2h(cudaStream_t stream, int num_cells, const double *input, double *output)
