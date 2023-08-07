@@ -164,7 +164,8 @@ __global__ void fvc_ddt_scalar_kernel(int num_cells, double rDeltaT,
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index >= num_cells)
         return;
-
+    /*
+    // workaround way1 (use printf):
     double val_new = rho[index] * vf[index];
     double val_old = rho_old[index] * vf_old[index];
     // TODO: skip moving
@@ -178,6 +179,12 @@ __global__ void fvc_ddt_scalar_kernel(int num_cells, double rDeltaT,
     // if I add the print line for intermediate variables of val_new and val_old, the problem disappears.
     // It seems that print line will change the compiler behavior, maybe avoiding the fma optimization of compiler.
     if (index == -1) printf("index = 0, val_new: %.40lf, val_old: %.40lf\n", val_new, val_old);
+    output[index] += rDeltaT * (val_new - val_old);
+    */
+    // workaround way2 (use volatile):
+    // volatile will change the compiler behavior, maybe avoiding the fma optimization of compiler.
+    volatile double val_new = rho[index] * vf[index];
+    volatile double val_old = rho_old[index] * vf_old[index];
     output[index] += rDeltaT * (val_new - val_old);
 }
 
