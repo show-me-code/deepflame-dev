@@ -12,7 +12,7 @@ find_package(MPI REQUIRED)
 find_package(CUDAToolkit REQUIRED)
 find_library(LIBAMGXSH amgxsh PATHS $ENV{AMGX_DIR}/build)
 
-add_compile_options(-arch=sm_70)
+add_compile_options(-arch=sm_70 -fmad=false)
 
 include_directories(
     ${MPI_INCLUDE_PATH}

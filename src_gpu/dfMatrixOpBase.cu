@@ -181,11 +181,15 @@ __global__ void fvc_ddt_scalar_kernel(int num_cells, double rDeltaT,
     if (index == -1) printf("index = 0, val_new: %.40lf, val_old: %.40lf\n", val_new, val_old);
     output[index] += rDeltaT * (val_new - val_old);
     */
+    /*
     // workaround way2 (use volatile):
     // volatile will change the compiler behavior, maybe avoiding the fma optimization of compiler.
     volatile double val_new = rho[index] * vf[index];
     volatile double val_old = rho_old[index] * vf_old[index];
     output[index] += rDeltaT * (val_new - val_old);
+    */
+    // workaround way3 (use nvcc option -fmad=false)
+    output[index] += rDeltaT * (rho[index] * vf[index] - rho_old[index] * vf_old[index]);
 }
 
 void permute_vector_d2h(cudaStream_t stream, int num_cells, const double *input, double *output)
