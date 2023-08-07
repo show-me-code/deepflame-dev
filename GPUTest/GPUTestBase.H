@@ -43,18 +43,33 @@ struct testGPUDataBase {
 
 template <typename T>
 void getTypeInfo(size_t *stride, size_t *internal_size, size_t *boundary_size) {
-    if ((typeid(T) != typeid(surfaceScalarField))
-            && (typeid(T) != typeid(surfaceVectorField))
-            && (typeid(T) != typeid(volScalarField))
-            && (typeid(T) != typeid(volVectorField))) {
+    size_t s = 1;
+    bool isVol = false;
+    if (typeid(T) == typeid(surfaceScalarField)) {
+        s = 1;
+        isVol = false;
+    } else if (typeid(T) == typeid(surfaceVectorField)) {
+        s = 3;
+        isVol = false;
+    } else if (typeid(T) == typeid(surfaceTensorField)) {
+        s = 9;
+        isVol = false;
+    } else if (typeid(T) == typeid(volScalarField)) {
+        s = 1;
+        isVol = true;
+    } else if (typeid(T) == typeid(volVectorField)) {
+        s = 3;
+        isVol = true;
+    } else if (typeid(T) == typeid(volTensorField)) {
+        s = 9;
+        isVol = true;
+    } else {
         fprintf(stderr, "ERROR! Unsupported field type()!\n");
         exit(EXIT_FAILURE);
     }
-    bool isVol = ((typeid(T) == typeid(volScalarField)) || (typeid(T) == typeid(volVectorField)));
-    bool isVec = ((typeid(T) == typeid(surfaceVectorField)) || (typeid(T) == typeid(volVectorField)));
-    *stride = isVec ? 3 : 1;
-    *internal_size = (isVol ? dfDataBase.num_cells : dfDataBase.num_surfaces) * (*stride);
-    *boundary_size = dfDataBase.num_boundary_surfaces * (*stride);
+    *stride = s;
+    *internal_size = (isVol ? dfDataBase.num_cells : dfDataBase.num_surfaces) * s;
+    *boundary_size = dfDataBase.num_boundary_surfaces * s;
 }
 
 template <typename T>
