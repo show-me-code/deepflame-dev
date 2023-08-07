@@ -195,6 +195,58 @@ void uploadVolScalar(dfMatrixDataBase& dfDataBase, const volScalarField& field, 
     checkCudaErrors(cudaMemcpyAsync(d_boundary_field, h_boundary_field.data(), dfDataBase.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dfDataBase.stream));
 }
 
+void buildTestGPUDataBaseScalar(const dfMatrixDataBase& dfDataBase, testGPUDataBase& testData, const volScalarField& field,
+        bool lowerFlag, bool upperFlag, bool diagFlag, bool sourceFlag, bool internalCoeffsFlag, bool boundaryCoeffsFlag,
+        bool valueInternalCoeffsFlag, bool valueBoundaryCoeffsFlag, bool gradientInternalCoeffsFlag, bool gradientBoundaryCoeffsFlag) {
+    // ldu
+    if (lowerFlag) {
+        checkCudaErrors(cudaMalloc((void**)&testData.d_lower, dfDataBase.surface_value_bytes));
+        checkCudaErrors(cudaMemset(testData.d_lower, 0, dfDataBase.surface_value_bytes));
+    }
+    if (upperFlag) {
+        checkCudaErrors(cudaMalloc((void**)&testData.d_upper, dfDataBase.surface_value_bytes));
+        checkCudaErrors(cudaMemset(testData.d_upper, 0, dfDataBase.surface_value_bytes));
+    }
+    if (diagFlag) {
+        checkCudaErrors(cudaMalloc((void**)&testData.d_diag, dfDataBase.cell_value_bytes));
+        checkCudaErrors(cudaMemset(testData.d_diag, 0, dfDataBase.cell_value_bytes));
+    }
+    if (sourceFlag) {
+        checkCudaErrors(cudaMalloc((void**)&testData.d_source, dfDataBase.cell_value_bytes));
+        checkCudaErrors(cudaMemset(testData.d_source, 0, dfDataBase.cell_value_bytes));
+    }
+    if (internalCoeffsFlag) {
+        checkCudaErrors(cudaMalloc((void**)&testData.d_internal_coeffs, dfDataBase.boundary_surface_value_bytes));
+        checkCudaErrors(cudaMemset(testData.d_internal_coeffs, 0, dfDataBase.boundary_surface_value_bytes));
+    }
+    if (boundaryCoeffsFlag) {
+        checkCudaErrors(cudaMalloc((void**)&testData.d_boundary_coeffs, dfDataBase.boundary_surface_value_bytes));
+        checkCudaErrors(cudaMemset(testData.d_boundary_coeffs, 0, dfDataBase.boundary_surface_value_bytes));
+    }
+    // boundary coeffs
+    if (valueInternalCoeffsFlag) {
+        checkCudaErrors(cudaMalloc((void**)&testData.d_value_internal_coeffs, dfDataBase.boundary_surface_value_bytes));
+        checkCudaErrors(cudaMemset(testData.d_value_internal_coeffs, 0, dfDataBase.boundary_surface_value_bytes));
+    }
+    if (valueBoundaryCoeffsFlag) {
+        checkCudaErrors(cudaMalloc((void**)&testData.d_value_boundary_coeffs, dfDataBase.boundary_surface_value_bytes));
+        checkCudaErrors(cudaMemset(testData.d_value_boundary_coeffs, 0, dfDataBase.boundary_surface_value_bytes));
+    }
+    if (gradientInternalCoeffsFlag) {
+        checkCudaErrors(cudaMalloc((void**)&testData.d_gradient_internal_coeffs, dfDataBase.boundary_surface_value_bytes));
+        checkCudaErrors(cudaMemset(testData.d_gradient_internal_coeffs, 0, dfDataBase.boundary_surface_value_bytes));
+    }
+    if (gradientBoundaryCoeffsFlag) {
+        checkCudaErrors(cudaMalloc((void**)&testData.d_gradient_boundary_coeffs, dfDataBase.boundary_surface_value_bytes));
+        checkCudaErrors(cudaMemset(testData.d_gradient_boundary_coeffs, 0, dfDataBase.boundary_surface_value_bytes));
+    }
+    // patch type
+    testData.patch_type.resize(dfDataBase.num_patches);
+    forAll(field.boundaryField(), patchi)
+    {
+        constructBoundarySelectorPerPatch(&(testData.patch_type[patchi]), field.boundaryField()[patchi].type());
+    }
+}
 
 void buildTestGPUDataBaseVector(const dfMatrixDataBase& dfDataBase, testGPUDataBase& testData, const volVectorField& field,
         bool lowerFlag, bool upperFlag, bool diagFlag, bool sourceFlag, bool internalCoeffsFlag, bool boundaryCoeffsFlag,
@@ -318,8 +370,8 @@ void test_fvm_ddt_vector(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, volSc
 
     if (type == initType::randomInit) {
       // random init rho and rho.old
-      randomInitVolScalar(rho);
       rho.oldTime();
+      randomInitVolScalar(rho);
     }
 
     // run CPU
@@ -379,6 +431,7 @@ void test_fvm_div_vector(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, surfa
     compareResultVector(dfDataBase, testData, dfMatrix, printFlag);
 }
 
+// unittest of fvm::laplacian(gamma, vf)
 void test_fvm_laplacian_vector(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh,
         volScalarField& gamma, volVectorField& U, initType type)
 {
@@ -406,7 +459,7 @@ void test_fvm_laplacian_vector(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh,
     updateBoundaryCoeffsVector(dfDataBase, testData);
 
     // run GPU
-    fvm_laplacian_vector(dfDataBase.stream, dfDataBase.num_surfaces, dfDataBase.num_boundary_surfaces,
+    fvm_laplacian_vector(dfDataBase.stream, dfDataBase.num_surfaces,
             dfDataBase.d_owner, dfDataBase.d_neighbor,
             dfDataBase.d_weight, dfDataBase.d_mag_sf, dfDataBase.d_delta_coeffs, d_gamma,
             testData.d_lower, testData.d_upper, testData.d_diag, // end for internal
@@ -423,4 +476,53 @@ void test_fvm_laplacian_vector(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh,
     checkCudaErrors(cudaFree(d_gamma));
     checkCudaErrors(cudaFree(d_boundary_gamma));
 }
+
+// unittest of fvc::ddt(rho, K)
+void test_fvc_ddt_scalar(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, volScalarField& rho, volScalarField& K, initType type) {
+
+    if (type == initType::randomInit) {
+      // random init rho and rho.old
+      rho.oldTime();
+      randomInitVolScalar(rho);
+      K.oldTime();
+      randomInitVolScalar(K);
+    }
+
+    // run CPU
+    volScalarField fvc_ouput_scalar = fvc::ddt(rho, K);
+
+    // prepare for run GPU
+    // prepare rho, rho.old on GPU
+    uploadRegisteredVolScalar(dfDataBase, rho, "rho");
+    uploadRegisteredRhoOld(dfDataBase, rho.oldTime());
+    // prepare K, K_old on GPU
+    double *d_K = nullptr;
+    double *d_K_old = nullptr;
+    checkCudaErrors(cudaMalloc((void**)&d_K, dfDataBase.cell_value_bytes));
+    checkCudaErrors(cudaMalloc((void**)&d_K_old, dfDataBase.cell_value_bytes));
+    checkCudaErrors(cudaMemcpyAsync(d_K, &K[0], dfDataBase.cell_value_bytes, cudaMemcpyHostToDevice, dfDataBase.stream));
+    checkCudaErrors(cudaMemcpyAsync(d_K_old, &K.oldTime()[0], dfDataBase.cell_value_bytes, cudaMemcpyHostToDevice, dfDataBase.stream));
+    // there is no need for fvc ops to build testGPUDataBase, just build d_fvc_ouput_scalar directly.
+    double *d_fvc_ouput_scalar = nullptr;
+    checkCudaErrors(cudaMalloc((void**)&d_fvc_ouput_scalar, dfDataBase.cell_value_bytes));
+    checkCudaErrors(cudaMemset(d_fvc_ouput_scalar, 0, dfDataBase.cell_value_bytes));
+    // run GPU
+    // fvc_ddt doesn't consider to add fvc_output to source yet, which needs (fvc_output * volume * sign).
+    fvc_ddt_scalar(dfDataBase.stream, dfDataBase.num_cells, dfDataBase.rdelta_t,
+            dfDataBase.d_rho, dfDataBase.d_rho_old, d_K, d_K_old,
+            d_fvc_ouput_scalar);
+
+    // compare result
+    bool printFlag = false;
+    std::vector<double> h_fvc_ouput_scalar;
+    h_fvc_ouput_scalar.resize(dfDataBase.num_cells);
+    checkCudaErrors(cudaMemcpy(h_fvc_ouput_scalar.data(), d_fvc_ouput_scalar, dfDataBase.cell_value_bytes, cudaMemcpyDeviceToHost));
+    checkVectorEqual(dfDataBase.num_cells, &fvc_ouput_scalar[0], h_fvc_ouput_scalar.data(), 1e-12, printFlag);
+
+    // free resources
+    checkCudaErrors(cudaFree(d_K));
+    checkCudaErrors(cudaFree(d_K_old));
+    checkCudaErrors(cudaFree(d_fvc_ouput_scalar));
+}
+
 

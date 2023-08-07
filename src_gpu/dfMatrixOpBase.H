@@ -28,7 +28,7 @@ void fvm_div_vector(cudaStream_t stream, int num_surfaces, const int *lowerAddr,
         const double *boundary_phi, const double *value_internal_coeffs, const double *value_boundary_coeffs,
         double *internal_coeffs, double *boundary_coeffs);
 
-void fvm_laplacian_vector(cudaStream_t stream, int num_surfaces, int num_boundary_surfaces,
+void fvm_laplacian_vector(cudaStream_t stream, int num_surfaces,
         const int *lowerAddr, const int *upperAddr,
         const double *weight, const double *mag_sf, const double *delta_coeffs, const double *gamma,
         double *lower, double *upper, double *diag, // end for internal
@@ -38,8 +38,10 @@ void fvm_laplacian_vector(cudaStream_t stream, int num_surfaces, int num_boundar
         double *internal_coeffs, double *boundary_coeffs);
 
 // fvc ops
-
-void fvc_ddt();
+// fvc_ddt doesn't consider to add fvc_output to source yet, which needs (fvc_output * volume * sign).
+void fvc_ddt_scalar(cudaStream_t stream, int num_cells, double rDeltaT,
+        const double *rho, const double *rho_old, const double *vf, const double *vf_old,
+        double *output);
 
 // void fvc_grad_surface();
 // 

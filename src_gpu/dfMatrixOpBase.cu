@@ -157,6 +157,18 @@ __global__ void fvm_laplacian_vector_boundary(int num, int offset,
     boundary_coeffs[start_index * 3 + 2] += boundary_value * gradient_boundary_coeffs[start_index * 3 + 2];
 }
 
+__global__ void fvc_ddt_scalar_kernel(int num_cells, double rDeltaT,
+        const double *rho, const double *rho_old, const double *vf, const double *vf_old,
+        double *output)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_cells)
+        return;
+
+    // TODO: skip moving
+    output[index] += rDeltaT * (rho[index] * vf[index] - rho_old[index] * vf_old[index]);
+}
+
 void permute_vector_d2h(cudaStream_t stream, int num_cells, const double *input, double *output)
 {
     size_t threads_per_block = 256;
@@ -197,10 +209,9 @@ void update_boundary_coeffs_vector(cudaStream_t stream, int num_patches,
         if (patch_type[i] == boundaryConditions::zeroGradient) {
             update_boundary_coeffs_zeroGradient_vector<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
                     value_internal_coeffs, value_boundary_coeffs, gradient_internal_coeffs, gradient_boundary_coeffs);
-        } else if (patch_type[i] == boundaryConditions::fixedValue) {
-            // xxx
         } else if (0) {
             // xxx
+            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
         }
         offset += patch_size[i];
     }
@@ -243,12 +254,13 @@ void fvm_div_vector(cudaStream_t stream, int num_surfaces, const int *lowerAddr,
                     internal_coeffs, boundary_coeffs);
         } else if (0) {
             // xxx
+            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
         }
         offset += patch_size[i];
     }
 }
 
-void fvm_laplacian_vector(cudaStream_t stream, int num_surfaces, int num_boundary_surfaces, // TODO: num_boundary_surfaces may not be in use
+void fvm_laplacian_vector(cudaStream_t stream, int num_surfaces,
         const int *lowerAddr, const int *upperAddr,
         const double *weight, const double *mag_sf, const double *delta_coeffs, const double *gamma,
         double *lower, double *upper, double *diag, // end for internal
@@ -277,8 +289,19 @@ void fvm_laplacian_vector(cudaStream_t stream, int num_surfaces, int num_boundar
                     internal_coeffs, boundary_coeffs);
         } else if (0) {
             // xxx
+            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
         }
         offset += patch_size[i];
     }
+}
+
+void fvc_ddt_scalar(cudaStream_t stream, int num_cells, double rDeltaT,
+        const double *rho, const double *rho_old, const double *vf, const double *vf_old,
+        double *output)
+{
+    size_t threads_per_block = 1024;
+    size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
+    fvc_ddt_scalar_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
+            rDeltaT, rho, rho_old, vf, vf_old, output);
 }
 

@@ -100,15 +100,22 @@ int main(int argc, char *argv[])
         // unittest of fvm::ddt(rho, U)
         test_fvm_ddt_vector(dfDataBase, mesh, rho, U, initType::original);
         test_fvm_ddt_vector(dfDataBase, mesh, rho, U, initType::randomInit);
+
         // unittest of fvm::div(phi, U)
         test_fvm_div_vector(dfDataBase, mesh, phi, U, initType::original);
         test_fvm_div_vector(dfDataBase, mesh, phi, U, initType::randomInit);
+
         // unittest of fvm::laplacian(gamma, U)
         const tmp<volScalarField> nuEff_tmp(turbulence->nuEff());
         const volScalarField& nuEff = nuEff_tmp();
         volScalarField gamma = rho * nuEff;
         test_fvm_laplacian_vector(dfDataBase, mesh, gamma, U, initType::original);
         test_fvm_laplacian_vector(dfDataBase, mesh, gamma, U, initType::randomInit);
+
+        // unittest of fvc::ddt(rho, K)
+        K = 0.5*magSqr(U);
+        test_fvc_ddt_scalar(dfDataBase, mesh, rho, K, initType::original);
+        test_fvc_ddt_scalar(dfDataBase, mesh, rho, K, initType::randomInit);
     }
     return 0;
 }
