@@ -28,7 +28,14 @@ void fvm_div_vector(cudaStream_t stream, int num_surfaces, const int *lowerAddr,
         const double *boundary_phi, const double *value_internal_coeffs, const double *value_boundary_coeffs,
         double *internal_coeffs, double *boundary_coeffs);
 
-void fvm_laplacian();
+void fvm_laplacian_vector(cudaStream_t stream, int num_surfaces, int num_boundary_surfaces,
+        const int *lowerAddr, const int *upperAddr,
+        const double *weight, const double *mag_sf, const double *delta_coeffs, const double *gamma,
+        double *lower, double *upper, double *diag, // end for internal
+        int num_patches, const int *patch_size, const int *patch_type,
+        const double *boundary_mag_sf, const double *boundary_gamma,
+        const double *gradient_internal_coeffs, const double *gradient_boundary_coeffs,
+        double *internal_coeffs, double *boundary_coeffs);
 
 // fvc ops
 

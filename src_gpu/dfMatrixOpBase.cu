@@ -80,14 +80,16 @@ __global__ void fvm_div_vector_internal(int num_surfaces,
     double w = weight[index];
     double f = phi[index];
 
-    lower[index] += (-w) * f;
-    upper[index] += (1 - w) * f;
+    double lower_value = (-w) * f;
+    double upper_value = (1 - w) * f;
+    lower[index] += lower_value;
+    upper[index] += upper_value;
     // if (index == 0) printf("index = 0, lower: %.16lf, upper:%.16lf\n", lower[index], upper[index]);
 
-    int l = lower_index[index];
-    int u = upper_index[index];
-    atomicAdd(&(diag[l]), w * f);
-    atomicAdd(&(diag[u]), (w - 1) * f);
+    int owner = lower_index[index];
+    int neighbor = upper_index[index];
+    atomicAdd(&(diag[owner]), -lower_value);
+    atomicAdd(&(diag[neighbor]), -upper_value);
 }
 
 __global__ void fvm_div_vector_boundary(int num, int offset,
@@ -106,6 +108,53 @@ __global__ void fvm_div_vector_boundary(int num, int offset,
     boundary_coeffs[start_index * 3 + 0] += boundary_f * value_boundary_coeffs[start_index * 3 + 0];
     boundary_coeffs[start_index * 3 + 1] += boundary_f * value_boundary_coeffs[start_index * 3 + 1];
     boundary_coeffs[start_index * 3 + 2] += boundary_f * value_boundary_coeffs[start_index * 3 + 2];
+}
+
+__global__ void fvm_laplacian_vector_internal(int num_surfaces,
+        const int *lower_index, const int *upper_index,
+        const double *weight, const double *mag_sf, const double *delta_coeffs, const double *gamma,
+        double *lower, double *upper, double *diag)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_surfaces)
+        return;
+
+    int owner = lower_index[index];
+    int neighbor = upper_index[index];
+
+    double w = weight[index];
+    double upper_face_gamma = w * gamma[owner] + (1 - w) * gamma[neighbor];
+    double upper_value = upper_face_gamma * mag_sf[index] * delta_coeffs[index];
+
+    // laplacian doesn't use the original lower, but use lower = upper
+    //double lower_face_gamma = w * gamma[neighbor] + (1 - w) * gamma[owner];
+    //double lower_value = lower_face_gamma * mag_sf[index] * delta_coeffs[index];
+    double lower_value = upper_value;
+
+    lower[index] += lower_value;
+    upper[index] += upper_value;
+
+    atomicAdd(&(diag[owner]), -lower_value);
+    atomicAdd(&(diag[neighbor]), -upper_value);
+}
+
+__global__ void fvm_laplacian_vector_boundary(int num, int offset,
+        const double *boundary_mag_sf, const double *boundary_gamma,
+        const double *gradient_internal_coeffs, const double *gradient_boundary_coeffs,
+        double *internal_coeffs, double *boundary_coeffs)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
+        return;
+
+    int start_index = offset + index;
+    double boundary_value = boundary_gamma[start_index] * boundary_mag_sf[start_index];
+    internal_coeffs[start_index * 3 + 0] += boundary_value * gradient_internal_coeffs[start_index * 3 + 0];
+    internal_coeffs[start_index * 3 + 1] += boundary_value * gradient_internal_coeffs[start_index * 3 + 1];
+    internal_coeffs[start_index * 3 + 2] += boundary_value * gradient_internal_coeffs[start_index * 3 + 2];
+    boundary_coeffs[start_index * 3 + 0] += boundary_value * gradient_boundary_coeffs[start_index * 3 + 0];
+    boundary_coeffs[start_index * 3 + 1] += boundary_value * gradient_boundary_coeffs[start_index * 3 + 1];
+    boundary_coeffs[start_index * 3 + 2] += boundary_value * gradient_boundary_coeffs[start_index * 3 + 2];
 }
 
 void permute_vector_d2h(cudaStream_t stream, int num_cells, const double *input, double *output)
@@ -178,8 +227,7 @@ void fvm_div_vector(cudaStream_t stream, int num_surfaces, const int *lowerAddr,
     size_t blocks_per_grid = 1;
 
     blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
-    fvm_div_vector_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_surfaces,
-            lowerAddr, upperAddr,
+    fvm_div_vector_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_surfaces, lowerAddr, upperAddr,
             phi, weight, lower, upper, diag);
 
     int offset = 0;
@@ -192,6 +240,40 @@ void fvm_div_vector(cudaStream_t stream, int num_surfaces, const int *lowerAddr,
             // TODO: just vector version now
             fvm_div_vector_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
                     boundary_phi, value_internal_coeffs, value_boundary_coeffs,
+                    internal_coeffs, boundary_coeffs);
+        } else if (0) {
+            // xxx
+        }
+        offset += patch_size[i];
+    }
+}
+
+void fvm_laplacian_vector(cudaStream_t stream, int num_surfaces, int num_boundary_surfaces, // TODO: num_boundary_surfaces may not be in use
+        const int *lowerAddr, const int *upperAddr,
+        const double *weight, const double *mag_sf, const double *delta_coeffs, const double *gamma,
+        double *lower, double *upper, double *diag, // end for internal
+        int num_patches, const int *patch_size, const int *patch_type,
+        const double *boundary_mag_sf, const double *boundary_gamma,
+        const double *gradient_internal_coeffs, const double *gradient_boundary_coeffs,
+        double *internal_coeffs, double *boundary_coeffs)
+{
+    size_t threads_per_block = 1024;
+    size_t blocks_per_grid = 1;
+
+    blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
+    fvm_laplacian_vector_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_surfaces, lowerAddr, upperAddr,
+            weight, mag_sf, delta_coeffs, gamma, lower, upper, diag);
+
+    int offset = 0;
+    for (int i = 0; i < num_patches; i++) {
+        threads_per_block = 256;
+        blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
+        // TODO: just basic patch type now
+        if (patch_type[i] == boundaryConditions::zeroGradient
+                || patch_type[i] == boundaryConditions::fixedValue) {
+            // TODO: just vector version now
+            fvm_laplacian_vector_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
+                    boundary_mag_sf, boundary_gamma, gradient_internal_coeffs, gradient_boundary_coeffs,
                     internal_coeffs, boundary_coeffs);
         } else if (0) {
             // xxx

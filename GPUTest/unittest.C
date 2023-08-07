@@ -103,8 +103,13 @@ int main(int argc, char *argv[])
         // unittest of fvm::div(phi, U)
         test_fvm_div_vector(dfDataBase, mesh, phi, U, initType::original);
         test_fvm_div_vector(dfDataBase, mesh, phi, U, initType::randomInit);
+        // unittest of fvm::laplacian(gamma, U)
+        const tmp<volScalarField> nuEff_tmp(turbulence->nuEff());
+        const volScalarField& nuEff = nuEff_tmp();
+        volScalarField gamma = rho * nuEff;
+        test_fvm_laplacian_vector(dfDataBase, mesh, gamma, U, initType::original);
+        test_fvm_laplacian_vector(dfDataBase, mesh, gamma, U, initType::randomInit);
     }
     return 0;
 }
-
 
