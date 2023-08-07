@@ -96,26 +96,35 @@ int main(int argc, char *argv[])
         }
 
         createGPUBase(mesh, Y);
+        DEBUG_TRACE;
 
         // unittest of fvm::ddt(rho, U)
         test_fvm_ddt_vector(dfDataBase, mesh, rho, U, initType::original);
+        DEBUG_TRACE;
         test_fvm_ddt_vector(dfDataBase, mesh, rho, U, initType::randomInit);
+        DEBUG_TRACE;
 
         // unittest of fvm::div(phi, U)
         test_fvm_div_vector(dfDataBase, mesh, phi, U, initType::original);
+        DEBUG_TRACE;
         test_fvm_div_vector(dfDataBase, mesh, phi, U, initType::randomInit);
+        DEBUG_TRACE;
 
         // unittest of fvm::laplacian(gamma, U)
         const tmp<volScalarField> nuEff_tmp(turbulence->nuEff());
         const volScalarField& nuEff = nuEff_tmp();
         volScalarField gamma = rho * nuEff;
         test_fvm_laplacian_vector(dfDataBase, mesh, gamma, U, initType::original);
+        DEBUG_TRACE;
         test_fvm_laplacian_vector(dfDataBase, mesh, gamma, U, initType::randomInit);
+        DEBUG_TRACE;
 
         // unittest of fvc::ddt(rho, K)
         K = 0.5*magSqr(U);
         test_fvc_ddt_scalar(dfDataBase, mesh, rho, K, initType::original);
+        DEBUG_TRACE;
         test_fvc_ddt_scalar(dfDataBase, mesh, rho, K, initType::randomInit);
+        DEBUG_TRACE;
     }
     return 0;
 }

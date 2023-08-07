@@ -367,11 +367,10 @@ void compareResultVector(const dfMatrixDataBase& dfDataBase, const testGPUDataBa
 
 // unittest of fvm::ddt(rho, U)
 void test_fvm_ddt_vector(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, volScalarField& rho, volVectorField& U, initType type) {
-
     if (type == initType::randomInit) {
-      // random init rho and rho.old
-      rho.oldTime();
-      randomInitVolScalar(rho);
+        // random init rho and rho.old
+        rho.oldTime();
+        randomInitVolScalar(rho);
     }
 
     // run CPU
@@ -399,8 +398,8 @@ void test_fvm_ddt_vector(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, volSc
 // unittest of fvm::div(phi, U)
 void test_fvm_div_vector(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, surfaceScalarField& phi, volVectorField& U, initType type) {
     if (type == initType::randomInit) {
-      randomInitSurfaceScalar(phi);
-      // TODO: random init weight failed, weight is const.
+        phi.oldTime();
+        randomInitSurfaceScalar(phi);
     }
 
     // run CPU
@@ -436,7 +435,8 @@ void test_fvm_laplacian_vector(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh,
         volScalarField& gamma, volVectorField& U, initType type)
 {
     if (type == initType::randomInit) {
-      randomInitVolScalar(gamma);
+        gamma.oldTime();
+        randomInitVolScalar(gamma);
     }
 
     // run CPU
@@ -479,13 +479,12 @@ void test_fvm_laplacian_vector(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh,
 
 // unittest of fvc::ddt(rho, K)
 void test_fvc_ddt_scalar(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, volScalarField& rho, volScalarField& K, initType type) {
-
     if (type == initType::randomInit) {
-      // random init rho and rho.old
-      rho.oldTime();
-      randomInitVolScalar(rho);
-      K.oldTime();
-      randomInitVolScalar(K);
+        // random init rho and rho.old
+        rho.oldTime();
+        randomInitVolScalar(rho);
+        K.oldTime();
+        randomInitVolScalar(K);
     }
 
     // run CPU
@@ -517,7 +516,7 @@ void test_fvc_ddt_scalar(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, volSc
     std::vector<double> h_fvc_ouput_scalar;
     h_fvc_ouput_scalar.resize(dfDataBase.num_cells);
     checkCudaErrors(cudaMemcpy(h_fvc_ouput_scalar.data(), d_fvc_ouput_scalar, dfDataBase.cell_value_bytes, cudaMemcpyDeviceToHost));
-    checkVectorEqual(dfDataBase.num_cells, &fvc_ouput_scalar[0], h_fvc_ouput_scalar.data(), 1e-12, printFlag);
+    checkVectorEqual(dfDataBase.num_cells, &fvc_ouput_scalar[0], h_fvc_ouput_scalar.data(), 1e-14, printFlag);
 
     // free resources
     checkCudaErrors(cudaFree(d_K));

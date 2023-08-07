@@ -165,8 +165,20 @@ __global__ void fvc_ddt_scalar_kernel(int num_cells, double rDeltaT,
     if (index >= num_cells)
         return;
 
+    double val_new = rho[index] * vf[index];
+    double val_old = rho_old[index] * vf_old[index];
     // TODO: skip moving
-    output[index] += rDeltaT * (rho[index] * vf[index] - rho_old[index] * vf_old[index]);
+    // TODO: wyr
+    // for the case of rho = rho_old and vf = vf_old, the floating-point numerical problem will be exposed.
+    // it expect zero as output, but the gpu result get a sub-normal minimal value for (val_new - val_old),
+    // which smaller than 1e-16, and then enlarged by rDeltaT (1e6)
+    // then the comparison of cpu result and gpu result will failed with relative error: inf,
+    // e.g.:
+    // cpu data: 0.0000000000000000, gpu data: 0.0000000000298050, relative error: inf
+    // if I add the print line for intermediate variables of val_new and val_old, the problem disappears.
+    // It seems that print line will change the compiler behavior, maybe avoiding the fma optimization of compiler.
+    if (index == -1) printf("index = 0, val_new: %.40lf, val_old: %.40lf\n", val_new, val_old);
+    output[index] += rDeltaT * (val_new - val_old);
 }
 
 void permute_vector_d2h(cudaStream_t stream, int num_cells, const double *input, double *output)

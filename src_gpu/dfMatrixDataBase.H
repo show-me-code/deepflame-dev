@@ -14,6 +14,8 @@
 #include <cmath>
 #include <unordered_map>
 
+#define DEBUG_TRACE fprintf(stderr, "%s %d\n", __FILE__, __LINE__);
+
 static const char *_cudaGetErrorEnum(cudaError_t error) {
   return cudaGetErrorName(error);
 }
