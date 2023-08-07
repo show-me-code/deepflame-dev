@@ -243,10 +243,12 @@ void dfMatrixDataBase::createNonConstantFieldsInternal() {
 
     // computed on GPU, used on CPU, need memcpyd2h
     checkCudaErrors(cudaMallocHost((void**)&h_rho, cell_value_bytes));
+    checkCudaErrors(cudaMallocHost((void**)&h_rho_old, cell_value_bytes));
     checkCudaErrors(cudaMallocHost((void**)&h_u, cell_value_vec_bytes));
     checkCudaErrors(cudaMallocHost((void**)&h_y, cell_value_bytes * num_species));
     checkCudaErrors(cudaMallocHost((void**)&h_he, cell_value_bytes));
     fieldPointerMap["h_rho"] = h_rho;
+    fieldPointerMap["h_rho_old"] = h_rho_old;
     fieldPointerMap["h_u"] = h_u;
     fieldPointerMap["h_y"] = h_y;
     fieldPointerMap["h_he"] = h_he;
@@ -282,10 +284,12 @@ void dfMatrixDataBase::createNonConstantFieldsBoundary() {
 
     // computed on GPU, used on CPU, need memcpyd2h
     checkCudaErrors(cudaMallocHost((void**)&h_boundary_rho, boundary_surface_value_bytes));
+    checkCudaErrors(cudaMallocHost((void**)&h_boundary_rho_old, boundary_surface_value_bytes));
     checkCudaErrors(cudaMallocHost((void**)&h_boundary_u, boundary_surface_value_vec_bytes));
     checkCudaErrors(cudaMallocHost((void**)&h_boundary_y, boundary_surface_value_bytes * num_species));
     checkCudaErrors(cudaMallocHost((void**)&h_boundary_he, boundary_surface_value_bytes));
     fieldPointerMap["h_boundary_rho"] = h_boundary_rho;
+    fieldPointerMap["h_boundary_rho_old"] = h_boundary_rho_old;
     fieldPointerMap["h_boundary_u"] = h_boundary_u;
     fieldPointerMap["h_boundary_y"] = h_boundary_y;
     fieldPointerMap["h_boundary_he"] = h_boundary_he;

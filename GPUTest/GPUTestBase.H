@@ -95,28 +95,6 @@ void randomInitVolScalar(volScalarField& field) {
       }
 }
 
-// rho_old need special treatment: it use h_xxx of rho
-void uploadRegisteredRhoOld(dfMatrixDataBase& dfDataBase, const volScalarField& field) {
-    double *h_internal_field = dfDataBase.getFieldPointer("rho", location::cpu, position::internal);
-    double *h_boundary_field = dfDataBase.getFieldPointer("rho", location::cpu, position::boundary);
-    double *d_internal_field = dfDataBase.getFieldPointer("rho_old", location::gpu, position::internal);
-    double *d_boundary_field = dfDataBase.getFieldPointer("rho_old", location::gpu, position::boundary);
-    // internal
-    memcpy(h_internal_field, &field[0], dfDataBase.cell_value_bytes);
-    // boundary
-    int offset = 0;
-    forAll(field.boundaryField(), patchi)
-    {
-        const auto& patchField = field.boundaryField()[patchi];
-        int patchsize = patchField.size();
-        memcpy(h_boundary_field + offset, &patchField[0], patchsize * sizeof(double));
-        offset += patchsize;
-    }
-    // transfer
-    checkCudaErrors(cudaMemcpyAsync(d_internal_field, h_internal_field, dfDataBase.cell_value_bytes, cudaMemcpyHostToDevice, dfDataBase.stream));
-    checkCudaErrors(cudaMemcpyAsync(d_boundary_field, h_boundary_field, dfDataBase.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dfDataBase.stream));
-}
-
 void uploadRegisteredVolScalar(dfMatrixDataBase& dfDataBase, const volScalarField& field, const char* fieldAlias) {
     double *h_internal_field = dfDataBase.getFieldPointer(fieldAlias, location::cpu, position::internal);
     double *h_boundary_field = dfDataBase.getFieldPointer(fieldAlias, location::cpu, position::boundary);
@@ -379,7 +357,7 @@ void test_fvm_ddt_vector(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, volSc
     // prepare for run GPU
     // prepare rho, rho.old, U
     uploadRegisteredVolScalar(dfDataBase, rho, "rho");
-    uploadRegisteredRhoOld(dfDataBase, rho.oldTime());
+    uploadRegisteredVolScalar(dfDataBase, rho.oldTime(), "rho_old");
     uploadRegisteredVolVector(dfDataBase, U.oldTime(), "u");
     // prepare testData
     testGPUDataBase testData;
@@ -493,7 +471,7 @@ void test_fvc_ddt_scalar(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, volSc
     // prepare for run GPU
     // prepare rho, rho.old on GPU
     uploadRegisteredVolScalar(dfDataBase, rho, "rho");
-    uploadRegisteredRhoOld(dfDataBase, rho.oldTime());
+    uploadRegisteredVolScalar(dfDataBase, rho.oldTime(), "rho_old");
     // prepare K, K_old on GPU
     double *d_K = nullptr;
     double *d_K_old = nullptr;

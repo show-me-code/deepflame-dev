@@ -144,6 +144,7 @@ struct dfMatrixDataBase
     double *d_phi = nullptr;
     // computed on GPU, used on CPU, need memcpyd2h - host
     double *h_rho = nullptr;
+    double *h_rho_old = nullptr;
     double *h_u= nullptr;
     double *h_y= nullptr;
     double *h_he= nullptr;
@@ -169,6 +170,7 @@ struct dfMatrixDataBase
     double *d_boundary_phi = nullptr;
     // computed on GPU, used on CPU, need memcpyd2h - host
     double *h_boundary_rho = nullptr;
+    double *h_boundary_rho_old = nullptr;
     double *h_boundary_u= nullptr;
     double *h_boundary_y= nullptr;
     double *h_boundary_he= nullptr;
