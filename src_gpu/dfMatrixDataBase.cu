@@ -198,6 +198,7 @@ void dfMatrixDataBase::createConstantFieldsBoundary() {
     checkCudaErrors(cudaMalloc((void**)&d_boundary_sf, boundary_surface_value_vec_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_mag_sf, boundary_surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_delta_coeffs, boundary_surface_value_bytes));
+    checkCudaErrors(cudaMalloc((void**)&d_boundary_face_cell, boundary_surface_index_bytes));
     fieldPointerMap["d_boundary_sf"] = d_boundary_sf;
     fieldPointerMap["d_boundary_mag_sf"] = d_boundary_mag_sf;
     fieldPointerMap["d_boundary_delta_coeffs"] = d_boundary_delta_coeffs;
@@ -213,10 +214,11 @@ void dfMatrixDataBase::initConstantFieldsInternal(const double *sf, const double
 }
 
 void dfMatrixDataBase::initConstantFieldsBoundary(const double *boundary_sf, const double *boundary_mag_sf, 
-        const double *boundary_delta_coeffs) {
+        const double *boundary_delta_coeffs, const int *boundary_face_cell) {
     checkCudaErrors(cudaMemcpyAsync(d_boundary_sf, boundary_sf, boundary_surface_value_vec_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_mag_sf, boundary_mag_sf, boundary_surface_value_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_delta_coeffs, boundary_delta_coeffs, boundary_surface_value_bytes, cudaMemcpyHostToDevice, stream));
+    checkCudaErrors(cudaMemcpyAsync(d_boundary_face_cell, boundary_face_cell, boundary_surface_index_bytes, cudaMemcpyHostToDevice, stream));
 }
 
 void dfMatrixDataBase::createNonConstantFieldsInternal() {

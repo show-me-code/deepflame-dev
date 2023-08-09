@@ -450,3 +450,72 @@ void test_fvc_ddt_scalar(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, volSc
     checkCudaErrors(cudaFree(d_K_old));
     checkCudaErrors(cudaFree(d_fvc_ouput_scalar));
 }
+
+// unittest of fvc::grad(U)
+void test_fvc_grad_vector(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, volVectorField& U, initType type) {
+    // if (type == initType::randomInit) {
+    //     U.oldTime();
+    //     randomInitField<volVectorField>(U);
+    // }
+
+    // run CPU
+    volTensorField fvc_ouput_tensor = fvc::grad(U);
+    // volTensorField fvc_ouput_tensor = gaussGradSchemeGrad(U);
+
+    // prepare for run GPU
+    // prepare U on GPU
+    uploadRegisteredField<volVectorField>(dfDataBase, U, "u");
+    
+    double *d_fvc_ouput_tensor = nullptr, *d_fvc_ouput_boundary_tensor = nullptr;
+    checkCudaErrors(cudaMalloc((void**)&d_fvc_ouput_tensor, dfDataBase.cell_value_tsr_bytes));
+    checkCudaErrors(cudaMalloc((void**)&d_fvc_ouput_boundary_tensor, dfDataBase.boundary_surface_value_tsr_bytes));
+    checkCudaErrors(cudaMemset(d_fvc_ouput_tensor, 0, dfDataBase.cell_value_tsr_bytes));
+    checkCudaErrors(cudaMemset(d_fvc_ouput_boundary_tensor, 0, dfDataBase.boundary_surface_value_tsr_bytes));
+    
+    // only need patch_type
+    testGPUDataBase testData;
+    buildTestGPUDataBase<volVectorField>(dfDataBase, testData, U, false, false, false, false, false, false, false, false, false, false);
+
+    fvc_grad_vector(dfDataBase.stream, dfDataBase.num_cells, dfDataBase.num_surfaces,
+            dfDataBase.d_owner, dfDataBase.d_neighbor, 
+            dfDataBase.d_weight, dfDataBase.d_sf, dfDataBase.d_u, d_fvc_ouput_tensor,
+            dfDataBase.num_patches, dfDataBase.patch_size.data(), testData.patch_type.data(), 
+            dfDataBase.d_boundary_face_cell, dfDataBase.d_boundary_u, dfDataBase.d_boundary_sf,
+            dfDataBase.d_volume, dfDataBase.d_boundary_mag_sf, d_fvc_ouput_boundary_tensor, dfDataBase.d_boundary_delta_coeffs);
+
+    // compare result
+    bool printFlag = false;
+    std::vector<double> h_fvc_ouput_tensor(dfDataBase.num_cells * 9);
+    checkCudaErrors(cudaMemcpy(h_fvc_ouput_tensor.data(), d_fvc_ouput_tensor, dfDataBase.cell_value_tsr_bytes, cudaMemcpyDeviceToHost));
+    checkVectorEqual(dfDataBase.num_cells * 9, &fvc_ouput_tensor[0][0], h_fvc_ouput_tensor.data(), 1e-14, printFlag);
+}
+
+// unittest of fvc::div(phi)
+void test_fvc_div_scalar(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, surfaceScalarField& phi, initType type) {
+    if (type == initType::randomInit) {
+        phi.oldTime();
+        randomInitField<surfaceScalarField>(phi);
+    }
+
+    // run CPU
+    volScalarField fvc_ouput_scalar = fvc::div(phi);
+    // volScalarField fvc_ouput_scalar = gaussConvectionSchemeFvcDiv(phi);
+
+    // prepare for run GPU
+    // prepare phi on GPU
+    uploadRegisteredField<surfaceScalarField>(dfDataBase, phi, "phi");
+
+    double *d_fvc_ouput_scalar = nullptr;
+    checkCudaErrors(cudaMalloc((void**)&d_fvc_ouput_scalar, dfDataBase.cell_value_bytes));
+    checkCudaErrors(cudaMemset(d_fvc_ouput_scalar, 0, dfDataBase.cell_value_bytes));
+
+    fvc_div_surface_scalar(dfDataBase.stream, dfDataBase.num_cells, dfDataBase.num_surfaces, dfDataBase.num_boundary_surfaces,
+            dfDataBase.d_owner, dfDataBase.d_neighbor,
+            dfDataBase.d_phi, dfDataBase.d_boundary_face_cell, dfDataBase.d_boundary_phi, dfDataBase.d_volume, d_fvc_ouput_scalar);
+    
+    // compare result
+    bool printFlag = false;
+    std::vector<double> h_fvc_ouput_scalar(dfDataBase.num_cells);
+    checkCudaErrors(cudaMemcpy(h_fvc_ouput_scalar.data(), d_fvc_ouput_scalar, dfDataBase.cell_value_bytes, cudaMemcpyDeviceToHost));
+    checkVectorEqual(dfDataBase.num_cells, &fvc_ouput_scalar[0], h_fvc_ouput_scalar.data(), 1e-14, printFlag);
+}

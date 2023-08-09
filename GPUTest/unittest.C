@@ -49,6 +49,9 @@ Description
 #include <thread>
 #include "upwind.H"
 
+// debug
+#include "GenFvMatrix.H"
+
 #include "dfMatrixDataBase.H"
 #include "dfMatrixOpBase.H"
 #include "createGPUSolver.H"
@@ -124,6 +127,16 @@ int main(int argc, char *argv[])
         test_fvc_ddt_scalar(dfDataBase, mesh, rho, K, initType::original);
         DEBUG_TRACE;
         test_fvc_ddt_scalar(dfDataBase, mesh, rho, K, initType::randomInit);
+        DEBUG_TRACE;
+
+        // unittest of fvc::grad(U)
+        test_fvc_grad_vector(dfDataBase, mesh, U, initType::original);
+        DEBUG_TRACE;
+
+        // unittest of fvc::div(phi)
+        test_fvc_div_scalar(dfDataBase, mesh, phi, initType::original);
+        DEBUG_TRACE;
+        test_fvc_div_scalar(dfDataBase, mesh, phi, initType::randomInit);
         DEBUG_TRACE;
     }
     return 0;
