@@ -139,6 +139,19 @@ gaussConvectionSchemeFvcDiv
     const GeometricField<Type, fvsPatchField, surfaceMesh>& ssf
 );
 
+template<class Type>
+tmp
+<
+    GeometricField
+    <
+        typename innerProduct<vector, Type>::type, fvPatchField, volMesh
+    >
+>
+gaussDivFvcdiv
+(
+    const GeometricField<Type, fvPatchField, volMesh>& vf
+);
+
 // fvc::grad
 template<class Type>
 tmp

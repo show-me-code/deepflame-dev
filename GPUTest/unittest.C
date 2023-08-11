@@ -51,6 +51,8 @@ Description
 
 // debug
 #include "GenFvMatrix.H"
+#include <iostream>
+#include <queue>
 
 #include "dfMatrixDataBase.H"
 #include "dfMatrixOpBase.H"
@@ -132,11 +134,19 @@ int main(int argc, char *argv[])
         // unittest of fvc::grad(U)
         test_fvc_grad_vector(dfDataBase, mesh, U, initType::original);
         DEBUG_TRACE;
+        test_fvc_grad_vector(dfDataBase, mesh, U, initType::randomInit);
+        DEBUG_TRACE;
 
         // unittest of fvc::div(phi)
         test_fvc_div_scalar(dfDataBase, mesh, phi, initType::original);
         DEBUG_TRACE;
         test_fvc_div_scalar(dfDataBase, mesh, phi, initType::randomInit);
+        DEBUG_TRACE;
+
+        // unittest of fvc::div(U)
+        test_fvc_div_vector(dfDataBase, mesh, U, initType::original);
+        DEBUG_TRACE;
+        test_fvc_div_vector(dfDataBase, mesh, U, initType::randomInit);
         DEBUG_TRACE;
     }
     return 0;

@@ -165,6 +165,42 @@ gaussConvectionSchemeFvcDiv
 }
 
 template<class Type>
+tmp
+<
+    GeometricField
+    <
+        typename innerProduct<vector, Type>::type, fvPatchField, volMesh
+    >
+>
+gaussDivFvcdiv
+(
+    const GeometricField<Type, fvPatchField, volMesh>& vf
+)
+{
+    const fvMesh& mesh = vf.mesh();
+    Istream& divIntScheme = mesh.divScheme("div("+vf.name()+')');
+    word divScheme(divIntScheme);
+
+    tmp<surfaceInterpolationScheme<Type>> tinterpScheme_ = 
+        surfaceInterpolationScheme<Type>::New(mesh, divIntScheme);
+
+    tmp
+    <
+        GeometricField
+        <typename innerProduct<vector, Type>::type, fvPatchField, volMesh>
+    > tDiv
+    (
+        fvcSurfaceIntegrate
+        (
+            (tinterpScheme_().dotInterpolate(mesh.Sf(), vf))()
+        )
+    );
+
+    
+    return tDiv;
+}
+
+template<class Type>
 tmp<GeometricField<Type, fvPatchField, volMesh>>
 fvcSurfaceIntegrate
 (
@@ -222,7 +258,6 @@ void fvcSurfaceIntegrate
         ivf[owner[facei]] += issf[facei];
         ivf[neighbour[facei]] -= issf[facei];
     }
-    Info << "ivfcpu[473]before bou = " << ivf[473] << endl;
 
     forAll(mesh.boundary(), patchi)
     {
@@ -234,19 +269,10 @@ void fvcSurfaceIntegrate
         forAll(mesh.boundary()[patchi], facei)
         {
             ivf[pFaceCells[facei]] += pssf[facei];
-            if (pFaceCells[facei] == 473)
-            {
-                Info << "pssfcpu[473] += " << pssf[facei] << endl;
-            }
-            
         }
     }
 
-    Info << "ivfcpu[473] = " << ivf[473] << endl;
-
     ivf /= mesh.Vsc();
-
-    printf("vol cpu = %.15e\n", mesh.Vsc()()[473]);
 }
 
 template<class Type>
@@ -296,6 +322,26 @@ tmp<GeometricField<scalar, fvPatchField, volMesh>>
 gaussConvectionSchemeFvcDiv
 (
     const GeometricField<scalar, fvsPatchField, surfaceMesh>& ssf
+);
+
+template
+tmp<GeometricField<vector, fvPatchField, volMesh>>
+gaussConvectionSchemeFvcDiv
+(
+    const GeometricField<vector, fvsPatchField, surfaceMesh>& ssf
+);
+
+template
+tmp
+<
+    GeometricField
+    <
+        typename innerProduct<vector, vector>::type, fvPatchField, volMesh
+    >
+>
+gaussDivFvcdiv
+(
+    const GeometricField<vector, fvPatchField, volMesh>& vf
 );
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

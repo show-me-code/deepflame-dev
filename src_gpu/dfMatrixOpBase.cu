@@ -244,13 +244,6 @@ __global__ void fvc_grad_vector_internal(int num_surfaces,
     atomicAdd(&(output[neighbor * 9 + 6]), -grad_zx);
     atomicAdd(&(output[neighbor * 9 + 7]), -grad_zy);
     atomicAdd(&(output[neighbor * 9 + 8]), -grad_zz);
-
-    // if (owner == 0)
-    // {
-    //     printf("tensor[0] = (%.5e, %.5e, %.5e, %.5e, %.5e, %.5e, %.5e, %.5e, %.5e)\n", output[owner * 9 + 0],
-    //         output[owner * 9 + 1], output[owner * 9 + 2], output[owner * 9 + 3], output[owner * 9 + 4], output[owner * 9 + 5], 
-    //         output[owner * 9 + 6], output[owner * 9 + 7], output[owner * 9 + 8]);
-    // }
 }
 
 // update boundary of interpolation field
@@ -275,12 +268,6 @@ __global__ void fvc_grad_vector_boundary(int num, int offset, const int *face2Ce
     double boussfz = boundary_field_vector[start_index * 3 + 2];
 
     int cellIndex = face2Cells[start_index];
-
-    // if (cellIndex == 0)
-    // {
-    //     printf("surface vector = (%.5e, %.5e, %.5e)\n field vector = (%.5e, %.5e, %.5e)\n", bouSfx, bouSfy, bouSfz,
-    //             boussfx, boussfy, boussfz);
-    // }
 
     double grad_xx = bouSfx * boussfx;
     double grad_xy = bouSfx * boussfy;
@@ -328,11 +315,6 @@ __global__ void divide_cell_volume_scalar(int num_cells, const double* volume, d
         return;
     
     double vol = volume[index];
-
-    if (index == 473)
-    {
-        printf("vol gpu = %.15e\n", vol);
-    }
 
     output[index] = output[index] / vol;
 }
@@ -451,11 +433,6 @@ __global__ void fvc_div_surface_scalar_internal(int num_surfaces,
 
     // neighbor
     atomicAdd(&(output[neighbor]), -issf);
-
-    if (index == 0)
-    {
-        printf("output[3511]before = %.5e\n", output[473]);
-    }
 }
 
 __global__ void fvc_div_surface_scalar_boundary(int num_boundary_face, const int *face2Cells,
@@ -468,17 +445,61 @@ __global__ void fvc_div_surface_scalar_boundary(int num_boundary_face, const int
     int cellIndex = face2Cells[index];
 
     atomicAdd(&(output[cellIndex]), boundary_ssf[index]);
+}
 
-    // if (index == 0)
-    // {
-    //     printf("output[3511] = %.5e\n", output[3511]);
-    // }
+__global__ void fvc_div_cell_vector_internal(int num_surfaces, 
+        const int *lower_index, const int *upper_index,
+        const double *field_vector, const double *weight, const double *face_vector,
+        double *output)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_surfaces)
+        return;
 
-    if (cellIndex == 473)
-    {
-        printf("output[473] = %.5e\n", output[473]);
-        printf("boundary_ssf[473] = %.5e\n", boundary_ssf[index]);
-    }
+    double w = weight[index];
+    double Sfx = face_vector[index * 3 + 0];
+    double Sfy = face_vector[index * 3 + 1];
+    double Sfz = face_vector[index * 3 + 2];
+
+    int owner = lower_index[index];
+    int neighbor = upper_index[index];
+
+    double ssfx = (w * (field_vector[owner * 3 + 0] - field_vector[neighbor * 3 + 0]) + field_vector[neighbor * 3 + 0]);
+    double ssfy = (w * (field_vector[owner * 3 + 1] - field_vector[neighbor * 3 + 1]) + field_vector[neighbor * 3 + 1]);
+    double ssfz = (w * (field_vector[owner * 3 + 2] - field_vector[neighbor * 3 + 2]) + field_vector[neighbor * 3 + 2]);
+
+    double div = Sfx * ssfx + Sfy * ssfy + Sfz * ssfz;
+
+    // owner
+    atomicAdd(&(output[owner]), div);
+
+    // neighbour
+    atomicAdd(&(output[neighbor]), -div);
+}
+
+__global__ void fvc_div_cell_vector_boundary(int num, int offset, const int *face2Cells,
+        const double *boundary_face_vector, const double *boundary_field_vector, double *output)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
+        return;
+
+    int start_index = offset + index;
+
+    double bouSfx = boundary_face_vector[start_index * 3 + 0];
+    double bouSfy = boundary_face_vector[start_index * 3 + 1];
+    double bouSfz = boundary_face_vector[start_index * 3 + 2];
+
+    double boussfx = boundary_field_vector[start_index * 3 + 0];
+    double boussfy = boundary_field_vector[start_index * 3 + 1];
+    double boussfz = boundary_field_vector[start_index * 3 + 2];
+
+    int cellIndex = face2Cells[start_index];
+
+    double bouDiv = bouSfx * boussfx + bouSfy * boussfy + bouSfz * boussfz;
+
+    atomicAdd(&(output[cellIndex]), bouDiv);
+
 }
 
 void permute_vector_d2h(cudaStream_t stream, int num_cells, const double *input, double *output)
@@ -686,6 +707,40 @@ void fvc_div_surface_scalar(cudaStream_t stream, int num_cells, int num_surfaces
     blocks_per_grid = (num_boundary_surfaces + threads_per_block - 1) / threads_per_block;
     fvc_div_surface_scalar_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, boundary_cell_face, 
             boundary_ssf, output);
+
+    // divide cell volume
+    threads_per_block = 1024;
+    blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
+    divide_cell_volume_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, volume, output);
+}
+
+void fvc_div_cell_vector(cudaStream_t stream, int num_cells, int num_surfaces,
+        const int *lowerAddr, const int *upperAddr, 
+        const double *weight, const double *Sf, const double *vf, double *output, // end for internal
+        int num_patches, const int *patch_size, const int *patch_type,
+        const int *boundary_cell_face, const double *boundary_vf, const double *boundary_Sf,
+        const double *volume)
+{
+    size_t threads_per_block = 1024;
+    size_t blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
+    fvc_div_cell_vector_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_surfaces, lowerAddr, upperAddr, vf, weight, Sf, output);
+
+    int offset = 0;
+    for (int i = 0; i < num_patches; i++) {
+        threads_per_block = 256;
+        blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
+        // TODO: just basic patch type now
+        if (patch_type[i] == boundaryConditions::zeroGradient
+                || patch_type[i] == boundaryConditions::fixedValue) {
+            // TODO: just vector version now
+            fvc_div_cell_vector_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset, boundary_cell_face,
+                    boundary_Sf, boundary_vf, output);
+        } else if (0) {
+            // xxx
+            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+        }
+        offset += patch_size[i];
+    }
 
     // divide cell volume
     threads_per_block = 1024;

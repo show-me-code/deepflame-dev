@@ -72,29 +72,57 @@ void getTypeInfo(size_t *stride, size_t *internal_size, size_t *boundary_size) {
     *boundary_size = dfDataBase.num_boundary_surfaces * s;
 }
 
+
+template <typename T>
+void getFieldPtr(std::queue<double*>& fieldPtrQue, T& field){
+    fieldPtrQue.push(&field[0]);
+    forAll(field.boundaryField(), patchi){
+        auto& patchField = field.boundaryFieldRef()[patchi];
+        fieldPtrQue.push(&patchField[0]);
+    }
+};
+
+// template <typename T>
+// void getFieldPtr(std::vector<double*>& fieldPtrQue, T& field){
+//     fieldPtrQue.push_back(&field[0]);
+//     forAll(field.boundaryField(), patchi){
+//         auto& patchField = field.boundaryFieldRef()[patchi];
+//         fieldPtrQue.push_back(&patchField[0]);
+//         Info << "patchi " << patchi << endl;
+//     }
+// };
+
+
 template <typename T>
 void randomInitField(T& field) {
     size_t stride = 0;
     size_t internal_size = 0;
     size_t boundary_size = 0;
     getTypeInfo<T>(&stride, &internal_size, &boundary_size);
-    size_t internal_value_bytes = internal_size * sizeof(double);
+    size_t internal_value_bytes = internal_size * sizeof(double) * stride;
+    std::queue<double*> fieldPtrQue;
+    // std::vector<double*> fieldPtrQue;
+    getFieldPtr(fieldPtrQue, field);
 
     // random init field value to (-0.5, 0.5)
     // internal
-    double *field_internal_ptr = &field[0];
+    double *&field_internal_ptr = fieldPtrQue.front(); fieldPtrQue.pop();
+    // double *field_internal_ptr = fieldPtrQue[0];
     std::vector<double> init_field_internal;
-    init_field_internal.resize(internal_size);
-    for (size_t i = 0; i < internal_size; i++) {
+    init_field_internal.resize(internal_size * stride);
+    for (size_t i = 0; i < internal_size * stride; i++) {
         init_field_internal[i] = (rand() % 10000 - 5000) / 10000.0;
     }
     memcpy(field_internal_ptr, init_field_internal.data(), internal_value_bytes);
     // boundary
+    int ptrIndex = 1; 
     forAll(field.boundaryField(), patchi)
     {
         auto& patchField = field.boundaryFieldRef()[patchi];
         size_t patchsize = patchField.size();
-        double *field_boundary_ptr = &patchField[0];
+        double *&field_boundary_ptr = fieldPtrQue.front(); fieldPtrQue.pop();
+        // double *field_boundary_ptr = fieldPtrQue[ptrIndex];
+        // ptrIndex ++;
         std::vector<double> init_field_boundary;
         init_field_boundary.resize(patchsize * stride);
         for (size_t i = 0; i < patchsize * stride; i++) {
@@ -296,7 +324,8 @@ void test_fvm_ddt_vector(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, volSc
     }
 
     // run CPU
-    fvVectorMatrix dfMatrix = fvm::ddt(rho, U);
+    // fvVectorMatrix dfMatrix = fvm::ddt(rho, U);
+    fvVectorMatrix dfMatrix = EulerDdtSchemeFvmDdt(rho, U);
 
     // prepare for run GPU
     // prepare rho, rho.old, U
@@ -325,7 +354,8 @@ void test_fvm_div_vector(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, surfa
     }
 
     // run CPU
-    fvVectorMatrix dfMatrix = fvm::div(phi, U);
+    // fvVectorMatrix dfMatrix = fvm::div(phi, U);
+    fvVectorMatrix dfMatrix = gaussConvectionSchemeFvmDiv(phi, U);
 
     // prepare for run GPU
     // prepare phi field
@@ -365,7 +395,8 @@ void test_fvm_laplacian_vector(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh,
     }
 
     // run CPU
-    fvVectorMatrix dfMatrix = fvm::laplacian(gamma, U);
+    // fvVectorMatrix dfMatrix = fvm::laplacian(gamma, U);
+    fvVectorMatrix dfMatrix = gaussLaplacianSchemeFvmLaplacian(gamma, U);
 
     // prepare for run GPU
     // prepare gamma on GPU
@@ -415,7 +446,8 @@ void test_fvc_ddt_scalar(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, volSc
     }
 
     // run CPU
-    volScalarField fvc_ouput_scalar = fvc::ddt(rho, K);
+    // volScalarField fvc_ouput_scalar = fvc::ddt(rho, K);
+    volScalarField fvc_ouput_scalar = EulerDdtSchemeFvcDdt(rho, K);
 
     // prepare for run GPU
     // prepare rho, rho.old on GPU
@@ -453,10 +485,10 @@ void test_fvc_ddt_scalar(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, volSc
 
 // unittest of fvc::grad(U)
 void test_fvc_grad_vector(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, volVectorField& U, initType type) {
-    // if (type == initType::randomInit) {
-    //     U.oldTime();
-    //     randomInitField<volVectorField>(U);
-    // }
+    if (type == initType::randomInit) {
+        U.oldTime();
+        randomInitField<volVectorField>(U);
+    }
 
     // run CPU
     volTensorField fvc_ouput_tensor = fvc::grad(U);
@@ -519,3 +551,60 @@ void test_fvc_div_scalar(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, surfa
     checkCudaErrors(cudaMemcpy(h_fvc_ouput_scalar.data(), d_fvc_ouput_scalar, dfDataBase.cell_value_bytes, cudaMemcpyDeviceToHost));
     checkVectorEqual(dfDataBase.num_cells, &fvc_ouput_scalar[0], h_fvc_ouput_scalar.data(), 1e-14, printFlag);
 }
+
+// unittest of fvc::div(U)
+void test_fvc_div_vector(dfMatrixDataBase& dfDataBase, Foam::fvMesh& mesh, volVectorField& U, initType type) {
+    if (type == initType::randomInit) {
+        U.oldTime();
+        randomInitField<volVectorField>(U);
+    }
+
+    // run CPU
+    // volScalarField fvc_ouput_scalar = fvc::div(U);
+    volScalarField fvc_ouput_scalar = gaussDivFvcdiv(U);
+
+    // prepare for run GPU
+    // prepare phi on GPU
+    uploadRegisteredField<volVectorField>(dfDataBase, U, "u");
+
+    double *d_fvc_ouput_scalar = nullptr;
+    checkCudaErrors(cudaMalloc((void**)&d_fvc_ouput_scalar, dfDataBase.cell_value_bytes));
+    checkCudaErrors(cudaMemset(d_fvc_ouput_scalar, 0, dfDataBase.cell_value_bytes));
+
+    // only need patch_type
+    testGPUDataBase testData;
+    buildTestGPUDataBase<volVectorField>(dfDataBase, testData, U, false, false, false, false, false, false, false, false, false, false);
+
+    fvc_div_cell_vector(dfDataBase.stream, dfDataBase.num_cells, dfDataBase.num_surfaces, 
+            dfDataBase.d_owner, dfDataBase.d_neighbor,
+            dfDataBase.d_weight, dfDataBase.d_sf, dfDataBase.d_u, d_fvc_ouput_scalar,
+            dfDataBase.num_patches, dfDataBase.patch_size.data(), testData.patch_type.data(), 
+            dfDataBase.d_boundary_face_cell, dfDataBase.d_boundary_u, dfDataBase.d_boundary_sf,
+            dfDataBase.d_volume);
+    
+    // compare result
+    bool printFlag = false;
+    std::vector<double> h_fvc_ouput_scalar(dfDataBase.num_cells);
+    checkCudaErrors(cudaMemcpy(h_fvc_ouput_scalar.data(), d_fvc_ouput_scalar, dfDataBase.cell_value_bytes, cudaMemcpyDeviceToHost));
+    checkVectorEqual(dfDataBase.num_cells, &fvc_ouput_scalar[0], h_fvc_ouput_scalar.data(), 1e-14, printFlag);
+}
+
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+template <>
+void getFieldPtr<volVectorField>(std::queue<double*>& fieldPtrQue, volVectorField& field) {
+    fieldPtrQue.push(&field[0][0]);
+    forAll(field.boundaryField(), patchi){
+        auto& patchField = field.boundaryFieldRef()[patchi];
+        fieldPtrQue.push(&patchField[0][0]);
+    }
+};
+
+template <>
+void getFieldPtr<volTensorField>(std::queue<double*>& fieldPtrQue, volTensorField& field) {
+    fieldPtrQue.push(&field[0][0]);
+    forAll(field.boundaryField(), patchi){
+        auto& patchField = field.boundaryFieldRef()[patchi];
+        fieldPtrQue.push(&patchField[0][0]);
+    }
+};
