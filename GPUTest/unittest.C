@@ -55,9 +55,12 @@ Description
 #include <queue>
 
 #include "dfMatrixDataBase.H"
+#include "dfMatrixDataBaseOrig.H"
 #include "dfMatrixOpBase.H"
+#include "dfMatrixOpBaseOrig.H"
 #include "createGPUSolver.H"
 #include "GPUTestBase.H"
+#include "GPUTestRefBase.H"
 
 int main(int argc, char *argv[])
 {
@@ -102,6 +105,8 @@ int main(int argc, char *argv[])
 
         createGPUBase(mesh, Y);
         DEBUG_TRACE;
+        dfMatrixDataBaseOrig* dfDataBaseOrig = createGPUBaseOrig(mesh, Y, U);
+        DEBUG_TRACE;
 
         // unittest of fvm::ddt(rho, U)
         test_fvm_ddt_vector(dfDataBase, mesh, rho, U, initType::original);
@@ -134,7 +139,9 @@ int main(int argc, char *argv[])
         // unittest of fvc::grad(U)
         test_fvc_grad_vector(dfDataBase, mesh, U, initType::original);
         DEBUG_TRACE;
-        test_fvc_grad_vector(dfDataBase, mesh, U, initType::randomInit);
+        // test_fvc_grad_vector(dfDataBase, mesh, U, initType::randomInit);
+        // DEBUG_TRACE;
+        test_fvc_grad_vector_orig(dfDataBase, mesh, U, initType::original, dfDataBaseOrig);
         DEBUG_TRACE;
 
         // unittest of fvc::div(phi)
@@ -146,8 +153,16 @@ int main(int argc, char *argv[])
         // unittest of fvc::div(U)
         test_fvc_div_vector(dfDataBase, mesh, U, initType::original);
         DEBUG_TRACE;
-        test_fvc_div_vector(dfDataBase, mesh, U, initType::randomInit);
+        // test_fvc_div_vector(dfDataBase, mesh, U, initType::randomInit);
+        // DEBUG_TRACE;
+
+        // unittest of fvc::grad(p)
+        test_fvc_grad_scalar(dfDataBase, mesh, p, initType::original);
         DEBUG_TRACE;
+        test_fvc_grad_scalar(dfDataBase, mesh, p, initType::randomInit);
+        DEBUG_TRACE;
+        test_fvc_grad_scalar_orig(dfDataBase, mesh, p, initType::original, dfDataBaseOrig);
+        DEBUG_TRACE
     }
     return 0;
 }

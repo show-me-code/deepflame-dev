@@ -67,3 +67,48 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
     dfDataBase.initNonConstantFieldsInternal(dfDataBase.h_y);
     dfDataBase.initNonConstantFieldsBoundary(dfDataBase.h_boundary_y);
 };
+
+
+dfMatrixDataBaseOrig* createGPUBaseOrig(fvMesh& mesh, PtrList<volScalarField>& Y, volVectorField& U) {
+    const labelUList& owner = mesh.owner();
+    const labelUList& neighbour = mesh.neighbour();
+    int num_cells = mesh.nCells();
+    int num_surfaces = neighbour.size();
+
+    std::vector<int> boundaryCellIndex;
+    std::vector<double> boundary_face_vector_init;
+    std::vector<double> boundary_face_init;
+    std::vector<double> boundary_deltaCoeffs_init;
+    std::vector<std::vector<int>> patchTypes;
+    std::vector<int> patchTypeU, patchTypeY;
+    int num_boundary_faces = 0;
+    int patchSize;
+    forAll(mesh.boundary(), patchi)
+    {
+        labelUList sub_boundary = mesh.boundary()[patchi].faceCells();
+        patchSize = sub_boundary.size();
+        const vectorField& pSf = mesh.Sf().boundaryField()[patchi];
+        const scalarField& pMagSf = mesh.magSf().boundaryField()[patchi];
+        const scalarField& pDeltaCoeffs = mesh.nonOrthDeltaCoeffs().boundaryField()[patchi];
+
+        boundaryCellIndex.insert(boundaryCellIndex.end(), &sub_boundary[0], &sub_boundary[0]+patchSize);
+        boundary_face_vector_init.insert(boundary_face_vector_init.end(), &pSf[0][0], &pSf[0][0]+3*patchSize);
+        boundary_face_init.insert(boundary_face_init.end(), &pMagSf[0], &pMagSf[0]+patchSize);
+        boundary_deltaCoeffs_init.insert(boundary_deltaCoeffs_init.end(), &pDeltaCoeffs[0], &pDeltaCoeffs[0]+patchSize);
+        num_boundary_faces += patchSize;
+
+        constructBoundarySelector(patchTypeU, U.boundaryField()[patchi].type(), patchSize);
+        constructBoundarySelector(patchTypeY, Y[0].boundaryField()[patchi].type(), patchSize);
+    }
+    patchTypes.emplace_back(patchTypeU);
+    patchTypes.emplace_back(patchTypeY);
+
+    int num_boundary_cells;
+
+    dfMatrixDataBaseOrig* dfDataBase = new dfMatrixDataBaseOrig(num_surfaces, num_cells, num_boundary_faces, Y.size(), num_boundary_cells, 
+            &neighbour[0], &owner[0], &mesh.V()[0], &mesh.surfaceInterpolation::weights()[0], 
+            &mesh.Sf()[0][0], &mesh.magSf()[0], &mesh.nonOrthDeltaCoeffs()[0], boundary_face_vector_init, 
+            boundary_face_init, boundary_deltaCoeffs_init, boundaryCellIndex, patchTypes);
+    
+    return dfDataBase;
+}

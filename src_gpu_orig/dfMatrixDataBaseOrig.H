@@ -12,45 +12,12 @@
 #include <iostream>
 #include <ctime>
 #include <cmath>
+#include "dfMatrixDataBase.H"
 
-
-static const char *_cudaGetErrorEnum(cudaError_t error) {
-  return cudaGetErrorName(error);
-}
-
-template <typename T>
-void check(T result, char const *const func, const char *const file,
-        int const line) {
-  if (result) {
-    fprintf(stderr, "cuda error at %s:%d code=%d(%s) \"%s\" \n", file, line,
-            static_cast<unsigned int>(result), _cudaGetErrorEnum(result), func);
-    exit(EXIT_FAILURE);
-  }
-}
-
-#define checkCudaErrors(val) check((val), #val, __FILE__, __LINE__)
-
-inline void checkVectorEqual(int count, const double* basevec, double* vec, double max_relative_error) {
-    for (size_t i = 0; i < count; ++i)
-    {
-        double abs_diff = fabs(basevec[i] - vec[i]);
-        double rel_diff = fabs(basevec[i] - vec[i]) / fabs(basevec[i]);
-        // if (abs_diff > 1e-12 && rel_diff > max_relative_error && !std::isinf(rel_diff))
-        if (abs_diff > 1e-15 && rel_diff > max_relative_error)
-            fprintf(stderr, "mismatch index %d, cpu data: %.16lf, gpu data: %.16lf, relative error: %.16lf\n", i, basevec[i], vec[i], rel_diff);
-    }
-}
-
-enum boundaryConditions{
-    zeroGradient,
-    fixedValue,
-    coupled,
-    empty
-};
 
 void constructBoundarySelector(std::vector<int>& patchTypeSelector, const std::string& patchTypeStr, const int patchSize);
 
-struct dfMatrixDataBase
+struct dfMatrixDataBaseOrig
 {
     // - cuda resource
     cudaStream_t stream;
@@ -219,8 +186,8 @@ struct dfMatrixDataBase
     double* d_nuEff = nullptr;
 
     // constructor
-    dfMatrixDataBase();
-    dfMatrixDataBase(int num_surfaces, int num_cells, int num_boundary_faces, int num_species, int & num_boundary_cells_output,
+    dfMatrixDataBaseOrig();
+    dfMatrixDataBaseOrig(int num_surfaces, int num_cells, int num_boundary_faces, int num_species, int & num_boundary_cells_output,
         const int *neighbour, const int *owner, const double* volume, const double* weight, const double* face_vector, const double* face, 
         const double* deltaCoeffs, std::vector<double> boundary_face_vector_init, std::vector<double> boundary_face_init, 
         std::vector<double> boundary_deltaCoeffs_init, std::vector<int> boundary_cell_id_init, std::vector<std::vector<int>> patch_type_init)
@@ -632,10 +599,9 @@ struct dfMatrixDataBase
         checkCudaErrors(cudaMemcpyAsync(d_tmpPermutatedList, tmpPermutatedList.data(), csr_col_index_bytes, cudaMemcpyHostToDevice, stream));
     };
 
-    ~dfMatrixDataBase(){
+    ~dfMatrixDataBaseOrig(){
         std::cout << "Destructor called." << std::endl;
         // TODO: free pointers
-        
     };
 };
 

@@ -24,6 +24,7 @@ EXE_INC = -std=c++14 \
     -I$(DF_SRC)/dfCombustionModels/lnInclude \
     -I$(CANTERA_ROOT)/include \
 	-I$(DF_ROOT)/src_gpu \
+	-I$(DF_ROOT)/src_gpu_orig \
 	-I$(DF_ROOT)/GPUTestRef/lnInclude \
 	-I/usr/local/cuda-11.6/include \
 	-I$(AMGX_DIR)/include
@@ -44,5 +45,6 @@ EXE_LIBS = \
     $(CANTERA_ROOT)/lib/libcantera.so \
 	/usr/local/cuda-11.6/lib64/libcudart.so \
 	$(AMGX_DIR)/build/libamgxsh.so \
-    $(DF_ROOT)/src_gpu/build/libdfMatrix.so
+    $(DF_ROOT)/src_gpu/build/libdfMatrix.so \
+	$(DF_ROOT)/src_gpu_orig/build/libdfMatrixOrig.so 
 
