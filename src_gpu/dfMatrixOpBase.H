@@ -4,6 +4,12 @@
 void permute_vector_d2h(cudaStream_t stream, int num_cells, const double *input, double *output);
 void permute_vector_h2d(cudaStream_t stream, int num_cells, const double *input, double *output);
 
+void field_multiply_scalar(cudaStream_t stream,
+        int num_cells, const double *input1, const double *input2, double *output,
+        int num_boundary_surfaces, const double *boundary_input1, const double *boundary_input2, double *boundary_output);
+
+void fvc_to_source_vector(cudaStream_t stream, int num_cells, const double *volume, const double *fvc_output, double *source);
+
 void ldu_to_csr(cudaStream_t stream, int num_cells, int num_surfaces,
         const int *lower_to_csr_index, const int *upper_to_csr_index, const int *diag_to_csr_index, 
         const double *lower, const double *upper, const double *diag, const double *source,
@@ -57,6 +63,13 @@ void fvc_div_surface_scalar(cudaStream_t stream, int num_cells, int num_surfaces
         const double *boundary_ssf, const double *volume, double *output);
 
 void fvc_div_cell_vector(cudaStream_t stream, int num_cells, int num_surfaces,
+        const int *lowerAddr, const int *upperAddr,
+        const double *weight, const double *Sf, const double *vf, double *output, // end for internal
+        int num_patches, const int *patch_size, const int *patch_type,
+        const int *boundary_cell_face, const double *boundary_vf, const double *boundary_Sf,
+        const double *volume);
+
+void fvc_div_cell_tensor(cudaStream_t stream, int num_cells, int num_surfaces,
         const int *lowerAddr, const int *upperAddr, 
         const double *weight, const double *Sf, const double *vf, double *output, // end for internal
         int num_patches, const int *patch_size, const int *patch_type,
@@ -69,3 +82,6 @@ void fvc_grad_cell_scalar(cudaStream_t stream, int num_cells, int num_surfaces,
         int num_patches, const int *patch_size, const int *patch_type,
         const int *boundary_cell_face, const double *boundary_vf, const double *boundary_Sf, const double *volume);
 
+// others
+void scale_dev2T_tensor(cudaStream_t stream, int num_cells, const double *vf1, double *vf2,
+        int num_boundary_surfaces, const double *boundary_vf1, double *boundary_vf2);

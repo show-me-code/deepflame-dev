@@ -99,7 +99,9 @@ int main(int argc, char *argv[])
         createGPUUEqn(CanteraTorchProperties, U);
 
         // foreach(timestep) {
+        dfDataBase.preTimeStep(&rho.oldTime()[0]);
         #include "new_UEqn.H"
+        dfDataBase.postTimeStep();
         // }
     }
     return 0;

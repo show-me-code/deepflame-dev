@@ -41,7 +41,7 @@ inline void checkVectorEqual(int count, const double* basevec, double* vec, doub
             fprintf(stderr, "index %d, cpu data: %.16lf, gpu data: %.16lf, relative error: %.16lf\n", i, basevec[i], vec[i], rel_diff);
         // if (abs_diff > 1e-12 && rel_diff > max_relative_error && !std::isinf(rel_diff))
         if (abs_diff > 1e-15 && rel_diff > max_relative_error)
-            fprintf(stderr, "mismatch index %d, cpu data: %.16lf, gpu data: %.16lf, relative error: %.16lf\n", i, basevec[i], vec[i], rel_diff);
+            fprintf(stderr, "mismatch index %d, cpu data: %.30lf, gpu data: %.30lf, relative error: %.16lf\n", i, basevec[i], vec[i], rel_diff);
     }
 }
 
@@ -63,7 +63,6 @@ enum boundaryConditions{
 };
 
 void constructBoundarySelectorPerPatch(int *patchTypeSelector, const std::string& patchTypeStr);
-void constructBoundarySelector(std::vector<int>& patchTypeSelector, const std::string& patchTypeStr, const int patchSize);
 
 struct dfMatrixDataBase
 {
@@ -204,6 +203,9 @@ struct dfMatrixDataBase
     void createNonConstantFieldsBoundary();
     void initNonConstantFieldsInternal(const double *y);
     void initNonConstantFieldsBoundary(const double *boundary_y);
+
+    void preTimeStep(const double *rho_old);
+    void postTimeStep();
 
     // getter
     double* getFieldPointer(const char* fieldAlias, location loc, position pos);

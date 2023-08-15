@@ -35,6 +35,7 @@ private:
 	double *d_grad_u = nullptr;
 	double *d_rho_nueff = nullptr;
 	double *d_permute = nullptr;
+    double *d_fvc_output = nullptr;
 
 	// non-constant fields - boundary
 	// thermophysical fields
@@ -89,11 +90,11 @@ public:
 	void initNonConstantFieldsBoundary();
 
 	// 方程运行
+    void preProcessForRhoEqn(const double *h_rho, const double *h_phi, const double *h_boundary_phi);
 	void preProcess(const double *h_u, const double *h_boundary_u, const double *h_p, const double *h_boundary_p, const double *h_nu_eff, const double *h_boundary_nu_eff, const double *h_boundary_rho);
-    void preProcessForRhoEqn(const double *h_phi, const double *h_boundary_phi);
 	void process();
 	void postProcess(double *h_u);
 
     void solve();
-    void compareResult(const double *lower, const double *upper, const double *diag, const double *internal_coeffs, const double *boundary_coeffs, bool printFlag);
+    void compareResult(const double *lower, const double *upper, const double *diag, const double *source, const double *internal_coeffs, const double *boundary_coeffs, bool printFlag);
 };

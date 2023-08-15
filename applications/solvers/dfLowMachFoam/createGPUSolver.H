@@ -31,24 +31,27 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
     double *boundary_sf = new double[3 * num_boundary_surfaces];
     double *boundary_mag_sf = new double[num_boundary_surfaces];
     double *boundary_delta_coeffs = new double[num_boundary_surfaces];
+    int *boundary_face_cell = new int[num_boundary_surfaces];
     int offset = 0;
     forAll(mesh.boundary(), patchi) {
         const vectorField& pSf = mesh.Sf().boundaryField()[patchi];
         const scalarField& pMagSf = mesh.magSf().boundaryField()[patchi];
         const scalarField& pDeltaCoeffs = mesh.nonOrthDeltaCoeffs().boundaryField()[patchi];
+        const labelUList& pFaceCells = mesh.boundary()[patchi].faceCells();
 
         int patchsize = pMagSf.size();
 
         memcpy(boundary_sf + 3*offset, &pSf[0][0], 3*patchsize*sizeof(double));
         memcpy(boundary_mag_sf + offset, &pMagSf[0], patchsize*sizeof(double));
         memcpy(boundary_delta_coeffs + offset, &pDeltaCoeffs[0], patchsize*sizeof(double));
+        memcpy(boundary_face_cell + offset, &pFaceCells[0], patchsize * sizeof(int));
         offset += patchsize;
     }
 
     dfDataBase.createConstantFieldsInternal();
     dfDataBase.createConstantFieldsBoundary();
     dfDataBase.initConstantFieldsInternal(&mesh.Sf()[0][0], &mesh.magSf()[0], &mesh.surfaceInterpolation::weights()[0], &mesh.nonOrthDeltaCoeffs()[0], &mesh.V()[0]);
-    dfDataBase.initConstantFieldsBoundary(boundary_sf, boundary_mag_sf, boundary_delta_coeffs);
+    dfDataBase.initConstantFieldsBoundary(boundary_sf, boundary_mag_sf, boundary_delta_coeffs, boundary_face_cell);
     
     // prepare internal and boundary of Y
     dfDataBase.createNonConstantFieldsInternal();

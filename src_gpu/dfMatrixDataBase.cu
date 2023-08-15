@@ -311,6 +311,12 @@ void dfMatrixDataBase::initNonConstantFieldsBoundary(const double *boundary_y) {
     checkCudaErrors(cudaMemcpyAsync(d_boundary_y, boundary_y, boundary_surface_value_bytes* num_species, cudaMemcpyHostToDevice, stream));
 }
 
+void dfMatrixDataBase::preTimeStep(const double *rho_old) {
+    checkCudaErrors(cudaMemcpyAsync(d_rho_old, rho_old, cell_value_bytes, cudaMemcpyHostToDevice, stream));
+}
+
+void dfMatrixDataBase::postTimeStep() {}
+
 double* dfMatrixDataBase::getFieldPointer(const char* fieldAlias, location loc, position pos) {
     char mergedName[256];
     if (pos == position::internal) {
