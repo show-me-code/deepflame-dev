@@ -90,48 +90,73 @@ void dfUEqn::preProcess(const double *h_u, const double *h_boundary_u, const dou
 }
 
 void dfUEqn::process() {
-    fvm_ddt_vector(dataBase_.stream, dataBase_.num_cells, dataBase_.rdelta_t,
-            dataBase_.d_rho, dataBase_.d_rho_old, dataBase_.d_u, dataBase_.d_volume,
-            d_diag, d_source, -1.);
-    fvm_div_vector(dataBase_.stream, dataBase_.num_surfaces, dataBase_.d_owner, dataBase_.d_neighbor,
-            dataBase_.d_phi, dataBase_.d_weight,
-            d_lower, d_upper, d_diag, // end for internal
-            dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
-            dataBase_.d_boundary_phi, d_value_internal_coeffs, d_value_boundary_coeffs,
-            d_internal_coeffs, d_boundary_coeffs, -1.);
-    //field_multiply_scalar(dataBase_.stream,
-    //        dataBase_.num_cells, dataBase_.d_rho, d_nu_eff, d_rho_nueff, // end for internal
-    //        dataBase_.num_boundary_surfaces, dataBase_.d_boundary_rho, d_boundary_nu_eff, d_boundary_rho_nueff);
-    //fvm_laplacian_vector(dataBase_.stream, dataBase_.num_surfaces,
-    //        dataBase_.d_owner, dataBase_.d_neighbor,
-    //        dataBase_.d_weight, dataBase_.d_mag_sf, dataBase_.d_delta_coeffs, d_rho_nueff,
-    //        d_lower, d_upper, d_diag, // end for internal
-    //        dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
-    //        dataBase_.d_boundary_mag_sf, d_boundary_rho_nueff,
-    //        d_gradient_internal_coeffs, d_gradient_boundary_coeffs,
-    //        d_internal_coeffs, d_boundary_coeffs);
-    //fvc_grad_vector(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces,
-    //        dataBase_.d_owner, dataBase_.d_neighbor,
-    //        dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_u, d_grad_u,
-    //        dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
-    //        dataBase_.d_boundary_face_cell, dataBase_.d_boundary_u, dataBase_.d_boundary_sf,
-    //        dataBase_.d_volume, dataBase_.d_boundary_mag_sf, d_boundary_grad_u, dataBase_.d_boundary_delta_coeffs);
-    //scale_dev2T_tensor(dataBase_.stream, dataBase_.num_cells, d_rho_nueff, d_grad_u, // end for internal
-    //        dataBase_.num_boundary_surfaces, d_boundary_rho_nueff, d_boundary_grad_u);
-    //fvc_div_cell_tensor(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces,
-    //        dataBase_.d_owner, dataBase_.d_neighbor,
-    //        dataBase_.d_weight, dataBase_.d_sf, d_grad_u, d_fvc_output, // end for internal
-    //        dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
-    //        dataBase_.d_boundary_face_cell, d_boundary_grad_u, dataBase_.d_boundary_sf, dataBase_.d_volume);
-    //fvc_to_source_vector(dataBase_.stream, dataBase_.num_cells,
-    //        dataBase_.d_volume, d_fvc_output, d_source);
-    fvc_grad_cell_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces,
-            dataBase_.d_owner, dataBase_.d_neighbor,
-            dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_p, d_fvc_output,
-            dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
-            dataBase_.d_boundary_face_cell, dataBase_.d_boundary_p, dataBase_.d_boundary_sf, dataBase_.d_volume, -1.);
-    fvc_to_source_vector(dataBase_.stream, dataBase_.num_cells,
-            dataBase_.d_volume, d_fvc_output, d_source);
+    //使用event计算时间
+    float time_elapsed=0;
+    cudaEvent_t start,stop;
+    checkCudaErrors(cudaEventCreate(&start));
+    checkCudaErrors(cudaEventCreate(&stop));
+    checkCudaErrors(cudaEventRecord(start,0));
+
+    if(!graph_created) {
+        DEBUG_TRACE;
+        checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
+
+        fvm_ddt_vector(dataBase_.stream, dataBase_.num_cells, dataBase_.rdelta_t,
+                dataBase_.d_rho, dataBase_.d_rho_old, dataBase_.d_u, dataBase_.d_volume,
+                d_diag, d_source, -1.);
+        fvm_div_vector(dataBase_.stream, dataBase_.num_surfaces, dataBase_.d_owner, dataBase_.d_neighbor,
+                dataBase_.d_phi, dataBase_.d_weight,
+                d_lower, d_upper, d_diag, // end for internal
+                dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
+                dataBase_.d_boundary_phi, d_value_internal_coeffs, d_value_boundary_coeffs,
+                d_internal_coeffs, d_boundary_coeffs, -1.);
+        //field_multiply_scalar(dataBase_.stream,
+        //        dataBase_.num_cells, dataBase_.d_rho, d_nu_eff, d_rho_nueff, // end for internal
+        //        dataBase_.num_boundary_surfaces, dataBase_.d_boundary_rho, d_boundary_nu_eff, d_boundary_rho_nueff);
+        //fvm_laplacian_vector(dataBase_.stream, dataBase_.num_surfaces,
+        //        dataBase_.d_owner, dataBase_.d_neighbor,
+        //        dataBase_.d_weight, dataBase_.d_mag_sf, dataBase_.d_delta_coeffs, d_rho_nueff,
+        //        d_lower, d_upper, d_diag, // end for internal
+        //        dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
+        //        dataBase_.d_boundary_mag_sf, d_boundary_rho_nueff,
+        //        d_gradient_internal_coeffs, d_gradient_boundary_coeffs,
+        //        d_internal_coeffs, d_boundary_coeffs);
+        //fvc_grad_vector(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces,
+        //        dataBase_.d_owner, dataBase_.d_neighbor,
+        //        dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_u, d_grad_u,
+        //        dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
+        //        dataBase_.d_boundary_face_cell, dataBase_.d_boundary_u, dataBase_.d_boundary_sf,
+        //        dataBase_.d_volume, dataBase_.d_boundary_mag_sf, d_boundary_grad_u, dataBase_.d_boundary_delta_coeffs);
+        //scale_dev2T_tensor(dataBase_.stream, dataBase_.num_cells, d_rho_nueff, d_grad_u, // end for internal
+        //        dataBase_.num_boundary_surfaces, d_boundary_rho_nueff, d_boundary_grad_u);
+        //fvc_div_cell_tensor(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces,
+        //        dataBase_.d_owner, dataBase_.d_neighbor,
+        //        dataBase_.d_weight, dataBase_.d_sf, d_grad_u, d_fvc_output, // end for internal
+        //        dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
+        //        dataBase_.d_boundary_face_cell, d_boundary_grad_u, dataBase_.d_boundary_sf, dataBase_.d_volume);
+        //fvc_to_source_vector(dataBase_.stream, dataBase_.num_cells,
+        //        dataBase_.d_volume, d_fvc_output, d_source);
+        fvc_grad_cell_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces,
+                dataBase_.d_owner, dataBase_.d_neighbor,
+                dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_p, d_fvc_output,
+                dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
+                dataBase_.d_boundary_face_cell, dataBase_.d_boundary_p, dataBase_.d_boundary_sf, dataBase_.d_volume, -1.);
+        fvc_to_source_vector(dataBase_.stream, dataBase_.num_cells,
+                dataBase_.d_volume, d_fvc_output, d_source);
+
+        checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph));
+        checkCudaErrors(cudaGraphInstantiate(&graph_instance, graph, NULL, NULL, 0));
+        graph_created = true;
+    }
+    DEBUG_TRACE;
+    checkCudaErrors(cudaGraphLaunch(graph_instance, dataBase_.stream));
+
+    checkCudaErrors(cudaEventRecord(stop,0));
+    checkCudaErrors(cudaEventSynchronize(start));
+    checkCudaErrors(cudaEventSynchronize(stop));
+    checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
+    fprintf(stderr, "ueqn process time：%f(ms)\n",time_elapsed);
+
     //solve();
 }
 
@@ -139,7 +164,6 @@ void dfUEqn::solve() {
     //ldu_to_csr(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces,
     //        dataBase_.d_lower_to_csr_index, dataBase_.d_upper_to_csr_index, dataBase_.d_diag_to_csr_index,
     //        d_lower, d_upper, d_diag, d_source, d_internal_coeffs, d_boundary_coeffs, d_A, d_b);
-    ////checkCudaErrors(cudaStreamSynchronize(dataBase_.stream));
 
     int nNz = dataBase_.num_cells + dataBase_.num_surfaces * 2; // matrix entries
     if (num_iteration == 0)                                     // first interation

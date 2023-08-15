@@ -48,10 +48,6 @@ dfMatrixDataBase::dfMatrixDataBase() {
 dfMatrixDataBase::~dfMatrixDataBase() {
     // destroy cuda resources
     checkCudaErrors(cudaStreamDestroy(stream));
-    if (graph_created) {
-        checkCudaErrors(cudaGraphExecDestroy(graph_instance));
-        checkCudaErrors(cudaGraphDestroy(graph));
-    }
     // TODO: free pointers
 }
 

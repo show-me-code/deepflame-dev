@@ -10,6 +10,12 @@ class dfUEqn
 private:
 	dfMatrixDataBase &dataBase_;
 
+    // cuda resource
+    // one graph for one eqn before using self-developed solver
+    cudaGraph_t graph;
+    cudaGraphExec_t graph_instance;
+    bool graph_created=false;
+
 	// constant values -- basic
 	std::string mode_string;
 	std::string setting_path;
@@ -72,7 +78,12 @@ public:
         : dataBase_(dataBase) {}
 
 	// 析构函数
-	~dfUEqn(){}
+	~dfUEqn(){
+        if (graph_created) {
+            checkCudaErrors(cudaGraphExecDestroy(graph_instance));
+            checkCudaErrors(cudaGraphDestroy(graph));
+        }
+    }
 
 	// 成员函数
 

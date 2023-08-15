@@ -98,11 +98,11 @@ int main(int argc, char *argv[])
         createGPUBase(mesh, Y);
         createGPUUEqn(CanteraTorchProperties, U);
 
-        // foreach(timestep) {
-        dfDataBase.preTimeStep(&rho.oldTime()[0]);
-        #include "new_UEqn.H"
-        dfDataBase.postTimeStep();
-        // }
+        for (int timestep = 0; timestep < 10; timestep++) {
+            dfDataBase.preTimeStep(&rho.oldTime()[0]);
+            #include "new_UEqn.H"
+            dfDataBase.postTimeStep();
+        }
     }
     return 0;
 }

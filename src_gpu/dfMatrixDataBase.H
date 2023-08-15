@@ -68,11 +68,6 @@ struct dfMatrixDataBase
 {
     // cuda resource
     cudaStream_t stream;
-    // maybe one graph for one eqn before using self-developed solver
-    // and should be located in each eqn.
-    cudaGraph_t graph;
-    cudaGraphExec_t graph_instance;
-    bool graph_created=false;
 
     // constant values -- basic
     int num_cells = 0;
