@@ -5,7 +5,8 @@ const volScalarField& nuEff = nuEff_tmp();
 // run CPU, for temp
 tmp<fvVectorMatrix> tUEqn
 (
- fvm::ddt(rho, U) + fvm::div(phi, U) == -fvc::grad(p)
+ -fvm::ddt(rho, U) - fvm::div(phi, U) == fvc::grad(p)
+ //fvm::ddt(rho, U) + fvm::div(phi, U) == -fvc::grad(p)
  //turbulence->divDevRhoReff(U)
 );
 fvVectorMatrix& UEqn = tUEqn.ref();

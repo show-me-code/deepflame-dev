@@ -92,13 +92,13 @@ void dfUEqn::preProcess(const double *h_u, const double *h_boundary_u, const dou
 void dfUEqn::process() {
     fvm_ddt_vector(dataBase_.stream, dataBase_.num_cells, dataBase_.rdelta_t,
             dataBase_.d_rho, dataBase_.d_rho_old, dataBase_.d_u, dataBase_.d_volume,
-            d_diag, d_source);
+            d_diag, d_source, -1.);
     fvm_div_vector(dataBase_.stream, dataBase_.num_surfaces, dataBase_.d_owner, dataBase_.d_neighbor,
             dataBase_.d_phi, dataBase_.d_weight,
             d_lower, d_upper, d_diag, // end for internal
             dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
             dataBase_.d_boundary_phi, d_value_internal_coeffs, d_value_boundary_coeffs,
-            d_internal_coeffs, d_boundary_coeffs);
+            d_internal_coeffs, d_boundary_coeffs, -1.);
     //field_multiply_scalar(dataBase_.stream,
     //        dataBase_.num_cells, dataBase_.d_rho, d_nu_eff, d_rho_nueff, // end for internal
     //        dataBase_.num_boundary_surfaces, dataBase_.d_boundary_rho, d_boundary_nu_eff, d_boundary_rho_nueff);
@@ -129,7 +129,7 @@ void dfUEqn::process() {
             dataBase_.d_owner, dataBase_.d_neighbor,
             dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_p, d_fvc_output,
             dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
-            dataBase_.d_boundary_face_cell, dataBase_.d_boundary_p, dataBase_.d_boundary_sf, dataBase_.d_volume);
+            dataBase_.d_boundary_face_cell, dataBase_.d_boundary_p, dataBase_.d_boundary_sf, dataBase_.d_volume, -1.);
     fvc_to_source_vector(dataBase_.stream, dataBase_.num_cells,
             dataBase_.d_volume, d_fvc_output, d_source);
     //solve();
