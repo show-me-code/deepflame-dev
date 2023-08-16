@@ -29,7 +29,8 @@ EXE_INC = -std=c++14 \
     $(PYTHON_INC_DIR) \
     $(if $(AMGX_DIR), -I$(DF_ROOT)/src_gpu,) \
     $(if $(AMGX_DIR), -I/usr/local/cuda-11.6/include,) \
-    $(if $(AMGX_DIR), -I$(AMGX_DIR)/include,)
+    $(if $(AMGX_DIR), -I$(AMGX_DIR)/include,) \
+	-I$(DF_ROOT)/GPUTestRef/lnInclude \
 
 EXE_LIBS = \
     -lcompressibleTransportModels \
@@ -43,6 +44,7 @@ EXE_LIBS = \
     -ldfCanteraMixture \
     -ldfChemistryModel \
     -ldfCombustionModels  \
+	-ldfGenMatrix \
     $(CANTERA_ROOT)/lib/libcantera.so \
     $(if $(LIBTORCH_ROOT),$(LIBTORCH_ROOT)/lib/libtorch.so,) \
     $(if $(LIBTORCH_ROOT),$(LIBTORCH_ROOT)/lib/libc10.so,) \

@@ -103,6 +103,13 @@ __global__ void scale_dev2t_tensor_kernel(int num, const double *vf1, double *vf
     vf2[index * 9 + 6] = scale * val_xz;
     vf2[index * 9 + 7] = scale * val_yz;
     vf2[index * 9 + 8] = scale * (val_zz - trace_coeff);
+
+    // if (index == 0)
+    // {
+    //     printf("bou_grad_U = (%.5e, %.5e, %.5e, %.5e, %.5e, %.5e, %.5e, %.5e, %.5e)", vf2[0], vf2[1], vf2[2],
+    //             vf2[3], vf2[4], vf2[5], vf2[6], vf2[7], vf2[8]);
+    // }
+    
 }
 
 __global__ void fvm_ddt_vector_kernel(int num_cells, double rDeltaT,
@@ -488,9 +495,9 @@ __global__ void fvc_grad_vector_correctBC_zeroGradient(int num, int offset, cons
     double vfy = vf[cellIndex * 3 + 1];
     double vfz = vf[cellIndex * 3 + 2];
 
-    double n_x = boundary_sf[cellIndex * 3 + 0] / boundary_mag_sf[cellIndex];
-    double n_y = boundary_sf[cellIndex * 3 + 1] / boundary_mag_sf[cellIndex];
-    double n_z = boundary_sf[cellIndex * 3 + 2] / boundary_mag_sf[cellIndex];
+    double n_x = boundary_sf[start_index * 3 + 0] / boundary_mag_sf[start_index];
+    double n_y = boundary_sf[start_index * 3 + 1] / boundary_mag_sf[start_index];
+    double n_z = boundary_sf[start_index * 3 + 2] / boundary_mag_sf[start_index];
     
     double grad_correction_x = - (n_x * grad_xx + n_y * grad_yx + n_z * grad_zx); // sn_grad_x = 0
     double grad_correction_y = - (n_x * grad_xy + n_y * grad_yy + n_z * grad_zy);
@@ -670,9 +677,9 @@ __global__ void fvc_div_cell_tensor_internal(int num_surfaces,
     double ssf_zx = (w * (vf[owner * 9 + 6] - vf[neighbor * 9 + 6]) + vf[neighbor * 9 + 6]);
     double ssf_zy = (w * (vf[owner * 9 + 7] - vf[neighbor * 9 + 7]) + vf[neighbor * 9 + 7]);
     double ssf_zz = (w * (vf[owner * 9 + 8] - vf[neighbor * 9 + 8]) + vf[neighbor * 9 + 8]);
-    double div_x = Sfx * ssf_xx + Sfy * ssf_xy + Sfz * ssf_xz;
-    double div_y = Sfx * ssf_yx + Sfy * ssf_yy + Sfz * ssf_yz;
-    double div_z = Sfx * ssf_zx + Sfy * ssf_zy + Sfz * ssf_zz;
+    double div_x = Sfx * ssf_xx + Sfy * ssf_yx + Sfz * ssf_zx;
+    double div_y = Sfx * ssf_xy + Sfy * ssf_yy + Sfz * ssf_zy;
+    double div_z = Sfx * ssf_xz + Sfy * ssf_yz + Sfz * ssf_zz;
 
     // owner
     atomicAdd(&(output[owner * 3 + 0]), div_x);
@@ -683,6 +690,8 @@ __global__ void fvc_div_cell_tensor_internal(int num_surfaces,
     atomicAdd(&(output[neighbor * 3 + 0]), -div_x);
     atomicAdd(&(output[neighbor * 3 + 1]), -div_y);
     atomicAdd(&(output[neighbor * 3 + 2]), -div_z);
+    
+    
 }
 
 __global__ void fvc_div_cell_tensor_boundary(int num, int offset, const int *face2Cells,
@@ -709,13 +718,30 @@ __global__ void fvc_div_cell_tensor_boundary(int num, int offset, const int *fac
     double boussf_zz = boundary_vf[start_index * 9 + 8];
     int cellIndex = face2Cells[start_index];
 
-    double bouDiv_x = bouSfx * boussf_xx + bouSfy * boussf_xy + bouSfz * boussf_xz;
-    double bouDiv_y = bouSfx * boussf_yx + bouSfy * boussf_yy + bouSfz * boussf_yz;
-    double bouDiv_z = bouSfx * boussf_zx + bouSfy * boussf_zy + bouSfz * boussf_zz;
+    double bouDiv_x = bouSfx * boussf_xx + bouSfy * boussf_yx + bouSfz * boussf_zx;
+    double bouDiv_y = bouSfx * boussf_xy + bouSfy * boussf_yy + bouSfz * boussf_zy;
+    double bouDiv_z = bouSfx * boussf_xz + bouSfy * boussf_yz + bouSfz * boussf_zz;
 
     atomicAdd(&(output[cellIndex * 3 + 0]), bouDiv_x);
     atomicAdd(&(output[cellIndex * 3 + 1]), bouDiv_y);
     atomicAdd(&(output[cellIndex * 3 + 2]), bouDiv_z);
+
+    // if (cellIndex == 0)
+    // {
+    //     // printf("gpu output[0] = %.5e, %.5e, %.5e\n", output[0], output[1], output[2]);
+    //     // printf("gpu output[0] += %.5e, %.5e, %.5e\n", bouDiv_x, bouDiv_y, bouDiv_z);
+    //     printf("gpu bouvf[0] = (%.5e, %.5e, %.5e, %.5e, %.5e, %.5e, %.5e, %.5e, %.5e)\n", 
+    //             boussf_xx, boussf_xy, boussf_xz, boussf_yx, boussf_yy, boussf_yz, boussf_zx, boussf_zy, boussf_zz);
+    //     printf("gpu bouSf[0] = (%.5e, %.5e, %.5e)\n", bouSfx, bouSfy, bouSfz);
+    //     printf("gpu boufinal[0] = (%.5e, %.5e, %.5e)\n", bouDiv_x, bouDiv_y, bouDiv_z);
+    //     printf("bouIndex = %d\n\n", start_index);
+    // }
+
+    // if (index == 0)
+    // {
+    //     printf("bou_grad_U = (%.5e, %.5e, %.5e, %.5e, %.5e, %.5e, %.5e, %.5e, %.5e)", vf2[0], vf2[1], vf2[2],
+    //             vf2[3], vf2[4], vf2[5], vf2[6], vf2[7], vf2[8]);
+    // }
 }
 
 void permute_vector_d2h(cudaStream_t stream, int num_cells, const double *input, double *output)

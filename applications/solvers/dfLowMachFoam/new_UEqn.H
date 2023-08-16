@@ -5,10 +5,16 @@ const volScalarField& nuEff = nuEff_tmp();
 // run CPU, for temp
 tmp<fvVectorMatrix> tUEqn
 (
- -fvm::ddt(rho, U) - fvm::div(phi, U) == fvc::grad(p)
- //fvm::ddt(rho, U) + fvm::div(phi, U) == -fvc::grad(p)
- //turbulence->divDevRhoReff(U)
+    fvm::ddt(rho, U) + fvm::div(phi, U)
+    +  turbulence->divDevRhoReff(U)
+    == -fvc::grad(p)
 );
+// tmp<fvVectorMatrix> tUEqn_ref // test turbulence->divDevRhoReff(U)
+// (
+//     - fvc::div((turbulence->rho()*turbulence->nuEff())*dev2(Foam::T(fvc::grad(U))))
+//     - fvm::laplacian(turbulence->rho()*turbulence->nuEff(), U)
+// );
+
 fvVectorMatrix& UEqn = tUEqn.ref();
 
 // run GPU
@@ -81,6 +87,8 @@ for (int patchi = 0; patchi < dfDataBase.num_patches; patchi++)
 }
 bool printFlag = false;
 UEqn_GPU.compareResult(&UEqn.lower()[0], &UEqn.upper()[0], &UEqn.diag()[0], &UEqn.source()[0][0],
-        h_internal_coeffs.data(), h_boundary_coeffs.data(), printFlag);
+        h_internal_coeffs.data(), h_boundary_coeffs.data(), 
+        // &DivTensor[0][0], 
+        printFlag);
 DEBUG_TRACE;
 #endif

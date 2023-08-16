@@ -51,8 +51,11 @@ Description
 
 #include "dfMatrixDataBase.H"
 #include "dfMatrixOpBase.H"
+#include "GenFvMatrix.H"
 #include "dfUEqn.H"
 #include "createGPUSolver.H"
+
+#define GPUSolver_
 
 int main(int argc, char *argv[])
 {
@@ -98,11 +101,11 @@ int main(int argc, char *argv[])
         createGPUBase(mesh, Y);
         createGPUUEqn(CanteraTorchProperties, U);
 
-        for (int timestep = 0; timestep < 10; timestep++) {
+        // for (int timestep = 0; timestep < 10; timestep++) {
             dfDataBase.preTimeStep(&rho.oldTime()[0]);
             #include "new_UEqn.H"
             dfDataBase.postTimeStep();
-        }
+        // }
     }
     return 0;
 }

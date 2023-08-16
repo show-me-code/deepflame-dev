@@ -103,39 +103,39 @@ void dfUEqn::process() {
 
         fvm_ddt_vector(dataBase_.stream, dataBase_.num_cells, dataBase_.rdelta_t,
                 dataBase_.d_rho, dataBase_.d_rho_old, dataBase_.d_u, dataBase_.d_volume,
-                d_diag, d_source, -1.);
+                d_diag, d_source, 1.);
         fvm_div_vector(dataBase_.stream, dataBase_.num_surfaces, dataBase_.d_owner, dataBase_.d_neighbor,
                 dataBase_.d_phi, dataBase_.d_weight,
                 d_lower, d_upper, d_diag, // end for internal
                 dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
                 dataBase_.d_boundary_phi, d_value_internal_coeffs, d_value_boundary_coeffs,
-                d_internal_coeffs, d_boundary_coeffs, -1.);
-        //field_multiply_scalar(dataBase_.stream,
-        //        dataBase_.num_cells, dataBase_.d_rho, d_nu_eff, d_rho_nueff, // end for internal
-        //        dataBase_.num_boundary_surfaces, dataBase_.d_boundary_rho, d_boundary_nu_eff, d_boundary_rho_nueff);
-        //fvm_laplacian_vector(dataBase_.stream, dataBase_.num_surfaces,
-        //        dataBase_.d_owner, dataBase_.d_neighbor,
-        //        dataBase_.d_weight, dataBase_.d_mag_sf, dataBase_.d_delta_coeffs, d_rho_nueff,
-        //        d_lower, d_upper, d_diag, // end for internal
-        //        dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
-        //        dataBase_.d_boundary_mag_sf, d_boundary_rho_nueff,
-        //        d_gradient_internal_coeffs, d_gradient_boundary_coeffs,
-        //        d_internal_coeffs, d_boundary_coeffs);
-        //fvc_grad_vector(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces,
-        //        dataBase_.d_owner, dataBase_.d_neighbor,
-        //        dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_u, d_grad_u,
-        //        dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
-        //        dataBase_.d_boundary_face_cell, dataBase_.d_boundary_u, dataBase_.d_boundary_sf,
-        //        dataBase_.d_volume, dataBase_.d_boundary_mag_sf, d_boundary_grad_u, dataBase_.d_boundary_delta_coeffs);
-        //scale_dev2T_tensor(dataBase_.stream, dataBase_.num_cells, d_rho_nueff, d_grad_u, // end for internal
-        //        dataBase_.num_boundary_surfaces, d_boundary_rho_nueff, d_boundary_grad_u);
-        //fvc_div_cell_tensor(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces,
-        //        dataBase_.d_owner, dataBase_.d_neighbor,
-        //        dataBase_.d_weight, dataBase_.d_sf, d_grad_u, d_fvc_output, // end for internal
-        //        dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
-        //        dataBase_.d_boundary_face_cell, d_boundary_grad_u, dataBase_.d_boundary_sf, dataBase_.d_volume);
-        //fvc_to_source_vector(dataBase_.stream, dataBase_.num_cells,
-        //        dataBase_.d_volume, d_fvc_output, d_source);
+                d_internal_coeffs, d_boundary_coeffs, 1.);
+        field_multiply_scalar(dataBase_.stream,
+               dataBase_.num_cells, dataBase_.d_rho, d_nu_eff, d_rho_nueff, // end for internal
+               dataBase_.num_boundary_surfaces, dataBase_.d_boundary_rho, d_boundary_nu_eff, d_boundary_rho_nueff);
+        fvm_laplacian_vector(dataBase_.stream, dataBase_.num_surfaces,
+               dataBase_.d_owner, dataBase_.d_neighbor,
+               dataBase_.d_weight, dataBase_.d_mag_sf, dataBase_.d_delta_coeffs, d_rho_nueff,
+               d_lower, d_upper, d_diag, // end for internal
+               dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
+               dataBase_.d_boundary_mag_sf, d_boundary_rho_nueff,
+               d_gradient_internal_coeffs, d_gradient_boundary_coeffs,
+               d_internal_coeffs, d_boundary_coeffs, -1);
+        fvc_grad_vector(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces,
+               dataBase_.d_owner, dataBase_.d_neighbor,
+               dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_u, d_grad_u,
+               dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
+               dataBase_.d_boundary_face_cell, dataBase_.d_boundary_u, dataBase_.d_boundary_sf,
+               dataBase_.d_volume, dataBase_.d_boundary_mag_sf, d_boundary_grad_u, dataBase_.d_boundary_delta_coeffs);
+        scale_dev2T_tensor(dataBase_.stream, dataBase_.num_cells, d_rho_nueff, d_grad_u, // end for internal
+               dataBase_.num_boundary_surfaces, d_boundary_rho_nueff, d_boundary_grad_u);
+        fvc_div_cell_tensor(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces,
+               dataBase_.d_owner, dataBase_.d_neighbor,
+               dataBase_.d_weight, dataBase_.d_sf, d_grad_u, d_fvc_output, // end for internal
+               dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
+               dataBase_.d_boundary_face_cell, d_boundary_grad_u, dataBase_.d_boundary_sf, dataBase_.d_volume);
+        fvc_to_source_vector(dataBase_.stream, dataBase_.num_cells,
+               dataBase_.d_volume, d_fvc_output, d_source);
         fvc_grad_cell_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces,
                 dataBase_.d_owner, dataBase_.d_neighbor,
                 dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_p, d_fvc_output,
@@ -217,7 +217,10 @@ double* dfUEqn::getFieldPointer(const char* fieldAlias, location loc, position p
     return pointer;
 }
 
-void dfUEqn::compareResult(const double *lower, const double *upper, const double *diag, const double *source, const double *internal_coeffs, const double *boundary_coeffs, bool printFlag)
+void dfUEqn::compareResult(const double *lower, const double *upper, const double *diag, 
+        const double *source, const double *internal_coeffs, const double *boundary_coeffs, 
+        // const double *tmpVal, 
+        bool printFlag)
 {
     DEBUG_TRACE;
     std::vector<double> h_lower;
@@ -241,7 +244,7 @@ void dfUEqn::compareResult(const double *lower, const double *upper, const doubl
     std::vector<double> h_source;
     h_source.resize(dataBase_.num_cells * 3);
     checkCudaErrors(cudaMemcpy(h_source.data(), d_source, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToHost));
-    checkVectorEqual(dataBase_.num_cells, source, h_source.data(), 1e-14, printFlag);
+    checkVectorEqual(dataBase_.num_cells * 3, source, h_source.data(), 1e-14, printFlag);
     DEBUG_TRACE;
 
     std::vector<double> h_internal_coeffs;
@@ -255,5 +258,11 @@ void dfUEqn::compareResult(const double *lower, const double *upper, const doubl
     checkCudaErrors(cudaMemcpy(h_boundary_coeffs.data(), d_boundary_coeffs, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyDeviceToHost));
     checkVectorEqual(dataBase_.num_boundary_surfaces * 3, boundary_coeffs, h_boundary_coeffs.data(), 1e-14, printFlag);
     DEBUG_TRACE;
+
+    // std::vector<double> h_tmpVal;
+    // h_tmpVal.resize(dataBase_.num_cells * 3);
+    // checkCudaErrors(cudaMemcpy(h_tmpVal.data(), d_fvc_output, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToHost));
+    // checkVectorEqual(dataBase_.num_cells * 3, tmpVal, h_tmpVal.data(), 1e-14, printFlag);
+    // DEBUG_TRACE;
 }
 

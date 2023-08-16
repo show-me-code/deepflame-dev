@@ -107,5 +107,7 @@ public:
 	void postProcess(double *h_u);
 
     void solve();
-    void compareResult(const double *lower, const double *upper, const double *diag, const double *source, const double *internal_coeffs, const double *boundary_coeffs, bool printFlag);
+    void compareResult(const double *lower, const double *upper, const double *diag, const double *source, const double *internal_coeffs, const double *boundary_coeffs, 
+    // const double *tmpVal, 
+    bool printFlag);
 };
