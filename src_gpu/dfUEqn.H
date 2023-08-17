@@ -110,4 +110,6 @@ public:
     void compareResult(const double *lower, const double *upper, const double *diag, const double *source, const double *internal_coeffs, const double *boundary_coeffs, 
     // const double *tmpVal, 
     bool printFlag);
+
+    void sync();
 };

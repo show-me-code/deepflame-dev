@@ -1,5 +1,21 @@
 #pragma once
 
+#define TICK_INIT \
+    float time_elapsed_kernel=0;\
+    cudaEvent_t start_kernel, stop_kernel;\
+    checkCudaErrors(cudaEventCreate(&start_kernel));\
+    checkCudaErrors(cudaEventCreate(&stop_kernel));
+
+#define TICK_START \
+    checkCudaErrors(cudaEventRecord(start_kernel,0));
+
+#define TICK_END(prefix) \
+    checkCudaErrors(cudaEventRecord(stop_kernel,0));\
+    checkCudaErrors(cudaEventSynchronize(start_kernel));\
+    checkCudaErrors(cudaEventSynchronize(stop_kernel));\
+    checkCudaErrors(cudaEventElapsedTime(&time_elapsed_kernel,start_kernel,stop_kernel));\
+    printf("try %s 执行时间：%lf(ms)\n", #prefix, time_elapsed_kernel);
+
 // tools
 void permute_vector_d2h(cudaStream_t stream, int num_cells, const double *input, double *output);
 void permute_vector_h2d(cudaStream_t stream, int num_cells, const double *input, double *output);
@@ -49,7 +65,7 @@ void fvc_ddt_scalar(cudaStream_t stream, int num_cells, double rDeltaT,
         const double *rho, const double *rho_old, const double *vf, const double *vf_old,
         double *output, double sign = 1.);
 
-void fvc_grad_vector(cudaStream_t stream, int num_cells, int num_surfaces, 
+void fvc_grad_vector(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces,
         const int *lowerAddr, const int *upperAddr, 
         const double *weight, const double *Sf, const double *vf, double *output, // end for internal
         int num_patches, const int *patch_size, const int *patch_type,
@@ -68,7 +84,7 @@ void fvc_div_cell_vector(cudaStream_t stream, int num_cells, int num_surfaces,
         const int *boundary_cell_face, const double *boundary_vf, const double *boundary_Sf,
         const double *volume, double sign = 1.);
 
-void fvc_div_cell_tensor(cudaStream_t stream, int num_cells, int num_surfaces,
+void fvc_div_cell_tensor(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces, 
         const int *lowerAddr, const int *upperAddr, 
         const double *weight, const double *Sf, const double *vf, double *output, // end for internal
         int num_patches, const int *patch_size, const int *patch_type,
