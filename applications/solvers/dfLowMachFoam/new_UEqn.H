@@ -107,7 +107,7 @@ for (int patchi = 0; patchi < dfDataBase.num_patches; patchi++)
     memcpy(h_boundary_coeffs.data() + offset * 3, boundary_coeff_ptr, patchsize * 3 * sizeof(double));
     offset += patchsize;
 }
-bool printFlag = false;
+bool printFlag = true;
 UEqn_GPU.compareResult(&UEqn.lower()[0], &UEqn.upper()[0], &UEqn.diag()[0], &UEqn.source()[0][0],
         h_internal_coeffs.data(), h_boundary_coeffs.data(), 
         // &DivTensor[0][0], 

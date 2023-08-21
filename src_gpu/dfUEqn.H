@@ -41,7 +41,7 @@ private:
 	double *d_grad_u = nullptr;
 	double *d_rho_nueff = nullptr;
 	double *d_permute = nullptr;
-    double *d_fvc_output = nullptr;
+    double *d_fvc_output = nullptr; // TODO: no need anymore
 
 	// non-constant fields - boundary
 	// thermophysical fields
@@ -64,10 +64,11 @@ private:
 	double *d_source = nullptr;
 	double *d_internal_coeffs = nullptr;
 	double *d_boundary_coeffs = nullptr;
+    double *d_diag_vector = nullptr;
 
 	// non-constant fields - csr
 	double *d_A = nullptr;
-	double *d_b = nullptr;
+	double *d_b = nullptr; // TODO: needless
 
     // field pointer map
     std::unordered_map<std::string, double*> fieldPointerMap;

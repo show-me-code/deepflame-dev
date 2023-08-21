@@ -132,7 +132,6 @@ void dfMatrixDataBase::setConstantIndexes(const int *owner, const int *neighbor)
 
     std::vector<int> lowCSRIndex, uppCSRIndex, diagCSRIndex, CSRRowIndex, CSRColIndex;
     int uppIndexInCSR = 0, uppIndexInLdu = 0, lowIndexInCSR = 0, lowIndexInLdu = 0, lowNumInLdu = 0;
-    CSRRowIndex.push_back(0);
     CSRColIndex.resize(2 * num_surfaces + num_cells);
     lowCSRIndex.resize(num_surfaces);
     for (int i = 0; i < num_cells; ++i) {
@@ -161,6 +160,7 @@ void dfMatrixDataBase::setConstantIndexes(const int *owner, const int *neighbor)
         diagCSRIndex.push_back(diagIndexInCSR);
         CSRColIndex[diagIndexInCSR] = i; // fill diag entry in CSRColIndex
     }
+    CSRRowIndex.push_back(2 * num_surfaces + num_cells);
 
     checkCudaErrors(cudaMalloc((void**)&d_lower_to_csr_index, surface_index_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_diag_to_csr_index, cell_index_bytes));
