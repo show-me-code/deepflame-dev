@@ -3,60 +3,114 @@
 #include "AmgXSolver.H"
 #include <amgx_c.h>
 #include "dfMatrixDataBase.H"
+#include "dfMatrixOpBase.H"
 
 class dfUEqn
 {
 private:
-    dfMatrixDataBase &dataBase_;
-    cudaStream_t stream;
-    AmgXSolver *UxSolver, *UySolver, *UzSolver = nullptr;
-    int num_iteration;
+	dfMatrixDataBase &dataBase_;
 
-    // common variables
-    int num_cells, cell_bytes, num_faces, num_surfaces, cell_vec_bytes, csr_value_vec_bytes, num_boundary_cells;
-    int *d_A_csr_row_index, *d_A_csr_diag_index, *d_A_csr_col_index;
+    // cuda resource
+    // one graph for one eqn before using self-developed solver
+    cudaGraph_t graph;
+    cudaGraphExec_t graph_instance;
+    bool graph_created=false;
 
-    // Matrix variables
-    double *d_A_csr, *d_b, *d_psi, *d_psi_permute, *d_H, *d_H_permute, *d_A;
-    double *h_A_csr, *h_b, *h_psi, *h_H, *h_A = nullptr;
+	// constant values -- basic
+	std::string mode_string;
+	std::string setting_path;
 
-    double *d_ueqn_internal_coeffs, *d_ueqn_boundary_coeffs= nullptr;
+	// constant values -- amgx solvers
+	AmgXSolver *UxSolver = nullptr;
+	AmgXSolver *UySolver = nullptr;
+	AmgXSolver *UzSolver = nullptr;
+    int num_iteration = 0;
+
+	// constant fields - internal
+	// 无
+
+	// constant fields - boundary
+	std::vector<int> patch_type;
+
+	// non-constant fields - internal
+	// thermophysical fields
+	double *d_nu_eff = nullptr;
+	// computed on CPU, used on GPU, need memcpyh2d - host
+	double *h_nu_eff = nullptr;
+	// intermediate fields
+	double *d_grad_u = nullptr;
+	double *d_rho_nueff = nullptr;
+	double *d_permute = nullptr;
+    double *d_fvc_output = nullptr; // TODO: no need anymore
+
+	// non-constant fields - boundary
+	// thermophysical fields
+	double *d_boundary_nu_eff = nullptr;
+	// computed on CPU, used on GPU, need memcpyh2d - host
+	double *h_boundary_nu_eff = nullptr;
+	// intermediate fields
+	double *d_boundary_grad_u = nullptr;
+	double *d_boundary_rho_nueff = nullptr;
+    // boundary coeff fields
+	double *d_value_internal_coeffs = nullptr;
+	double *d_value_boundary_coeffs= nullptr;
+	double *d_gradient_internal_coeffs= nullptr;
+	double *d_gradient_boundary_coeffs= nullptr;
+
+	// non-constant fields - ldu
+	double *d_lower = nullptr;
+	double *d_upper = nullptr;
+	double *d_diag = nullptr;
+	double *d_source = nullptr;
+	double *d_internal_coeffs = nullptr;
+	double *d_boundary_coeffs = nullptr;
+    double *d_diag_vector = nullptr;
+
+	// non-constant fields - csr
+	double *d_A = nullptr;
+	double *d_b = nullptr; // TODO: needless
+
+    // field pointer map
+    std::unordered_map<std::string, double*> fieldPointerMap;
 
 public:
-    dfUEqn();
-    dfUEqn(dfMatrixDataBase &dataBase, const std::string &modeStr, const std::string &cfgFile);
-    ~dfUEqn();
+	// 构造函数
+    dfUEqn(dfMatrixDataBase &dataBase)
+        : dataBase_(dataBase) {}
 
-    void checkValue(bool print);
+	// 析构函数
+	~dfUEqn(){
+        if (graph_created) {
+            checkCudaErrors(cudaGraphExecDestroy(graph_instance));
+            checkCudaErrors(cudaGraphDestroy(graph));
+        }
+    }
 
-    void fvm_ddt(double *vector_old);
+	// 成员函数
 
-    void fvm_div(double *boundary_pressure_init, double *boundary_velocity_init,
-                 double *boundary_nuEff_init, double *boundary_rho_init);
+    // getter函数
+    double* getFieldPointer(const char* fieldAlias, location loc, position pos);
 
-    void fvc_grad(double *pressure);
+	// 初始化构建
+	void setConstantValues(const std::string &mode_string, const std::string &setting_path); 
+	void setConstantFields(const std::vector<int> patch_type);
+	void createNonConstantFieldsInternal();
+	void createNonConstantFieldsBoundary();
+	void createNonConstantLduAndCsrFields();
+	// dfUEqn has no internal non-constant fields to be init
+	//void initNonConstantFieldsInternal(xxx);
+	void initNonConstantFieldsBoundary();
 
-    void fvc_grad_vector();
-
-    void dev2T();
-
-    void fvc_div_tensor(const double *nuEff);
-
-    void fvm_laplacian();
-
-    void A(double *Psi);
-
-    void H(double *Psi);
+	// 方程运行
+    void preProcessForRhoEqn(const double *h_rho, const double *h_phi, const double *h_boundary_phi);
+	void preProcess(const double *h_u, const double *h_boundary_u, const double *h_p, const double *h_boundary_p, const double *h_nu_eff, const double *h_boundary_nu_eff, const double *h_boundary_rho);
+	void process();
+	void postProcess(double *h_u);
 
     void solve();
+    void compareResult(const double *lower, const double *upper, const double *diag, const double *source, const double *internal_coeffs, const double *boundary_coeffs, 
+    // const double *tmpVal, 
+    bool printFlag);
 
     void sync();
-
-    void updatePsi(double *Psi);
-
-    void correctBoundaryConditions();
-
-    void correctPsi(double *Psi);
-
-    void initializeTimeStep();
 };

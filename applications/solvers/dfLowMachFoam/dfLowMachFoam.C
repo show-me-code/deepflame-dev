@@ -60,14 +60,34 @@ Description
 #include "basicThermo.H"
 #include "CombustionModel.H"
 
-#ifdef GPUSolver_
+#define GPUSolverNew_
+#define TIME
+
+#ifdef GPUSolverNew_
 #include "dfUEqn.H"
-#include "dfYEqn.H"
-#include "dfRhoEqn.H"
-#include "dfEEqn.H"
+// #include "dfYEqn.H"
+// #include "dfRhoEqn.H"
+// #include "dfEEqn.H"
+#include "dfMatrixDataBase.H"
+#include "dfMatrixOpBase.H"
 #include <cuda_runtime.h>
 #include <thread>
+
+#include "createGPUSolver.H"
+
 #include "upwind.H"
+#include "GenFvMatrix.H"
+#endif
+
+#ifdef TIME
+    #define TICK_START \
+        start_new = std::clock(); 
+    #define TICK_STOP(prefix) \
+        stop_new = std::clock(); \
+        Foam::Info << #prefix << " time = " << double(stop_new - start_new) / double(CLOCKS_PER_SEC) << " s" << Foam::endl;
+#else
+    #define TICK_START
+    #define TICK_STOP(prefix)
 #endif
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -148,6 +168,8 @@ int main(int argc, char *argv[])
 
     label timeIndex = 0;
     clock_t start, end, start1, end1, start2, end2;
+    clock_t start_new, stop_new;
+    double time_new = 0;
 
     turbulence->validate();
 
@@ -158,9 +180,11 @@ int main(int argc, char *argv[])
     }
 
     start1 = std::clock();
-    #ifdef GPUSolver_
-    #include "createdfSolver.H"
-    #endif
+#ifdef GPUSolverNew_
+    createGPUBase(mesh, Y);
+    createGPUUEqn(CanteraTorchProperties, U);
+#endif
+
     end1 = std::clock();
     time_monitor_init += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
@@ -187,7 +211,9 @@ int main(int argc, char *argv[])
         runTime++;
 
         Info<< "Time = " << runTime.timeName() << nl << endl;
-
+#ifdef GPUSolverNew_
+        dfDataBase.preTimeStep(&rho.oldTime()[0]);
+#endif
         clock_t loop_start = std::clock();
         // --- Pressure-velocity PIMPLE corrector loop
         while (pimple.loop())
@@ -275,6 +301,10 @@ int main(int argc, char *argv[])
         double loop_time = double(loop_end - loop_start) / double(CLOCKS_PER_SEC);
 
         rho = thermo.rho();
+
+#ifdef GPUSolverNew_
+        dfDataBase.postTimeStep();
+#endif
 
         runTime.write();
         Info<< "========Time Spent in diffenet parts========"<< endl;
