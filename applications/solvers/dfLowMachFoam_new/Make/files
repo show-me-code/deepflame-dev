@@ -1,3 +1,0 @@
-dfLowMachFoam.C
-
-EXE = $(DF_APPBIN)/dfLowMachFoam_new
