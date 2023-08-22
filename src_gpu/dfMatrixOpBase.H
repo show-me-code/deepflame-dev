@@ -15,7 +15,7 @@ void ldu_to_csr(cudaStream_t stream, int num_cells, int num_surfaces, int num_bo
         const int* boundary_cell_face, const int *lower_to_csr_index, const int *upper_to_csr_index, const int *diag_to_csr_index,
         const double *lower, const double *upper, const double *diag, const double *source,
         const double *internal_coeffs, const double *boundary_coeffs,
-        double *A, double *b, double *diag_vec);
+        double *A, double *b);
 
 void update_boundary_coeffs_vector(cudaStream_t stream, int num_boundary_surfaces, int num_patches,
         const int *patch_size, const int *patch_type,

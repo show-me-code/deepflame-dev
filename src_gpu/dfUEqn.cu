@@ -50,7 +50,6 @@ void dfUEqn::createNonConstantLduAndCsrFields() {
   checkCudaErrors(cudaMalloc((void**)&d_upper, dataBase_.surface_value_bytes));
   checkCudaErrors(cudaMalloc((void**)&d_diag, dataBase_.cell_value_bytes));
   checkCudaErrors(cudaMalloc((void**)&d_source, dataBase_.cell_value_vec_bytes));
-  checkCudaErrors(cudaMalloc((void**)&d_diag_vector, dataBase_.cell_value_vec_bytes));
   checkCudaErrors(cudaMalloc((void**)&d_internal_coeffs, dataBase_.boundary_surface_value_vec_bytes));
   checkCudaErrors(cudaMalloc((void**)&d_boundary_coeffs, dataBase_.boundary_surface_value_vec_bytes));
   checkCudaErrors(cudaMalloc((void**)&d_A, dataBase_.csr_value_vec_bytes));
@@ -88,7 +87,6 @@ void dfUEqn::preProcess(const double *h_u, const double *h_boundary_u, const dou
   checkCudaErrors(cudaMemsetAsync(d_boundary_coeffs, 0, dataBase_.boundary_surface_value_vec_bytes, dataBase_.stream));
   checkCudaErrors(cudaMemsetAsync(d_A, 0, dataBase_.csr_value_vec_bytes, dataBase_.stream));
   checkCudaErrors(cudaMemsetAsync(d_b, 0, dataBase_.cell_value_vec_bytes, dataBase_.stream));
-  checkCudaErrors(cudaMemsetAsync(d_diag_vector, 0, dataBase_.cell_value_vec_bytes, dataBase_.stream)); // TODO: maybe a better way
 }
 
 void dfUEqn::process() {
@@ -140,15 +138,11 @@ void dfUEqn::process() {
                dataBase_.d_weight, dataBase_.d_sf, d_grad_u, d_source, // end for internal
                dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
                dataBase_.d_boundary_face_cell, d_boundary_grad_u, dataBase_.d_boundary_sf, dataBase_.d_volume);
-        // fvc_to_source_vector(dataBase_.stream, dataBase_.num_cells,
-        //        dataBase_.d_volume, d_fvc_output, d_source);
         fvc_grad_cell_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces,
                 dataBase_.d_owner, dataBase_.d_neighbor,
                 dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_p, d_source,
                 dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
                 dataBase_.d_boundary_face_cell, dataBase_.d_boundary_p, dataBase_.d_boundary_sf, dataBase_.d_volume, -1.);
-        // fvc_to_source_vector(dataBase_.stream, dataBase_.num_cells,
-        //         dataBase_.d_volume, d_fvc_output, d_source);
 
 #ifndef TIME_GPU
         checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph));
@@ -177,10 +171,15 @@ void dfUEqn::solve() {
     ldu_to_csr(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
             dataBase_.d_boundary_face_cell,
             dataBase_.d_lower_to_csr_index, dataBase_.d_upper_to_csr_index, dataBase_.d_diag_to_csr_index,
-            d_lower, d_upper, d_diag, d_source, d_internal_coeffs, d_boundary_coeffs, d_A, d_b, d_diag_vector);
+            d_lower, d_upper, d_diag, d_source, d_internal_coeffs, d_boundary_coeffs, d_A, d_b);
 
     int nNz = dataBase_.num_cells + dataBase_.num_surfaces * 2; // matrix entries
     sync();
+
+    // double *h_A_csr = new double[nNz * 3];
+    // checkCudaErrors(cudaMemcpy(h_A_csr, d_A, dataBase_.csr_value_vec_bytes, cudaMemcpyDeviceToHost));
+    // for (int i = 0; i < nNz; i++)
+    //     fprintf(stderr, "h_A_csr[%d]: (%.10lf, %.10lf, %.10lf)\n", i, h_A_csr[i], h_A_csr[i + nNz], h_A_csr[i + 2 * nNz]);
 
     if (num_iteration == 0)                                     // first interation
     {
