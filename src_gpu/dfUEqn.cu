@@ -203,7 +203,7 @@ void dfUEqn::solve() {
 
 void dfUEqn::postProcess(double *h_u) { // TODO: Here may be a bug
     permute_vector_d2h(dataBase_.stream, dataBase_.num_cells, d_permute, dataBase_.d_u);
-    checkCudaErrors(cudaMemcpyAsync(dataBase_.d_u, d_permute, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
+    checkCudaErrors(cudaMemcpyAsync(h_u, dataBase_.d_u, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
     checkCudaErrors(cudaStreamSynchronize(dataBase_.stream));
 
     // some boundary conditions may also need vf.boundary, deltaCoeffs.boundary, and weight.boundary
