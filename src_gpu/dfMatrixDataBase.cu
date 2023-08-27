@@ -160,14 +160,48 @@ void dfMatrixDataBase::setConstantIndexes(const int *owner, const int *neighbor)
         diagCSRIndex.push_back(diagIndexInCSR);
         CSRColIndex[diagIndexInCSR] = i; // fill diag entry in CSRColIndex
     }
-    CSRRowIndex.push_back(2 * num_surfaces + num_cells);
+    int nNz = 2 * num_surfaces + num_cells;
+    CSRRowIndex.push_back(nNz);
+
+    // get reverseIndex from csr to ldu (low + diag + upp)
+    std::vector<int> CSRIndex;
+    CSRIndex.insert(CSRIndex.end(), lowCSRIndex.begin(), lowCSRIndex.end());
+    CSRIndex.insert(CSRIndex.end(), diagCSRIndex.begin(), diagCSRIndex.end());
+    CSRIndex.insert(CSRIndex.end(), uppCSRIndex.begin(), uppCSRIndex.end());
+
+    std::vector<int> lduCSRIndexPermInit(nNz);
+    std::iota(lduCSRIndexPermInit.begin(), lduCSRIndexPermInit.end(), 0);
+
+    std::multimap<int,int> IndexPermutation;
+    for (int i = 0; i < nNz; ++i){
+        IndexPermutation.insert(std::make_pair(CSRIndex[i], lduCSRIndexPermInit[i]));
+    }
+    std::vector<std::pair<int, int>> IndexPermPair(IndexPermutation.begin(), IndexPermutation.end());
+    std::sort(IndexPermPair.begin(), IndexPermPair.end(), []
+    (const std::pair<int, int>& pair1, const std::pair<int, int>& pair2){
+        return pair1.first < pair2.first;});
+
+    std::vector<int> lduCSRIndex;
+    std::transform(IndexPermPair.begin(), IndexPermPair.end(), std::back_inserter(lduCSRIndex), []
+        (const std::pair<int, int>& pair) {
+        return pair.second;
+    });
+
+    std::vector<int> test;
+    std::transform(IndexPermPair.begin(), IndexPermPair.end(), std::back_inserter(test), []
+        (const std::pair<int, int>& pair) {
+        return pair.first;
+    });
+    
 
     checkCudaErrors(cudaMalloc((void**)&d_lower_to_csr_index, surface_index_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_diag_to_csr_index, cell_index_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_upper_to_csr_index, surface_index_bytes));
+    checkCudaErrors(cudaMalloc((void**)&d_ldu_to_csr_index, csr_col_index_bytes));
     checkCudaErrors(cudaMemcpyAsync(d_lower_to_csr_index, lowCSRIndex.data(), surface_index_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_diag_to_csr_index, diagCSRIndex.data(), cell_index_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_upper_to_csr_index, uppCSRIndex.data(), surface_index_bytes, cudaMemcpyHostToDevice, stream));
+    checkCudaErrors(cudaMemcpyAsync(d_ldu_to_csr_index, lduCSRIndex.data(), csr_col_index_bytes, cudaMemcpyHostToDevice, stream));
 
 
     // build d_csr_row_index, d_csr_col_index
