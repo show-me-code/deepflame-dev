@@ -67,8 +67,49 @@ const volScalarField psip0(psi*p);
     time_monitor_UEqn_A_correctBC += double(end1 - start1) / double(CLOCKS_PER_SEC);
 #endif
 
+#ifdef GPUSolverNew_
+volVectorField UEqn_H
+(
+    IOobject
+    (
+        "H("+U.name()+')',
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedVector(dimensionSet(1,-2,-2,0,0,0,0), Zero),
+    extrapolatedCalculatedFvPatchScalarField::typeName
+);
+UEqn_GPU.H(&UEqn_H[0][0]);
+UEqn_H.correctBoundaryConditions();
+
+volScalarField UEqn_A
+(
+    IOobject
+    (
+        "A("+U.name()+')',
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedScalar(dimensionSet(1,-3,-1,0,0,0,0), Zero),
+    extrapolatedCalculatedFvPatchScalarField::typeName
+);
+UEqn_GPU.A(&UEqn_A[0]);
+UEqn_A.correctBoundaryConditions();
+#endif
+
+
 start2 = std::clock();
 #ifdef GPUSolver_
+    volScalarField rAU(1.0/UEqn_A);
+    surfaceScalarField rhorAUf("rhorAUf", fvc::interpolate(rho*rAU));
+    volVectorField HbyA(constrainHbyA(rAU*UEqn_H, U, p));
+#elif defined GPUSolverNew_
     volScalarField rAU(1.0/UEqn_A);
     surfaceScalarField rhorAUf("rhorAUf", fvc::interpolate(rho*rAU));
     volVectorField HbyA(constrainHbyA(rAU*UEqn_H, U, p));
@@ -179,6 +220,8 @@ K = 0.5*magSqr(U);
     end1 = std::clock();
     time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_UEqn_correctBC += double(end1 - start1) / double(CLOCKS_PER_SEC);
+#elif defined GPUSolverNew_
+    UEqn_GPU.correctPsi(&U[0][0]);
 #endif
 
 if (pimple.simpleRho())

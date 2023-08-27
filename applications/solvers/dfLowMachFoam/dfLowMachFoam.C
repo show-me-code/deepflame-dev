@@ -60,7 +60,7 @@ Description
 #include "basicThermo.H"
 #include "CombustionModel.H"
 
-// #define GPUSolverNew_
+#define GPUSolverNew_
 #define TIME
 
 #ifdef GPUSolverNew_

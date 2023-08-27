@@ -37,6 +37,8 @@ private:
 	double *d_nu_eff = nullptr;
 	// computed on CPU, used on GPU, need memcpyh2d - host
 	double *h_nu_eff = nullptr;
+    double *h_A_pEqn = nullptr;
+    double *h_H_pEqn = nullptr;
 	// intermediate fields
 	double *d_grad_u = nullptr;
 	double *d_rho_nueff = nullptr;
@@ -58,6 +60,7 @@ private:
 	double *d_gradient_boundary_coeffs= nullptr;
 
 	// non-constant fields - ldu
+    double *d_ldu = nullptr;
 	double *d_lower = nullptr;
 	double *d_upper = nullptr;
 	double *d_diag = nullptr;
@@ -69,6 +72,9 @@ private:
 	// non-constant fields - csr
 	double *d_A = nullptr;
 	double *d_b = nullptr; // TODO: needless
+    double *d_A_pEqn = nullptr;
+    double *d_H_pEqn = nullptr;
+    double *d_H_pEqn_perm = nullptr;
 
     // field pointer map
     std::unordered_map<std::string, double*> fieldPointerMap;
@@ -106,6 +112,10 @@ public:
 	void preProcess(const double *h_u, const double *h_boundary_u, const double *h_p, const double *h_boundary_p, const double *h_nu_eff, const double *h_boundary_nu_eff, const double *h_boundary_rho);
 	void process();
 	void postProcess(double *h_u);
+
+    void A(double *Psi);
+    void H(double *Psi);
+    void correctPsi(double *Psi);
 
     void solve();
     void compareResult(const double *lower, const double *upper, const double *diag, const double *source, const double *internal_coeffs, const double *boundary_coeffs, 

@@ -135,7 +135,7 @@
 
     TICK_START;
     U.oldTime();
-    memcpy(h_u, &U.oldTime()[0][0], dfDataBase.cell_value_vec_bytes);
+    memcpy(h_u, &U.oldTime()[0][0], dfDataBase.cell_value_vec_bytes); 
     memcpy(h_p, &p[0], dfDataBase.cell_value_bytes);
     memcpy(h_nu_eff, &nuEff[0], dfDataBase.cell_value_bytes);
     TICK_STOP(copy to pinned memory);
