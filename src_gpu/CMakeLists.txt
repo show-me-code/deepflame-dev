@@ -13,11 +13,7 @@ find_package(CUDAToolkit REQUIRED)
 find_library(LIBAMGXSH amgxsh PATHS $ENV{AMGX_DIR}/build)
 
 add_compile_options(-arch=sm_70 -fmad=false)
-
-OPTION(DEBUG_MODE "build the project in debug mode with checking-result" OFF)
-if(DEBUG_MODE)
-    add_definitions("-DDEBUG_")
-endif()
+#add_definitions("-DDEBUG_")
 
 include_directories(
     ${MPI_INCLUDE_PATH}

@@ -1029,14 +1029,17 @@ __global__ void constructVecDiag(int num_cells, const double *diag, double *diag
     b[num_cells * 2 + index] = source[num_cells * 2 + index];
 }
 
-__global__ void addBoundaryDiagSrc(int num_cells, int num_boundary_surfaces, const int *face2Cells, 
-        const double *internal_coeffs, const double *boundary_coeffs, double *diag_vec, double *b)
+__global__ void addBoundaryDiagSrc(int num_cells, int num_surfaces, int num_boundary_surfaces, const int *face2Cells, 
+        const double *internal_coeffs, const double *boundary_coeffs, const int *diagCSRIndex, 
+        double *A_csr, double *b)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index >= num_boundary_surfaces)
         return;
     
     int cellIndex = face2Cells[index];
+    int diagIndex = diagCSRIndex[cellIndex];
+    int nNz = num_cells + 2 * num_surfaces;
 
     double internalCoeffx = internal_coeffs[num_boundary_surfaces * 0 + index];
     double internalCoeffy = internal_coeffs[num_boundary_surfaces * 1 + index];
@@ -1046,51 +1049,137 @@ __global__ void addBoundaryDiagSrc(int num_cells, int num_boundary_surfaces, con
     double boundaryCoeffy = boundary_coeffs[num_boundary_surfaces * 1 + index];
     double boundaryCoeffz = boundary_coeffs[num_boundary_surfaces * 2 + index];
 
-    atomicAdd(&diag_vec[num_cells * 0 + cellIndex], internalCoeffx);
-    atomicAdd(&diag_vec[num_cells * 1 + cellIndex], internalCoeffy);
-    atomicAdd(&diag_vec[num_cells * 2 + cellIndex], internalCoeffz);
+    atomicAdd(&A_csr[nNz * 0 + diagIndex], internalCoeffx);
+    atomicAdd(&A_csr[nNz * 1 + diagIndex], internalCoeffy);
+    atomicAdd(&A_csr[nNz * 2 + diagIndex], internalCoeffz);
 
     atomicAdd(&b[num_cells * 0 + cellIndex], boundaryCoeffx);
     atomicAdd(&b[num_cells * 1 + cellIndex], boundaryCoeffy);
     atomicAdd(&b[num_cells * 2 + cellIndex], boundaryCoeffz);
 }
 
-__global__ void ldu_to_csr_offDiag(int num_cells, int num_surfaces,
-        const int *lowCSRIndex, const int *uppCSRIndex,
-        const double *lower, const double *upper,
-        double *A_csr)
+__global__ void ldu_to_csr_kernel(int nNz, const int *ldu_to_csr_index, 
+        const double *ldu, double *A_csr)
 {
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= nNz)
+        return;
+    
+    int lduIndex = ldu_to_csr_index[index];
+    double csrVal = ldu[lduIndex];
+    A_csr[nNz * 0 + index] = csrVal;
+    A_csr[nNz * 1 + index] = csrVal;
+    A_csr[nNz * 2 + index] = csrVal;
+}
+
+__global__ void addAveInternaltoDiag(int num_cells, int num_boundary_surfaces, const int *face2Cells, 
+        const double *internal_coeffs, double *A_pEqn)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_boundary_surfaces)
+        return;
+
+    int cellIndex = face2Cells[index];
+
+    double internal_x = internal_coeffs[num_boundary_surfaces * 0 + index];
+    double internal_y = internal_coeffs[num_boundary_surfaces * 1 + index];
+    double internal_z = internal_coeffs[num_boundary_surfaces * 2 + index];
+
+    double ave_internal = (internal_x + internal_y + internal_z) / 3;
+
+    atomicAdd(&A_pEqn[cellIndex], ave_internal);
+}
+
+__global__ void addBoundaryDiag(int num_cells, int num_boundary_surfaces, const int *face2Cells, 
+        const double *internal_coeffs, const double *psi, double *H_pEqn)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_boundary_surfaces)
+        return;
+
+    // addBoundaryDiag(boundaryDiagCmpt, cmpt); // add internal coeffs
+    // boundaryDiagCmpt.negate();
+    double internal_x = internal_coeffs[num_boundary_surfaces * 0 + index];
+    double internal_y = internal_coeffs[num_boundary_surfaces * 1 + index];
+    double internal_z = internal_coeffs[num_boundary_surfaces * 2 + index];
+
+    // addCmptAvBoundaryDiag(boundaryDiagCmpt);
+    double ave_internal = (internal_x + internal_y + internal_z) / 3;
+
+    int cellIndex = face2Cells[index];
+
+    // do not permute H anymore
+    atomicAdd(&H_pEqn[num_cells * 0 + cellIndex], (-internal_x + ave_internal) * psi[num_cells * 0 + cellIndex]);
+    atomicAdd(&H_pEqn[num_cells * 1 + cellIndex], (-internal_y + ave_internal) * psi[num_cells * 1 + cellIndex]);
+    atomicAdd(&H_pEqn[num_cells * 2 + cellIndex], (-internal_z + ave_internal) * psi[num_cells * 2 + cellIndex]);
+}
+
+__global__ void lduMatrix_H(int num_cells, int num_surfaces,
+        const int *lower_index, const int *upper_index, const double *lower, const double *upper,
+        const double *psi, double *H_pEqn)
+{
+    /*
+    for (label face=0; face<nFaces; face++)
+    {
+        HpsiPtr[uPtr[face]] -= lowerPtr[face]*psiPtr[lPtr[face]];
+        HpsiPtr[lPtr[face]] -= upperPtr[face]*psiPtr[uPtr[face]];
+    }*/
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index >= num_surfaces)
         return;
+    
+    int l = lower_index[index];
+    int u = upper_index[index];
 
-    int uppIndex = uppCSRIndex[index];
-    int lowIndex = lowCSRIndex[index];
-    int upp = upper[index];
-    int low = lower[index];
-    A_csr[(num_cells + 2 * num_surfaces) * 0 + uppIndex] = upper[index];
-    A_csr[(num_cells + 2 * num_surfaces) * 1 + uppIndex] = upper[index];
-    A_csr[(num_cells + 2 * num_surfaces) * 2 + uppIndex] = upper[index];
-
-    A_csr[(num_cells + 2 * num_surfaces) * 0 + lowIndex] = lower[index];
-    A_csr[(num_cells + 2 * num_surfaces) * 1 + lowIndex] = lower[index];
-    A_csr[(num_cells + 2 * num_surfaces) * 2 + lowIndex] = lower[index];
+    atomicAdd(&H_pEqn[num_cells * 0 + u], -lower[index] * psi[num_cells * 0 + l]);
+    atomicAdd(&H_pEqn[num_cells * 1 + u], -lower[index] * psi[num_cells * 1 + l]);
+    atomicAdd(&H_pEqn[num_cells * 2 + u], -lower[index] * psi[num_cells * 2 + l]);
+    atomicAdd(&H_pEqn[num_cells * 0 + l], -upper[index] * psi[num_cells * 0 + u]);
+    atomicAdd(&H_pEqn[num_cells * 1 + l], -upper[index] * psi[num_cells * 1 + u]);
+    atomicAdd(&H_pEqn[num_cells * 2 + l], -upper[index] * psi[num_cells * 2 + u]);
 }
 
-__global__ void ldu_to_csr_Diag(int num_cells, int num_surfaces, 
-        const int *diagCSRIndex, const double *diag_vec,
-        double *A_csr)
+__global__ void addBoundarySrc_unCoupled(int num_cells, int num, int offset, 
+        int num_boundary_surfaces, const int *face2Cells, const double *boundary_coeffs, double *H_pEqn)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
+        return;
+
+    int start_index = offset + index;
+
+    // addBoundaryDiag(boundaryDiagCmpt, cmpt); // add internal coeffs
+    // boundaryDiagCmpt.negate();
+    double boundary_x = boundary_coeffs[num_boundary_surfaces * 0 + start_index];
+    double boundary_y = boundary_coeffs[num_boundary_surfaces * 1 + start_index];
+    double boundary_z = boundary_coeffs[num_boundary_surfaces * 2 + start_index];
+
+
+    int cellIndex = face2Cells[start_index];
+
+    // do not permute H anymore
+    atomicAdd(&H_pEqn[num_cells * 0 + cellIndex], boundary_x);
+    atomicAdd(&H_pEqn[num_cells * 1 + cellIndex], boundary_y);
+    atomicAdd(&H_pEqn[num_cells * 2 + cellIndex], boundary_z);
+}
+
+__global__ void divideVol_permute_vec(int num_cells, const double *volume, double *H_pEqn, double *H_pEqn_perm)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index >= num_cells)
         return;
+    
+    // divide volume
+    double vol = volume[index];
+    double H_pEqn_x = H_pEqn[num_cells * 0 + index] / vol;
+    double H_pEqn_y = H_pEqn[num_cells * 1 + index] / vol;
+    double H_pEqn_z = H_pEqn[num_cells * 2 + index] / vol;
 
-    int diagIndex = diagCSRIndex[index];
-    A_csr[(num_cells + 2 * num_surfaces) * 0 + diagIndex] = diag_vec[num_cells * 0 + index];
-    A_csr[(num_cells + 2 * num_surfaces) * 1 + diagIndex] = diag_vec[num_cells * 1 + index];
-    A_csr[(num_cells + 2 * num_surfaces) * 2 + diagIndex] = diag_vec[num_cells * 2 + index];
+    // permute
+    H_pEqn_perm[index * 3 + 0] = H_pEqn_x;
+    H_pEqn_perm[index * 3 + 1] = H_pEqn_y;
+    H_pEqn_perm[index * 3 + 2] = H_pEqn_z;
 }
-
 
 void permute_vector_d2h(cudaStream_t stream, int num_cells, const double *input, double *output)
 {
@@ -1152,31 +1241,26 @@ void ldu_to_csr_scalar(cudaStream_t stream, int num_cells, int num_surfaces, int
 }
 
 void ldu_to_csr(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surface,
-        const int* boundary_cell_face, const int *lower_to_csr_index, const int *upper_to_csr_index, const int *diag_to_csr_index,
-        const double *lower, const double *upper, const double *diag, const double *source,
-        const double *internal_coeffs, const double *boundary_coeffs,
-        double *A, double *b, double *diag_vec)
+        const int* boundary_cell_face, const int *ldu_to_csr_index, const int *diag_to_csr_index,
+        const double *ldu, const double *source, const double *internal_coeffs, const double *boundary_coeffs,
+        double *A, double *b)
 {
-    // construct new diag with size of 3*num_cells
+    TICK_INIT_EVENT;
+    // construct diag
+    int nNz = num_cells + 2 * num_surfaces;
     size_t threads_per_block = 1024;
-    size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
-    constructVecDiag<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, diag, diag_vec, source, b);
+    size_t blocks_per_grid = (nNz + threads_per_block - 1) / threads_per_block;
+    TICK_START_EVENT;
+    checkCudaErrors(cudaMemcpyAsync(b, source, num_cells * 3 * sizeof(double), cudaMemcpyDeviceToDevice, stream));
+    ldu_to_csr_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(nNz, ldu_to_csr_index, ldu, A);
+    TICK_END_EVENT(ldu_to_csr_kernel);
 
     // add coeff to source and diagnal
     blocks_per_grid = (num_boundary_surface + threads_per_block - 1) / threads_per_block;
-    addBoundaryDiagSrc<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_boundary_surface, 
-            boundary_cell_face, internal_coeffs, boundary_coeffs, diag_vec, b);
-    
-    // convert offdiag
-    blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
-    ldu_to_csr_offDiag<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_surfaces, 
-            lower_to_csr_index, upper_to_csr_index, lower, upper, A);
-
-    // convert diag
-    blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
-    ldu_to_csr_Diag<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_surfaces, 
-            diag_to_csr_index, diag_vec, A);
-
+    TICK_START_EVENT;
+    addBoundaryDiagSrc<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_surfaces, num_boundary_surface, 
+            boundary_cell_face, internal_coeffs, boundary_coeffs, diag_to_csr_index, A, b);
+    TICK_END_EVENT(addBoundaryDiagSrc);
 }
 
 void update_boundary_coeffs_scalar(cudaStream_t stream,
@@ -1694,10 +1778,75 @@ void fvc_laplacian_scalar(cudaStream_t stream, int num_cells, int num_surfaces, 
         }
         offset += patch_size[i];
     }
-
     // TODO
     //// divide cell volume
     //threads_per_block = 1024;
     //blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
     //divide_cell_volume_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, volume, output, sign);
+}
+
+void fvMtx_A(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces,
+        const int *boundary_cell_face, const double *internal_coeffs, const double *volume, const double *diag, 
+        double *A_pEqn, double sign)
+{
+    checkCudaErrors(cudaMemcpyAsync(A_pEqn, diag, num_cells * sizeof(double), cudaMemcpyDeviceToDevice, stream));
+    TICK_INIT_EVENT;
+
+    size_t threads_per_block = 1024;
+    size_t blocks_per_grid = (num_boundary_surfaces + threads_per_block - 1) / threads_per_block;
+    TICK_START_EVENT;
+    addAveInternaltoDiag<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_boundary_surfaces, boundary_cell_face, 
+            internal_coeffs, A_pEqn);
+    TICK_END_EVENT(addAveInternaltoDiag);
+    
+    blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
+    TICK_START_EVENT;
+    divide_cell_volume_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, volume, A_pEqn, sign);
+    TICK_END_EVENT(divide_cell_volume_scalar);
+}
+
+void fvMtx_H(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces, 
+        const int *lowerAddr, const int *upperAddr, const double *volume,
+        int num_patches, const int *patch_size, const int *patch_type,
+        const int *boundary_cell_face, const double *internal_coffs, const double *boundary_coeffs, 
+        const double *lower, const double *upper, const double *source, const double *psi, 
+        double *H_pEqn, double *H_pEqn_perm, double sign)
+{
+    TICK_INIT_EVENT;
+    size_t threads_per_block = 1024;
+    size_t blocks_per_grid = (num_boundary_surfaces + threads_per_block - 1) / threads_per_block;
+
+    TICK_START_EVENT;
+    checkCudaErrors(cudaMemcpyAsync(H_pEqn, source, num_cells * 3 * sizeof(double), cudaMemcpyDeviceToDevice, stream));
+    addBoundaryDiag<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_boundary_surfaces, boundary_cell_face, 
+            internal_coffs, psi, H_pEqn);
+    TICK_END_EVENT(addBoundaryDiag);
+    
+    blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
+    TICK_START_EVENT;
+    lduMatrix_H<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_surfaces, lowerAddr, upperAddr, 
+            lower, upper, psi, H_pEqn);
+    TICK_END_EVENT(lduMatrix_H);
+
+    int offset = 0;
+    for (int i = 0; i < num_patches; i++) {
+        threads_per_block = 64;
+        blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
+        // TODO: just non-coupled patch type now
+        if (patch_type[i] == boundaryConditions::zeroGradient
+                || patch_type[i] == boundaryConditions::fixedValue) {
+            TICK_START_EVENT;
+            addBoundarySrc_unCoupled<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, patch_size[i], offset, 
+                    num_boundary_surfaces, boundary_cell_face, boundary_coeffs, H_pEqn);
+            TICK_END_EVENT(addBoundarySrc_unCoupled);
+        } else if (0) {
+            // xxx
+            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+        }
+        offset += patch_size[i];
+    }
+    blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
+    TICK_START_EVENT;
+    divideVol_permute_vec<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, volume, H_pEqn, H_pEqn_perm);
+    TICK_END_EVENT(divideVol_permute_vec);
 }

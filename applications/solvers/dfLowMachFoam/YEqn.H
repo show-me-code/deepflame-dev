@@ -14,13 +14,13 @@ tmp<fv::convectionScheme<scalar>> mvConvection
 );
 #if defined GPUSolverNew_
 #if defined DEBUG_
-    randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(0)));
-    randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(1)));
-    randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(2)));
-    randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(3)));
-    randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(4)));
-    randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(5)));
-    randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(6)));
+    //randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(0)));
+    //randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(1)));
+    //randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(2)));
+    //randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(3)));
+    //randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(4)));
+    //randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(5)));
+    //randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(6)));
 #endif
 #endif
 
@@ -123,7 +123,15 @@ tmp<fv::convectionScheme<scalar>> mvConvection
     time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_YEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
 #elif defined GPUSolverNew_
+#if defined DEBUG_
+    forAll(Y, i)
+    {
+        sumYDiffError += chemistry->rhoD(i)*fvc::grad(Y[i]);
+    }
+    const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
+#else
     // do nothing
+#endif
 #else // should only for CPUSolver
     start1 = std::clock();
     forAll(Y, i)

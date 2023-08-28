@@ -103,6 +103,7 @@ struct dfMatrixDataBase
     int *d_lower_to_csr_index = nullptr;
     int *d_diag_to_csr_index= nullptr;
     int *d_upper_to_csr_index= nullptr;
+    int *d_ldu_to_csr_index = nullptr;
     int *d_csr_row_index= nullptr;
     int *d_csr_col_index= nullptr;
 

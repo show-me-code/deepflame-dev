@@ -1,5 +1,6 @@
 #pragma once
-// #define TIME_GPU
+#include <cuda_runtime.h>
+#define TIME_GPU
 
 // tools
 void permute_vector_d2h(cudaStream_t stream, int num_cells, const double *input, double *output);
@@ -18,10 +19,9 @@ void ldu_to_csr_scalar(cudaStream_t stream, int num_cells, int num_surfaces, int
         double *A);
 
 void ldu_to_csr(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surface,
-        const int* boundary_cell_face, const int *lower_to_csr_index, const int *upper_to_csr_index, const int *diag_to_csr_index,
-        const double *lower, const double *upper, const double *diag, const double *source,
-        const double *internal_coeffs, const double *boundary_coeffs,
-        double *A, double *b, double *diag_vec);
+        const int* boundary_cell_face, const int *ldu_to_csr_index, const int *diag_to_csr_index,
+        const double *ldu, const double *source, const double *internal_coeffs, const double *boundary_coeffs,
+        double *A, double *b);
 
 void update_boundary_coeffs_scalar(cudaStream_t stream, int num_patches,
         const int *patch_size, const int *patch_type,
@@ -128,3 +128,14 @@ void fvc_laplacian_scalar(cudaStream_t stream, int num_cells, int num_surfaces, 
 // others
 void scale_dev2T_tensor(cudaStream_t stream, int num_cells, const double *vf1, double *vf2,
         int num_boundary_surfaces, const double *boundary_vf1, double *boundary_vf2);
+
+void fvMtx_A(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces, 
+        const int *boundary_cell_face, const double *internal_coeffs, const double *volume, const double *diag, 
+        double *A_pEqn, double sign = 1.);
+
+void fvMtx_H(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces, 
+        const int *lowerAddr, const int *upperAddr, const double *volume,
+        int num_patches, const int *patch_size, const int *patch_type,
+        const int *boundary_cell_face, const double *internal_coffs, const double *boundary_coeffs, 
+        const double *lower, const double *upper, const double *source, const double *psi, 
+        double *H_pEqn, double *H_pEqn_perm, double sign = 1.);
