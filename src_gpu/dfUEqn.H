@@ -118,9 +118,11 @@ public:
     void correctPsi(double *Psi);
 
     void solve();
+    void sync();
+
+#if defined DEBUG_
     void compareResult(const double *lower, const double *upper, const double *diag, const double *source, const double *internal_coeffs, const double *boundary_coeffs, 
     // const double *tmpVal, 
     bool printFlag);
-
-    void sync();
+#endif 
 };

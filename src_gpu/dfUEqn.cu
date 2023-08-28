@@ -264,6 +264,7 @@ double* dfUEqn::getFieldPointer(const char* fieldAlias, location loc, position p
     return pointer;
 }
 
+#if defined DEBUG_
 void dfUEqn::compareResult(const double *lower, const double *upper, const double *diag, 
         const double *source, const double *internal_coeffs, const double *boundary_coeffs, 
         // const double *tmpVal, 
@@ -334,4 +335,4 @@ void dfUEqn::compareResult(const double *lower, const double *upper, const doubl
     // checkVectorEqual(dataBase_.num_cells * 3, tmpVal, h_tmpVal.data(), 1e-14, printFlag);
     // DEBUG_TRACE;
 }
-
+#endif
