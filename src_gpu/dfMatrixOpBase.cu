@@ -299,12 +299,10 @@ __global__ void fvm_laplacian_internal(int num_surfaces,
     int neighbor = upper_index[index];
 
     double w = weight[index];
-    double upper_face_gamma = w * gamma[owner] + (1 - w) * gamma[neighbor];
-    double upper_value = upper_face_gamma * mag_sf[index] * delta_coeffs[index];
+    double face_gamma = w * gamma[owner] + (1 - w) * gamma[neighbor];
 
-    // laplacian doesn't use the original lower, but use lower = upper
-    //double lower_face_gamma = w * gamma[neighbor] + (1 - w) * gamma[owner];
-    //double lower_value = lower_face_gamma * mag_sf[index] * delta_coeffs[index];
+    // for fvm::laplacian, lower = upper
+    double upper_value = face_gamma * mag_sf[index] * delta_coeffs[index];
     double lower_value = upper_value;
 
     lower_value = lower_value * sign;
