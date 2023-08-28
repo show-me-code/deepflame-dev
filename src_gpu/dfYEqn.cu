@@ -286,9 +286,10 @@ void dfYEqn::createNonConstantFieldsBoundary() {
 }
 
 void dfYEqn::createNonConstantLduAndCsrFields() {
-    checkCudaErrors(cudaMalloc((void**)&d_lower, dataBase_.surface_value_bytes));
-    checkCudaErrors(cudaMalloc((void**)&d_upper, dataBase_.surface_value_bytes));
-    checkCudaErrors(cudaMalloc((void**)&d_diag, dataBase_.cell_value_bytes));
+    checkCudaErrors(cudaMalloc((void**)&d_ldu, dataBase_.csr_value_bytes));
+    d_lower = d_ldu;
+    d_diag = d_ldu + dataBase_.num_surfaces;
+    d_upper = d_ldu + dataBase_.num_cells + dataBase_.num_surfaces;
     checkCudaErrors(cudaMalloc((void**)&d_source, dataBase_.cell_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_internal_coeffs, dataBase_.boundary_surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_coeffs, dataBase_.boundary_surface_value_bytes));
@@ -402,9 +403,7 @@ void dfYEqn::process() {
 #endif
             if (s != this->inertIndex) {
                 // reset ldu structures used cross YiEqn
-                checkCudaErrors(cudaMemsetAsync(d_lower, 0, dataBase_.surface_value_bytes, dataBase_.stream));
-                checkCudaErrors(cudaMemsetAsync(d_upper, 0, dataBase_.surface_value_bytes, dataBase_.stream));
-                checkCudaErrors(cudaMemsetAsync(d_diag, 0, dataBase_.cell_value_bytes, dataBase_.stream));
+                checkCudaErrors(cudaMemsetAsync(d_ldu, 0, dataBase_.csr_value_bytes, dataBase_.stream)); // d_ldu contains d_lower, d_diag, and d_upper
                 checkCudaErrors(cudaMemsetAsync(d_source, 0, dataBase_.cell_value_bytes, dataBase_.stream));
                 checkCudaErrors(cudaMemsetAsync(d_internal_coeffs, 0, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
                 checkCudaErrors(cudaMemsetAsync(d_boundary_coeffs, 0, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
@@ -434,7 +433,7 @@ void dfYEqn::process() {
                         d_value_boundary_coeffs + dataBase_.num_boundary_surfaces * s,
                         d_internal_coeffs, d_boundary_coeffs, 1.);
                 // fvm::laplacian(DEff(), Yi)
-                fvm_laplacian_vector(dataBase_.stream, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
+                fvm_laplacian_scalar(dataBase_.stream, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
                         dataBase_.d_owner, dataBase_.d_neighbor,
                         dataBase_.d_weight, dataBase_.d_mag_sf, dataBase_.d_delta_coeffs,
                         d_DEff + dataBase_.num_cells * s,
@@ -450,12 +449,12 @@ void dfYEqn::process() {
                 // use d_source as d_b
                 ldu_to_csr_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
                         dataBase_.d_boundary_face_cell,
-                        dataBase_.d_lower_to_csr_index, dataBase_.d_upper_to_csr_index, dataBase_.d_diag_to_csr_index,
-                        d_lower, d_upper, d_diag, d_source, d_internal_coeffs, d_boundary_coeffs, d_A);
+                        dataBase_.d_ldu_to_csr_index, dataBase_.d_diag_to_csr_index,
+                        d_ldu, d_source, d_internal_coeffs, d_boundary_coeffs, d_A);
                 // not open solve yet
                 //solve(s);
-                //if (s == dataBase_.num_species - 1)
-                //    num_iteration++;
+                if (s == dataBase_.num_species - 1)
+                    num_iteration++;
 #endif                
             }
         }

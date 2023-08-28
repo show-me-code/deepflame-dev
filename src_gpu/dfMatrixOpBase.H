@@ -1,6 +1,6 @@
 #pragma once
 #include <cuda_runtime.h>
-#define TIME_GPU
+//#define TIME_GPU
 
 // tools
 void permute_vector_d2h(cudaStream_t stream, int num_cells, const double *input, double *output);
@@ -13,8 +13,8 @@ void field_multiply_scalar(cudaStream_t stream,
 void fvc_to_source_vector(cudaStream_t stream, int num_cells, const double *volume, const double *fvc_output, double *source);
 
 void ldu_to_csr_scalar(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surface,
-        const int* boundary_cell_face, const int *lower_to_csr_index, const int *upper_to_csr_index, const int *diag_to_csr_index,
-        const double *lower, const double *upper, double *diag, double *source,
+        const int* boundary_cell_face, const int *ldu_to_csr_index, const int *diag_to_csr_index,
+        double *ldu, double *source,
         const double *internal_coeffs, const double *boundary_coeffs,
         double *A);
 
@@ -59,6 +59,15 @@ void fvm_div_vector(cudaStream_t stream, int num_surfaces, int num_boundary_sour
         double *lower, double *upper, double *diag, // end for internal
         int num_patches, const int *patch_size, const int *patch_type,
         const double *boundary_phi, const double *value_internal_coeffs, const double *value_boundary_coeffs,
+        double *internal_coeffs, double *boundary_coeffs, double sign = 1.);
+
+void fvm_laplacian_scalar(cudaStream_t stream, int num_surfaces, int num_boundary_surfaces, 
+        const int *lowerAddr, const int *upperAddr,
+        const double *weight, const double *mag_sf, const double *delta_coeffs, const double *gamma,
+        double *lower, double *upper, double *diag, // end for internal
+        int num_patches, const int *patch_size, const int *patch_type,
+        const double *boundary_mag_sf, const double *boundary_gamma,
+        const double *gradient_internal_coeffs, const double *gradient_boundary_coeffs,
         double *internal_coeffs, double *boundary_coeffs, double sign = 1.);
 
 void fvm_laplacian_vector(cudaStream_t stream, int num_surfaces, int num_boundary_surfaces, 

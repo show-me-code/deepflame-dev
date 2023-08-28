@@ -75,6 +75,7 @@ private:
 	double *d_gradient_boundary_coeffs= nullptr;
 
 	// non-constant fields - ldu
+    double *d_ldu = nullptr;
 	double *d_lower = nullptr;
 	double *d_upper = nullptr;
 	double *d_diag = nullptr;

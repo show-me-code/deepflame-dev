@@ -305,14 +305,14 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
     TICK_STOP(postProcess on GPU);
     DEBUG_TRACE;
 
-    // copy h_y to Y(cpu) -- Is it missed?
-    //offset = 0;
-    //forAll(Y, i)
-    //{
-    //    volScalarField& Yi = Y[i];
-    //    memcpy(&Yi[0], h_y + offset, dfDataBase.cell_value_bytes);
-    //    offset += Yi.size();
-    //}
+    // copy h_y to Y(cpu)
+    offset = 0;
+    forAll(Y, i)
+    {
+        volScalarField& Yi = Y[i];
+        memcpy(&Yi[0], h_y + offset, dfDataBase.cell_value_bytes);
+        offset += Yi.size();
+    }
 
     // correct boundary conditions of Y(cpu)
     forAll(Y, i)

@@ -286,7 +286,7 @@ __global__ void fvm_div_vector_boundary(int num_boundary_surfaces, int num, int 
     boundary_coeffs[num_boundary_surfaces * 2 + start_index] += boundary_f * value_boundary_coeffs[num_boundary_surfaces * 2 + start_index] * sign;
 }
 
-__global__ void fvm_laplacian_vector_internal(int num_surfaces,
+__global__ void fvm_laplacian_internal(int num_surfaces,
         const int *lower_index, const int *upper_index,
         const double *weight, const double *mag_sf, const double *delta_coeffs, const double *gamma,
         double *lower, double *upper, double *diag, double sign)
@@ -315,6 +315,21 @@ __global__ void fvm_laplacian_vector_internal(int num_surfaces,
 
     atomicAdd(&(diag[owner]), -lower_value);
     atomicAdd(&(diag[neighbor]), -upper_value);
+}
+
+__global__ void fvm_laplacian_scalar_boundary(int num, int offset,
+        const double *boundary_mag_sf, const double *boundary_gamma,
+        const double *gradient_internal_coeffs, const double *gradient_boundary_coeffs,
+        double *internal_coeffs, double *boundary_coeffs, double sign)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
+        return;
+
+    int start_index = offset + index;
+    double boundary_value = boundary_gamma[start_index] * boundary_mag_sf[start_index];
+    internal_coeffs[start_index] += boundary_value * gradient_internal_coeffs[start_index] * sign;
+    boundary_coeffs[start_index] += boundary_value * gradient_boundary_coeffs[start_index] * sign;
 }
 
 __global__ void fvm_laplacian_vector_boundary(int num_boundary_surfaces, int num, int offset,
@@ -1058,6 +1073,18 @@ __global__ void addBoundaryDiagSrc(int num_cells, int num_surfaces, int num_boun
     atomicAdd(&b[num_cells * 2 + cellIndex], boundaryCoeffz);
 }
 
+__global__ void ldu_to_csr_scalar_kernel(int nNz, const int *ldu_to_csr_index,
+        const double *ldu, double *A_csr)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= nNz)
+        return;
+
+    int lduIndex = ldu_to_csr_index[index];
+    double csrVal = ldu[lduIndex];
+    A_csr[index] = csrVal;
+}
+
 __global__ void ldu_to_csr_kernel(int nNz, const int *ldu_to_csr_index, 
         const double *ldu, double *A_csr)
 {
@@ -1217,27 +1244,23 @@ void fvc_to_source_vector(cudaStream_t stream, int num_cells, const double *volu
 }
 
 void ldu_to_csr_scalar(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surface,
-        const int* boundary_cell_face, const int *lower_to_csr_index, const int *upper_to_csr_index, const int *diag_to_csr_index,
-        const double *lower, const double *upper, double *diag, double *source, // b = source
+        const int* boundary_cell_face, const int *ldu_to_csr_index, const int *diag_to_csr_index,
+        double* ldu, double *source, // b = source
         const double *internal_coeffs, const double *boundary_coeffs,
         double *A)
 {
+    double *diag = ldu + num_surfaces;
+
     // add coeff to source and diagnal
     size_t threads_per_block = 256;
     size_t blocks_per_grid = (num_boundary_surface + threads_per_block - 1) / threads_per_block;
     addBoundaryDiagSrc_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surface,
             boundary_cell_face, internal_coeffs, boundary_coeffs, diag, source);
 
-    // convert diag
-    blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
-    ldu_to_csr_Diag_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
-            diag_to_csr_index, diag, A);
-
-    // convert offdiag
-    blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
-    ldu_to_csr_offDiag_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_surfaces,
-            lower_to_csr_index, upper_to_csr_index, lower, upper, A);
-
+    // construct csr
+    int nNz = num_cells + 2 * num_surfaces;
+    blocks_per_grid = (nNz + threads_per_block - 1) / threads_per_block;
+    ldu_to_csr_scalar_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(nNz, ldu_to_csr_index, ldu, A);
 }
 
 void ldu_to_csr(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surface,
@@ -1426,6 +1449,43 @@ void fvm_div_vector(cudaStream_t stream, int num_surfaces, int num_boundary_surf
     }
 }
 
+void fvm_laplacian_scalar(cudaStream_t stream, int num_surfaces, int num_boundary_surfaces, 
+        const int *lowerAddr, const int *upperAddr,
+        const double *weight, const double *mag_sf, const double *delta_coeffs, const double *gamma,
+        double *lower, double *upper, double *diag, // end for internal
+        int num_patches, const int *patch_size, const int *patch_type,
+        const double *boundary_mag_sf, const double *boundary_gamma,
+        const double *gradient_internal_coeffs, const double *gradient_boundary_coeffs,
+        double *internal_coeffs, double *boundary_coeffs, double sign)
+{
+    TICK_INIT_EVENT;
+    size_t threads_per_block = 1024;
+    size_t blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
+    TICK_START_EVENT;
+    fvm_laplacian_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_surfaces, lowerAddr, upperAddr,
+            weight, mag_sf, delta_coeffs, gamma, lower, upper, diag, sign);
+    TICK_END_EVENT(fvm_laplacian_internal);
+    int offset = 0;
+    for (int i = 0; i < num_patches; i++) {
+        threads_per_block = 256;
+        blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
+        // TODO: just basic patch type now
+        if (patch_type[i] == boundaryConditions::zeroGradient
+                || patch_type[i] == boundaryConditions::fixedValue) {
+            // TODO: just vector version now
+            TICK_START_EVENT;
+            fvm_laplacian_scalar_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
+                    boundary_mag_sf, boundary_gamma, gradient_internal_coeffs, gradient_boundary_coeffs,
+                    internal_coeffs, boundary_coeffs, sign);
+            TICK_END_EVENT(fvm_laplacian_scalar_boundary);
+        } else if (0) {
+            // xxx
+            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+        }
+        offset += patch_size[i];
+    }
+}
+
 void fvm_laplacian_vector(cudaStream_t stream, int num_surfaces, int num_boundary_surfaces, 
         const int *lowerAddr, const int *upperAddr,
         const double *weight, const double *mag_sf, const double *delta_coeffs, const double *gamma,
@@ -1439,12 +1499,12 @@ void fvm_laplacian_vector(cudaStream_t stream, int num_surfaces, int num_boundar
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
     TICK_START_EVENT;
-    fvm_laplacian_vector_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_surfaces, lowerAddr, upperAddr,
+    fvm_laplacian_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_surfaces, lowerAddr, upperAddr,
             weight, mag_sf, delta_coeffs, gamma, lower, upper, diag, sign);
-    TICK_END_EVENT(fvm_laplacian_vector_internal);
+    TICK_END_EVENT(fvm_laplacian_internal);
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
-        threads_per_block = 64;
+        threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
         if (patch_type[i] == boundaryConditions::zeroGradient
