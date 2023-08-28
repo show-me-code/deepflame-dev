@@ -14,6 +14,11 @@ find_library(LIBAMGXSH amgxsh PATHS $ENV{AMGX_DIR}/build)
 
 add_compile_options(-arch=sm_70 -fmad=false)
 
+OPTION(DEBUG_MODE "build the project in debug mode with checking-result" OFF)
+if(DEBUG_MODE)
+    add_definitions("-DDEBUG_")
+endif()
+
 include_directories(
     ${MPI_INCLUDE_PATH}
     ${CUDA_INCLUDE_DIRS}
@@ -25,7 +30,8 @@ add_library(${PROJECT_NAME}
         AmgXSolver.cu
         dfMatrixDataBase.cu
         dfMatrixOpBase.cu
-        dfUEqn.cu)
+        dfUEqn.cu
+        dfYEqn.cu)
 
 target_link_libraries(${PROJECT_NAME}
     ${MPI_LIBRARIES}

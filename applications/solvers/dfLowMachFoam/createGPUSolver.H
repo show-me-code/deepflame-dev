@@ -1,8 +1,91 @@
+#include <queue>
+
 dfMatrixDataBase dfDataBase;
 //dfRhoEqn rhoEqn_GPU;
 dfUEqn UEqn_GPU(dfDataBase);
-//dfYEqn YEqn_GPU;
+dfYEqn YEqn_GPU(dfDataBase);
 //dfEEqn EEqn_GPU;
+
+#if defined(DEBUG_)
+template <typename T>
+void getTypeInfo(size_t *stride, size_t *internal_size, size_t *boundary_size) {
+    size_t s = 1;
+    bool isVol = false;
+    if (typeid(T) == typeid(surfaceScalarField)) {
+        s = 1;
+        isVol = false;
+    } else if (typeid(T) == typeid(surfaceVectorField)) {
+        s = 3;
+        isVol = false;
+    } else if (typeid(T) == typeid(surfaceTensorField)) {
+        s = 9;
+        isVol = false;
+    } else if (typeid(T) == typeid(volScalarField)) {
+        s = 1;
+        isVol = true;
+    } else if (typeid(T) == typeid(volVectorField)) {
+        s = 3;
+        isVol = true;
+    } else if (typeid(T) == typeid(volTensorField)) {
+        s = 9;
+        isVol = true;
+    } else {
+        fprintf(stderr, "ERROR! Unsupported field type()!\n");
+        exit(EXIT_FAILURE);
+    }
+    *stride = s;
+    *internal_size = (isVol ? dfDataBase.num_cells : dfDataBase.num_surfaces) * s;
+    *boundary_size = dfDataBase.num_boundary_surfaces * s;
+}
+
+template <typename T>
+void getFieldPtr(std::queue<double*>& fieldPtrQue, T& field){
+    fieldPtrQue.push(&field[0]);
+    forAll(field.boundaryField(), patchi){
+        auto& patchField = field.boundaryFieldRef()[patchi];
+        fieldPtrQue.push(&patchField[0]);
+    }
+};
+
+template <typename T>
+void randomInitField(T& field) {
+    size_t stride = 0;
+    size_t internal_size = 0;
+    size_t boundary_size = 0;
+    getTypeInfo<T>(&stride, &internal_size, &boundary_size);
+    size_t internal_value_bytes = internal_size * sizeof(double) * stride;
+    std::queue<double*> fieldPtrQue;
+    // std::vector<double*> fieldPtrQue;
+    getFieldPtr(fieldPtrQue, field);
+
+    // random init field value to (-0.5, 0.5)
+    // internal
+    double *&field_internal_ptr = fieldPtrQue.front(); fieldPtrQue.pop();
+    // double *field_internal_ptr = fieldPtrQue[0];
+    std::vector<double> init_field_internal;
+    init_field_internal.resize(internal_size * stride);
+    for (size_t i = 0; i < internal_size * stride; i++) {
+        init_field_internal[i] = (rand() % 10000 - 5000) / 10000.0;
+    }
+    memcpy(field_internal_ptr, init_field_internal.data(), internal_value_bytes);
+    // boundary
+    int ptrIndex = 1;
+    forAll(field.boundaryField(), patchi)
+    {
+        auto& patchField = field.boundaryFieldRef()[patchi];
+        size_t patchsize = patchField.size();
+        double *&field_boundary_ptr = fieldPtrQue.front(); fieldPtrQue.pop();
+        // double *field_boundary_ptr = fieldPtrQue[ptrIndex];
+        // ptrIndex ++;
+        std::vector<double> init_field_boundary;
+        init_field_boundary.resize(patchsize * stride);
+        for (size_t i = 0; i < patchsize * stride; i++) {
+            init_field_boundary[i] = (rand() % 10000 - 5000) / 10000.0;
+        }
+        memcpy(field_boundary_ptr, init_field_boundary.data(), patchsize * stride * sizeof(double));
+    }
+}
+#endif
 
 void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
     // prepare constant values: num_cells, num_surfaces, num_boundary_surfaces, num_patches, patch_size, num_species, rdelta_t
@@ -94,4 +177,30 @@ void createGPUUEqn(const IOdictionary& CanteraTorchProperties, const volVectorFi
     // UEqn_GPU has no internal non-constant fields to be init
     // UEqn_GPU.initNonConstantFieldsInternal();
     UEqn_GPU.initNonConstantFieldsBoundary();
+}
+
+void createGPUYEqn(const IOdictionary& CanteraTorchProperties, PtrList<volScalarField>& Y, const int inertIndex) {
+    DEBUG_TRACE;
+    // prepare mode_string and setting_path
+    string mode_string = "dDDI";
+    string settingPath;
+    settingPath = CanteraTorchProperties.subDict("AmgxSettings").lookupOrDefault("UEqnSettingPath", string(""));
+    YEqn_GPU.setConstantValues(mode_string, settingPath, inertIndex);
+
+    // prepare patch_type
+    std::vector<int> patch_type;
+    patch_type.resize(dfDataBase.num_patches);
+    fprintf(stderr, "num_species: %d\n", dfDataBase.num_species);
+    forAll(Y[0].boundaryField(), patchi)
+    {
+        constructBoundarySelectorPerPatch(&(patch_type[patchi]), Y[0].boundaryField()[patchi].type());
+    }
+    YEqn_GPU.setConstantFields(patch_type);
+
+    // prepare internal and boundary of xxx
+    YEqn_GPU.createNonConstantFieldsInternal();
+    YEqn_GPU.createNonConstantFieldsBoundary();
+    YEqn_GPU.createNonConstantLduAndCsrFields();
+    YEqn_GPU.initNonConstantFieldsInternal();
+    YEqn_GPU.initNonConstantFieldsBoundary();
 }
