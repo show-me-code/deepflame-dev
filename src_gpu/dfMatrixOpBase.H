@@ -6,6 +6,10 @@
 void permute_vector_d2h(cudaStream_t stream, int num_cells, const double *input, double *output);
 void permute_vector_h2d(cudaStream_t stream, int num_cells, const double *input, double *output);
 
+void field_add_scalar(cudaStream_t stream,
+        int num_cells, const double *input1, const double *input2, double *output,
+        int num_boundary_surfaces, const double *boundary_input1, const double *boundary_input2, double *boundary_output);
+
 void field_multiply_scalar(cudaStream_t stream,
         int num_cells, const double *input1, const double *input2, double *output,
         int num_boundary_surfaces, const double *boundary_input1, const double *boundary_input2, double *boundary_output);

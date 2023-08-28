@@ -244,6 +244,7 @@ void dfYEqn::createNonConstantFieldsInternal() {
     checkCudaErrors(cudaMalloc((void**)&d_phiUc, dataBase_.surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_phi_special_weight, dataBase_.surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_phiUc_special_weight, dataBase_.surface_value_bytes));
+    checkCudaErrors(cudaMalloc((void**)&d_DEff, dataBase_.cell_value_bytes * dataBase_.num_species));
     // computed on CPU, used on GPU, need memcpyh2d
     checkCudaErrors(cudaMallocHost((void**)&h_rhoD, dataBase_.cell_value_bytes * dataBase_.num_species));
     // UnityLewis
@@ -268,6 +269,7 @@ void dfYEqn::createNonConstantFieldsBoundary() {
     checkCudaErrors(cudaMalloc((void**)&d_boundary_grad_y, dataBase_.boundary_surface_value_vec_bytes * dataBase_.num_species));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_sumY_diff_error, dataBase_.boundary_surface_value_vec_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_phiUc, dataBase_.boundary_surface_value_bytes));
+    checkCudaErrors(cudaMalloc((void**)&d_boundary_DEff, dataBase_.boundary_surface_value_bytes * dataBase_.num_species));
     // computed on CPU, used on GPU, need memcpyh2d
     checkCudaErrors(cudaMallocHost((void**)&h_boundary_rhoD, dataBase_.boundary_surface_value_bytes * dataBase_.num_species));
     // UnityLewis
@@ -349,9 +351,9 @@ void dfYEqn::process() {
     checkCudaErrors(cudaEventCreate(&stop));
     checkCudaErrors(cudaEventRecord(start,0));
 
-    //if(!graph_created) {
-    //    DEBUG_TRACE;
-    //    checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
+    if(!graph_created) {
+        DEBUG_TRACE;
+        checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
 
         // compute diffAlphaD
         yeqn_fvc_laplacian_scalar(dataBase_.stream, dataBase_.num_species,
@@ -390,80 +392,80 @@ void dfYEqn::process() {
         // UnityLewis
         // tmp<volScalarField> DEff = chemistry->rhoD(i) + turbulence->mut()/Sct;
         // turbulence->mut()/Sct = 0 when UnityLewis.
-        //field_add(dataBase_.stream, dataBase_.num_cells, d_rhoD, d_mut_sct, d_DEff,
-        //        dataBase_.num_surfaces, d_boundary_rhoD, d_boundary_mut_sct, d_boundary_DEff);
-        double *d_DEff = d_rhoD;
-        double *d_boundary_DEff = d_boundary_rhoD;
+        // double *d_DEff = d_rhoD;
+        // double *d_boundary_DEff = d_boundary_rhoD;
+        field_add_scalar(dataBase_.stream, dataBase_.num_cells, d_rhoD, d_mut_sct, d_DEff,
+                dataBase_.num_boundary_surfaces, d_boundary_rhoD, d_boundary_mut_sct, d_boundary_DEff);
 
-        // construct YiEqn and solve
+        checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph));
+        checkCudaErrors(cudaGraphInstantiate(&graph_instance, graph, NULL, NULL, 0));
+        graph_created = true;
+    }
+    DEBUG_TRACE;
+    checkCudaErrors(cudaGraphLaunch(graph_instance, dataBase_.stream));
+
+    // construct YiEqn and solve
 #if defined DEBUG_
-        for (int s = 0; s < 1; s++) {
+    for (int s = 0; s < 1; s++) {
 #else
-        for (int s = 0; s < dataBase_.num_species; s++) {
+    for (int s = 0; s < dataBase_.num_species; s++) {
 #endif
-            if (s != this->inertIndex) {
-                // reset ldu structures used cross YiEqn
-                checkCudaErrors(cudaMemsetAsync(d_ldu, 0, dataBase_.csr_value_bytes, dataBase_.stream)); // d_ldu contains d_lower, d_diag, and d_upper
-                checkCudaErrors(cudaMemsetAsync(d_source, 0, dataBase_.cell_value_bytes, dataBase_.stream));
-                checkCudaErrors(cudaMemsetAsync(d_internal_coeffs, 0, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
-                checkCudaErrors(cudaMemsetAsync(d_boundary_coeffs, 0, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
-                checkCudaErrors(cudaMemsetAsync(d_A, 0, dataBase_.csr_value_bytes, dataBase_.stream));
-                // use d_source as d_b
-                //checkCudaErrors(cudaMemsetAsync(d_b, 0, dataBase_.cell_value_bytes, dataBase_.stream));
-                // fvm::ddt(rho, Yi)
-                fvm_ddt_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.rdelta_t,
-                        dataBase_.d_rho, dataBase_.d_rho_old, dataBase_.d_y + dataBase_.num_cells * s, dataBase_.d_volume,
-                        d_diag, d_source, 1.);
-                // fvmDiv(phi, Yi)
-                fvm_div_scalar(dataBase_.stream, dataBase_.num_surfaces, dataBase_.d_owner, dataBase_.d_neighbor,
-                        dataBase_.d_phi, d_phi_special_weight,
-                        d_lower, d_upper, d_diag, // end for internal
-                        dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
-                        dataBase_.d_boundary_phi,
-                        d_value_internal_coeffs + dataBase_.num_boundary_surfaces * s,
-                        d_value_boundary_coeffs + dataBase_.num_boundary_surfaces * s,
-                        d_internal_coeffs, d_boundary_coeffs, 1.);
-                // fvmDiv(phiUc, Yi)
-                fvm_div_scalar(dataBase_.stream, dataBase_.num_surfaces, dataBase_.d_owner, dataBase_.d_neighbor,
-                        d_phiUc, d_phiUc_special_weight,
-                        d_lower, d_upper, d_diag, // end for internal
-                        dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
-                        d_boundary_phiUc,
-                        d_value_internal_coeffs + dataBase_.num_boundary_surfaces * s,
-                        d_value_boundary_coeffs + dataBase_.num_boundary_surfaces * s,
-                        d_internal_coeffs, d_boundary_coeffs, 1.);
-                // fvm::laplacian(DEff(), Yi)
-                fvm_laplacian_scalar(dataBase_.stream, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
-                        dataBase_.d_owner, dataBase_.d_neighbor,
-                        dataBase_.d_weight, dataBase_.d_mag_sf, dataBase_.d_delta_coeffs,
-                        d_DEff + dataBase_.num_cells * s,
-                        d_lower, d_upper, d_diag, // end for internal
-                        dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
-                        dataBase_.d_boundary_mag_sf, d_boundary_DEff + dataBase_.num_boundary_surfaces * s,
-                        d_gradient_internal_coeffs + dataBase_.num_boundary_surfaces * s,
-                        d_gradient_boundary_coeffs + dataBase_.num_boundary_surfaces * s,
-                        d_internal_coeffs, d_boundary_coeffs, -1.);
-#if defined DEBUG_
-#else                
-                // ldu to csr
-                // use d_source as d_b
-                ldu_to_csr_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
-                        dataBase_.d_boundary_face_cell,
-                        dataBase_.d_ldu_to_csr_index, dataBase_.d_diag_to_csr_index,
-                        d_ldu, d_source, d_internal_coeffs, d_boundary_coeffs, d_A);
-                // not open solve yet
-                //solve(s);
-                if (s == dataBase_.num_species - 1)
-                    num_iteration++;
+        if (s != this->inertIndex) {
+            // reset ldu structures used cross YiEqn
+            checkCudaErrors(cudaMemsetAsync(d_ldu, 0, dataBase_.csr_value_bytes, dataBase_.stream)); // d_ldu contains d_lower, d_diag, and d_upper
+            checkCudaErrors(cudaMemsetAsync(d_source, 0, dataBase_.cell_value_bytes, dataBase_.stream));
+            checkCudaErrors(cudaMemsetAsync(d_internal_coeffs, 0, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
+            checkCudaErrors(cudaMemsetAsync(d_boundary_coeffs, 0, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
+            checkCudaErrors(cudaMemsetAsync(d_A, 0, dataBase_.csr_value_bytes, dataBase_.stream));
+            // use d_source as d_b
+            //checkCudaErrors(cudaMemsetAsync(d_b, 0, dataBase_.cell_value_bytes, dataBase_.stream));
+            // fvm::ddt(rho, Yi)
+            fvm_ddt_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.rdelta_t,
+                    dataBase_.d_rho, dataBase_.d_rho_old, dataBase_.d_y + dataBase_.num_cells * s, dataBase_.d_volume,
+                    d_diag, d_source, 1.);
+            // fvmDiv(phi, Yi)
+            fvm_div_scalar(dataBase_.stream, dataBase_.num_surfaces, dataBase_.d_owner, dataBase_.d_neighbor,
+                    dataBase_.d_phi, d_phi_special_weight,
+                    d_lower, d_upper, d_diag, // end for internal
+                    dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
+                    dataBase_.d_boundary_phi,
+                    d_value_internal_coeffs + dataBase_.num_boundary_surfaces * s,
+                    d_value_boundary_coeffs + dataBase_.num_boundary_surfaces * s,
+                    d_internal_coeffs, d_boundary_coeffs, 1.);
+            // fvmDiv(phiUc, Yi)
+            fvm_div_scalar(dataBase_.stream, dataBase_.num_surfaces, dataBase_.d_owner, dataBase_.d_neighbor,
+                    d_phiUc, d_phiUc_special_weight,
+                    d_lower, d_upper, d_diag, // end for internal
+                    dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
+                    d_boundary_phiUc,
+                    d_value_internal_coeffs + dataBase_.num_boundary_surfaces * s,
+                    d_value_boundary_coeffs + dataBase_.num_boundary_surfaces * s,
+                    d_internal_coeffs, d_boundary_coeffs, 1.);
+            // fvm::laplacian(DEff(), Yi)
+            fvm_laplacian_scalar(dataBase_.stream, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
+                    dataBase_.d_owner, dataBase_.d_neighbor,
+                    dataBase_.d_weight, dataBase_.d_mag_sf, dataBase_.d_delta_coeffs,
+                    d_DEff + dataBase_.num_cells * s,
+                    d_lower, d_upper, d_diag, // end for internal
+                    dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
+                    dataBase_.d_boundary_mag_sf, d_boundary_DEff + dataBase_.num_boundary_surfaces * s,
+                    d_gradient_internal_coeffs + dataBase_.num_boundary_surfaces * s,
+                    d_gradient_boundary_coeffs + dataBase_.num_boundary_surfaces * s,
+                    d_internal_coeffs, d_boundary_coeffs, -1.);
+#ifndef DEBUG_
+            // ldu to csr
+            // use d_source as d_b
+            ldu_to_csr_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
+                    dataBase_.d_boundary_face_cell,
+                    dataBase_.d_ldu_to_csr_index, dataBase_.d_diag_to_csr_index,
+                    d_ldu, d_source, d_internal_coeffs, d_boundary_coeffs, d_A);
+            // not open solve yet
+            //solve(s);
+            if (s == dataBase_.num_species - 1)
+                num_iteration++;
 #endif                
             }
         }
-    //    checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph));
-    //    checkCudaErrors(cudaGraphInstantiate(&graph_instance, graph, NULL, NULL, 0));
-    //    graph_created = true;
-    //}
-    //DEBUG_TRACE;
-    //checkCudaErrors(cudaGraphLaunch(graph_instance, dataBase_.stream));
 
     checkCudaErrors(cudaEventRecord(stop,0));
     checkCudaErrors(cudaEventSynchronize(start));

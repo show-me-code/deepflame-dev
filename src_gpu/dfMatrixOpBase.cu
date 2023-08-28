@@ -55,6 +55,19 @@ __global__ void permute_vector_h2d_kernel(int num_cells, const double *input, do
     output[num_cells * 2 + index] = input[index * 3 + 2];
 }
 
+__global__ void field_add_scalar_kernel(int num_cells, int num_boundary_surfaces,
+        const double *input1, const double *input2, double *output,
+        const double *boundary_input1, const double *boundary_input2, double *boundary_output)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index < num_cells) {
+        output[index] = input1[index] + input2[index];
+    }
+    if (index < num_boundary_surfaces) {
+        boundary_output[index] = boundary_input1[index] + boundary_input2[index];
+    }
+}
+
 __global__ void field_multiply_scalar_kernel(int num_cells, int num_boundary_surfaces,
         const double *input1, const double *input2, double *output,
         const double *boundary_input1, const double *boundary_input2, double *boundary_output)
@@ -1218,6 +1231,19 @@ void permute_vector_h2d(cudaStream_t stream, int num_cells, const double *input,
     size_t threads_per_block = 256;
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
     permute_vector_h2d_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, input, output);
+}
+
+void field_add_scalar(cudaStream_t stream,
+        int num_cells, const double *input1, const double *input2, double *output,
+        int num_boundary_surfaces, const double *boundary_input1, const double *boundary_input2, double *boundary_output)
+{
+    TICK_INIT_EVENT;
+    size_t threads_per_block = 256;
+    size_t blocks_per_grid = (std::max(num_cells, num_boundary_surfaces) + threads_per_block - 1) / threads_per_block;
+    TICK_START_EVENT;
+    field_add_scalar_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_boundary_surfaces,
+            input1, input2, output, boundary_input1, boundary_input2, boundary_output);
+    TICK_END_EVENT(field_add_scalar_kernel);
 }
 
 void field_multiply_scalar(cudaStream_t stream,

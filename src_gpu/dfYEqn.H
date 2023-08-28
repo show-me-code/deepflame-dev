@@ -46,6 +46,7 @@ private:
     double *d_phiUc = nullptr;
     double *d_phi_special_weight = nullptr;
     double *d_phiUc_special_weight = nullptr;
+    double *d_DEff = nullptr;
     // computed on CPU, used on GPU, need memcpyh2d
 	double *h_hai = nullptr;
 	double *h_rhoD = nullptr;
@@ -64,6 +65,7 @@ private:
     double *d_boundary_grad_y = nullptr;
     double *d_boundary_sumY_diff_error = nullptr;
     double *d_boundary_phiUc = nullptr;
+    double *d_boundary_DEff = nullptr;
 	// computed on CPU, used on GPU, need memcpyh2d - host
 	double *h_boundary_hai = nullptr;
 	double *h_boundary_rhoD = nullptr;
