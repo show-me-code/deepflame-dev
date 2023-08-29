@@ -32,14 +32,10 @@ private:
 	std::vector<int> patch_type;
 
 	// non-constant fields - internal
-	// thermophysical fields - read
+	// thermophysical fields
     double *d_rhoD = nullptr;
     double *d_hai = nullptr;
     double *d_mut_sct = nullptr;
-    // thermophysical fields - write
-    double *d_thermo_alpha = nullptr;
-    double *d_hDiff_corr_flux = nullptr;
-    double *d_diff_alphaD = nullptr;
     // intermediate fields
     double *d_grad_y = nullptr;
     double *d_sumY_diff_error = nullptr;
@@ -53,14 +49,10 @@ private:
 	double *h_mut_sct = nullptr;
 
 	// non-constant fields - boundary
-	// thermophysical fields - read
+	// thermophysical fields
     double *d_boundary_hai = nullptr;
     double *d_boundary_rhoD = nullptr;
     double *d_boundary_mut_sct = nullptr;
-    // thermophysical fields - write
-    double *d_boundary_thermo_alpha = nullptr;
-    double *d_boundary_hDiff_corr_flux = nullptr;
-    double *d_boundary_diff_alphaD = nullptr;
     // intermediate fields
     double *d_boundary_grad_y = nullptr;
     double *d_boundary_sumY_diff_error = nullptr;
@@ -128,15 +120,18 @@ public:
     void solve(int solverIndex);
 
     // 方程特化版离散函数
+    void yeqn_compute_thermo_alpha(cudaStream_t stream,
+            int num_cells, const double *rhoD, double *thermo_alpha,
+            int num_boundary_surfaces, const double *boundary_rhoD, double *boundary_thermo_alpha);
     void yeqn_fvc_laplacian_scalar(cudaStream_t stream, int num_species, int num_cells, int num_surfaces, int num_boundary_surfaces,
             const int *lowerAddr, const int *upperAddr,
             const double *weight, const double *mag_sf, const double *delta_coeffs, const double *volume,
-            const double *rhoD, const double *hai, const double *vf, double *output, // end for internal
+            const double *thermo_alpha, const double *hai, const double *vf, double *output, // end for internal
             int num_patches, const int *patch_size, const int *patch_type,
             const int *boundary_cell_face,
             const double *boundary_mag_sf, const double *boundary_delta_coeffs,
-            const double *boundary_rhoD, const double *boundary_hai, const double *boundary_vf,
-            double *boundary_output, double sign);
+            const double *boundary_thermo_alpha, const double *boundary_hai, const double *boundary_vf,
+            double *boundary_output);
     void yeqn_compute_sumYDiffError_and_hDiffCorrFlux(cudaStream_t stream, int num_species, int num_cells, int num_boundary_surfaces,
         const double *rhoD, const double *hai, const double *y, const double *grad_y,
         double *sum_rhoD_grady, double *hDiff_corr_flux,

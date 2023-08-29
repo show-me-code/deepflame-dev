@@ -144,6 +144,10 @@ struct dfMatrixDataBase
     //double *d_p_old = nullptr;
     // other shared fields between eqns
     double *d_phi = nullptr;
+    // other shared fields between eqns - thermophysical
+    double *d_thermo_alpha = nullptr;
+    double *d_hDiff_corr_flux = nullptr;
+    double *d_diff_alphaD = nullptr;
     // computed on GPU, used on CPU, need memcpyd2h - host
     double *h_rho = nullptr;
     double *h_rho_old = nullptr;
@@ -170,6 +174,10 @@ struct dfMatrixDataBase
     //double *d_boundary_p_old = nullptr;
     // other shared fields between eqns
     double *d_boundary_phi = nullptr;
+    // other shared fields between eqns - thermophysical
+    double *d_boundary_thermo_alpha = nullptr;
+    double *d_boundary_hDiff_corr_flux = nullptr;
+    double *d_boundary_diff_alphaD = nullptr;
     // computed on GPU, used on CPU, need memcpyd2h - host
     double *h_boundary_rho = nullptr;
     double *h_boundary_rho_old = nullptr;
