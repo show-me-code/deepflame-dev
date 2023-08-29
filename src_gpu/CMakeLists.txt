@@ -25,7 +25,8 @@ add_library(${PROJECT_NAME}
         AmgXSolver.cu
         dfMatrixDataBase.cu
         dfMatrixOpBase.cu
-        dfUEqn.cu)
+        dfUEqn.cu
+        dfRhoEqn.cu)
 
 target_link_libraries(${PROJECT_NAME}
     ${MPI_LIBRARIES}

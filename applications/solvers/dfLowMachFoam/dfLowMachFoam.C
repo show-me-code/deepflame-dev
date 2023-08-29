@@ -66,7 +66,7 @@ Description
 #ifdef GPUSolverNew_
 #include "dfUEqn.H"
 // #include "dfYEqn.H"
-// #include "dfRhoEqn.H"
+#include "dfRhoEqn.H"
 // #include "dfEEqn.H"
 #include "dfMatrixDataBase.H"
 #include "dfMatrixOpBase.H"
@@ -183,6 +183,7 @@ int main(int argc, char *argv[])
 #ifdef GPUSolverNew_
     createGPUBase(mesh, Y);
     createGPUUEqn(CanteraTorchProperties, U);
+    rhoEqn_GPU.createNonConstantLduAndCsrFields();
 #endif
 
     end1 = std::clock();
@@ -275,6 +276,7 @@ int main(int argc, char *argv[])
             // --- Pressure corrector loop
 
             start = std::clock();
+            int num_pimple_loop = pimple.nCorrPimple();
             while (pimple.correct())
             {
                 if (pimple.consistent())
@@ -285,6 +287,7 @@ int main(int argc, char *argv[])
                 {
                     #include "pEqn.H"
                 }
+                num_pimple_loop --;
             }
             end = std::clock();
             time_monitor_p += double(end - start) / double(CLOCKS_PER_SEC);

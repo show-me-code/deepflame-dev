@@ -1,5 +1,5 @@
 dfMatrixDataBase dfDataBase;
-//dfRhoEqn rhoEqn_GPU;
+dfRhoEqn rhoEqn_GPU(dfDataBase);
 dfUEqn UEqn_GPU(dfDataBase);
 //dfYEqn YEqn_GPU;
 //dfEEqn EEqn_GPU;
