@@ -1,7 +1,7 @@
 #include <queue>
 
 dfMatrixDataBase dfDataBase;
-//dfRhoEqn rhoEqn_GPU;
+dfRhoEqn rhoEqn_GPU(dfDataBase);
 dfUEqn UEqn_GPU(dfDataBase);
 dfYEqn YEqn_GPU(dfDataBase);
 //dfEEqn EEqn_GPU;

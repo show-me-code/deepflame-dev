@@ -14,7 +14,13 @@
 #include <cmath>
 #include <unordered_map>
 
-#define DEBUG_TRACE fprintf(stderr, "%s %d\n", __FILE__, __LINE__);
+// #define DEBUG
+
+#ifdef DEBUG
+    #define DEBUG_TRACE fprintf(stderr, "%s %d\n", __FILE__, __LINE__);
+#else
+    #define DEBUG_TRACE
+#endif
 
 static const char *_cudaGetErrorEnum(cudaError_t error) {
   return cudaGetErrorName(error);
@@ -33,7 +39,7 @@ void check(T result, char const *const func, const char *const file,
 #define checkCudaErrors(val) check((val), #val, __FILE__, __LINE__)
 
 inline void checkVectorEqual(int count, const double* basevec, double* vec, double max_relative_error, bool print = false) {
-    for (size_t i = 0; i < count; ++i)
+    for (int i = 0; i < count; ++i)
     {
         double abs_diff = fabs(basevec[i] - vec[i]);
         double rel_diff = fabs(basevec[i] - vec[i]) / fabs(basevec[i]);
@@ -42,7 +48,7 @@ inline void checkVectorEqual(int count, const double* basevec, double* vec, doub
         // if (abs_diff > 1e-12 && rel_diff > max_relative_error && !std::isinf(rel_diff))
         if (abs_diff > 1e-15 && rel_diff > max_relative_error)
             fprintf(stderr, "mismatch index %d, cpu data: %.30lf, gpu data: %.30lf, relative error: %.16lf\n", i, basevec[i], vec[i], rel_diff);
-    }
+    }   
 }
 
 enum location {

@@ -1,6 +1,6 @@
 #pragma once
 #include <cuda_runtime.h>
-//#define TIME_GPU
+// #define TIME_GPU
 
 // tools
 void permute_vector_d2h(cudaStream_t stream, int num_cells, const double *input, double *output);
@@ -42,9 +42,13 @@ void compute_upwind_weight(cudaStream_t stream, int num_surfaces, const double *
 
 // fvm ops
 
-void fvm_ddt_scalar(cudaStream_t stream, int num_cells, double rDeltaT,
+void fvm_ddt_vol_scalar_vol_scalar(cudaStream_t stream, int num_cells, double rDeltaT,
         const double *rho, const double *rho_old, const double *vf, const double *volume,
         double *diag, double *source, double sign);
+
+void fvm_ddt_scalar(cudaStream_t stream, int num_cells, double rDeltaT, 
+        const double *vf_old, const double *volume, 
+        double *diag, double *source, double sign = 1.);
 
 void fvm_ddt_vector(cudaStream_t stream, int num_cells, double rDeltaT,
         const double *rho, const double *rho_old, const double *vf, const double *volume,
@@ -127,7 +131,7 @@ void fvc_grad_cell_scalar_withBC(cudaStream_t stream, int num_cells, int num_sur
         int num_patches, const int *patch_size, const int *patch_type,
         const int *boundary_cell_face, const double *boundary_vf, const double *boundary_Sf,
         const double *volume, const double *boundary_mag_Sf, double *boundary_output,
-        const double *boundary_deltaCoeffs, double sign = 1.);
+        const double *boundary_deltaCoeffs);
 
 void fvc_laplacian_scalar(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces,
         const int *lowerAddr, const int *upperAddr,
@@ -144,11 +148,14 @@ void scale_dev2T_tensor(cudaStream_t stream, int num_cells, const double *vf1, d
 
 void fvMtx_A(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces, 
         const int *boundary_cell_face, const double *internal_coeffs, const double *volume, const double *diag, 
-        double *A_pEqn, double sign = 1.);
+        double *A_pEqn);
 
 void fvMtx_H(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces, 
         const int *lowerAddr, const int *upperAddr, const double *volume,
         int num_patches, const int *patch_size, const int *patch_type,
         const int *boundary_cell_face, const double *internal_coffs, const double *boundary_coeffs, 
         const double *lower, const double *upper, const double *source, const double *psi, 
-        double *H_pEqn, double *H_pEqn_perm, double sign = 1.);
+        double *H_pEqn, double *H_pEqn_perm);
+
+void solve_explicit_scalar(cudaStream_t stream, int num_cells, const double *diag, const double *source,
+        double *psi);

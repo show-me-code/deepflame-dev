@@ -27,7 +27,8 @@ add_library(${PROJECT_NAME}
         dfMatrixDataBase.cu
         dfMatrixOpBase.cu
         dfUEqn.cu
-        dfYEqn.cu)
+        dfYEqn.cu
+        dfRhoEqn.cu)
 
 target_link_libraries(${PROJECT_NAME}
     ${MPI_LIBRARIES}

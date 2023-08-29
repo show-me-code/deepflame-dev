@@ -1,6 +1,6 @@
 #include "dfYEqn.H"
 
-__global__ void yeqn_compute_phiUc_internal(int num_surfaces,
+__global__ void yeqn_compute_phiUc_internal(int num_cells, int num_surfaces,
         const int *lower_index, const int *upper_index,
         const double *weight, const double *sf, const double *sumY_diff_error, double *phiUc)
 {
@@ -16,9 +16,9 @@ __global__ void yeqn_compute_phiUc_internal(int num_surfaces,
     double sfz = sf[index * 3 + 2];
 
     double w = weight[index]; 
-    double ssfx = (w * (sumY_diff_error[owner * 3 + 0] - sumY_diff_error[neighbor * 3 + 0]) + sumY_diff_error[neighbor * 3 + 0]);
-    double ssfy = (w * (sumY_diff_error[owner * 3 + 1] - sumY_diff_error[neighbor * 3 + 1]) + sumY_diff_error[neighbor * 3 + 1]);
-    double ssfz = (w * (sumY_diff_error[owner * 3 + 2] - sumY_diff_error[neighbor * 3 + 2]) + sumY_diff_error[neighbor * 3 + 2]);
+    double ssfx = (w * (sumY_diff_error[num_cells * 0 + owner] - sumY_diff_error[num_cells * 0 + neighbor]) + sumY_diff_error[num_cells * 0 + neighbor]);
+    double ssfy = (w * (sumY_diff_error[num_cells * 1 + owner] - sumY_diff_error[num_cells * 1 + neighbor]) + sumY_diff_error[num_cells * 1 + neighbor]);
+    double ssfz = (w * (sumY_diff_error[num_cells * 2 + owner] - sumY_diff_error[num_cells * 2 + neighbor]) + sumY_diff_error[num_cells * 2 + neighbor]);
 
     phiUc[index] = sfx * ssfx + sfy * ssfy + sfz * ssfz;
 }
@@ -34,9 +34,9 @@ __global__ void yeqn_compute_phiUc_boundary(int num_boundary_surfaces,
     double boundary_sfy = boundary_sf[index * 3 + 1];
     double boundary_sfz = boundary_sf[index * 3 + 2];
 
-    double boundary_ssfx = boundary_sumY_diff_error[index * 3 + 0];
-    double boundary_ssfy = boundary_sumY_diff_error[index * 3 + 1];
-    double boundary_ssfz = boundary_sumY_diff_error[index * 3 + 2];
+    double boundary_ssfx = boundary_sumY_diff_error[num_boundary_surfaces * 0 + index];
+    double boundary_ssfy = boundary_sumY_diff_error[num_boundary_surfaces * 1 + index];
+    double boundary_ssfz = boundary_sumY_diff_error[num_boundary_surfaces * 2 + index];
 
     boundary_phiUc[index] = boundary_sfx * boundary_ssfx + boundary_sfy * boundary_ssfy + boundary_sfz * boundary_ssfz;
 }
@@ -71,12 +71,12 @@ __global__ void yeqn_sumError_and_compute_hDiffCorrFlux(int num_species, int num
         sum_rhoD_grady_z += rhoD_value * grady_z;
         sum_hai_y += hai_value * y_value;
     }
-    sum_rhoD_grady[index * 3 + 0] = sum_rhoD_grady_x;
-    sum_rhoD_grady[index * 3 + 1] = sum_rhoD_grady_y;
-    sum_rhoD_grady[index * 3 + 2] = sum_rhoD_grady_z;
-    hDiffCorrFlux[index * 3 + 0] = (sum_hai_rhoD_grady_x - sum_hai_y * sum_rhoD_grady_x);
-    hDiffCorrFlux[index * 3 + 1] = (sum_hai_rhoD_grady_y - sum_hai_y * sum_rhoD_grady_y);
-    hDiffCorrFlux[index * 3 + 2] = (sum_hai_rhoD_grady_z - sum_hai_y * sum_rhoD_grady_z);
+    sum_rhoD_grady[num * 0 + index] = sum_rhoD_grady_x;
+    sum_rhoD_grady[num * 1 + index] = sum_rhoD_grady_y;
+    sum_rhoD_grady[num * 2 + index] = sum_rhoD_grady_z;
+    hDiffCorrFlux[num * 0 + index] = (sum_hai_rhoD_grady_x - sum_hai_y * sum_rhoD_grady_x);
+    hDiffCorrFlux[num * 1 + index] = (sum_hai_rhoD_grady_y - sum_hai_y * sum_rhoD_grady_y);
+    hDiffCorrFlux[num * 2 + index] = (sum_hai_rhoD_grady_z - sum_hai_y * sum_rhoD_grady_z);
 }
 
 __global__ void yeqn_fvc_laplacian_scalar_internal(int num_species, int num_cells, int num_surfaces,
@@ -381,7 +381,7 @@ void dfYEqn::process() {
                 d_boundary_rhoD, d_boundary_hai, dataBase_.d_boundary_y, d_boundary_grad_y,
                 d_boundary_sumY_diff_error, d_boundary_hDiff_corr_flux);
         // compute phiUc
-        yeqn_compute_phiUc(dataBase_.stream, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
+        yeqn_compute_phiUc(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
                 dataBase_.d_owner, dataBase_.d_neighbor,
                 dataBase_.d_weight, dataBase_.d_sf, d_sumY_diff_error, d_phiUc,
                 dataBase_.d_boundary_sf, d_boundary_sumY_diff_error, d_boundary_phiUc);
@@ -420,7 +420,7 @@ void dfYEqn::process() {
             // use d_source as d_b
             //checkCudaErrors(cudaMemsetAsync(d_b, 0, dataBase_.cell_value_bytes, dataBase_.stream));
             // fvm::ddt(rho, Yi)
-            fvm_ddt_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.rdelta_t,
+            fvm_ddt_vol_scalar_vol_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.rdelta_t,
                     dataBase_.d_rho, dataBase_.d_rho_old, dataBase_.d_y + dataBase_.num_cells * s, dataBase_.d_volume,
                     d_diag, d_source, 1.);
             // fvmDiv(phi, Yi)
@@ -577,14 +577,14 @@ void dfYEqn::yeqn_compute_sumYDiffError_and_hDiffCorrFlux(cudaStream_t stream, i
             boundary_rhoD, boundary_hai, boundary_y, boundary_grad_y, boundary_sumY_diff_error, boundary_hDiff_corr_flux);
 }
 
-void dfYEqn::yeqn_compute_phiUc(cudaStream_t stream, int num_surfaces, int num_boundary_surfaces,
+void dfYEqn::yeqn_compute_phiUc(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces,
         const int *lowerAddr, const int *upperAddr,
         const double *weight, const double *sf, const double *sumY_diff_error, double *phiUc,
         const double *boundary_sf, const double *boundary_sumY_diff_error, double *boundary_phiUc)
 {
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
-    yeqn_compute_phiUc_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_surfaces,
+    yeqn_compute_phiUc_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_surfaces,
             lowerAddr, upperAddr, weight, sf, sumY_diff_error, phiUc);
     blocks_per_grid = (num_boundary_surfaces + threads_per_block - 1) / threads_per_block;
     yeqn_compute_phiUc_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces,

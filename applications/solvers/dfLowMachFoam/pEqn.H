@@ -85,22 +85,8 @@ volVectorField UEqn_H
 UEqn_GPU.H(&UEqn_H[0][0]);
 UEqn_H.correctBoundaryConditions();
 
-volScalarField UEqn_A
-(
-    IOobject
-    (
-        "A("+U.name()+')',
-        runTime.timeName(),
-        mesh,
-        IOobject::NO_READ,
-        IOobject::NO_WRITE
-    ),
-    mesh,
-    dimensionedScalar(dimensionSet(1,-3,-1,0,0,0,0), Zero),
-    extrapolatedCalculatedFvPatchScalarField::typeName
-);
-UEqn_GPU.A(&UEqn_A[0]);
-UEqn_A.correctBoundaryConditions();
+// UEqn.A only needs to compute once
+
 #endif
 
 

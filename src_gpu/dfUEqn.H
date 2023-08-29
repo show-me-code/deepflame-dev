@@ -68,23 +68,23 @@ private:
 	double *d_internal_coeffs = nullptr;
 	double *d_boundary_coeffs = nullptr;
     double *d_diag_vector = nullptr;
+    double *d_A_pEqn = nullptr;
+    double *d_H_pEqn = nullptr;
+    double *d_H_pEqn_perm = nullptr;
 
 	// non-constant fields - csr
 	double *d_A = nullptr;
 	double *d_b = nullptr; // TODO: needless
-    double *d_A_pEqn = nullptr;
-    double *d_H_pEqn = nullptr;
-    double *d_H_pEqn_perm = nullptr;
 
     // field pointer map
     std::unordered_map<std::string, double*> fieldPointerMap;
 
 public:
-	// 构造函数
+	// constructor
     dfUEqn(dfMatrixDataBase &dataBase)
         : dataBase_(dataBase) {}
 
-	// 析构函数
+	// destructor
 	~dfUEqn(){
         if (graph_created) {
             checkCudaErrors(cudaGraphExecDestroy(graph_instance));
@@ -92,12 +92,12 @@ public:
         }
     }
 
-	// 成员函数
+	// member function
 
-    // getter函数
+    // getter function
     double* getFieldPointer(const char* fieldAlias, location loc, position pos);
 
-	// 初始化构建
+	// initialization
 	void setConstantValues(const std::string &mode_string, const std::string &setting_path); 
 	void setConstantFields(const std::vector<int> patch_type);
 	void createNonConstantFieldsInternal();
@@ -107,7 +107,7 @@ public:
 	//void initNonConstantFieldsInternal(xxx);
 	void initNonConstantFieldsBoundary();
 
-	// 方程运行
+	// run equation
     void preProcessForRhoEqn(const double *h_rho, const double *h_phi, const double *h_boundary_phi);
 	void preProcess(const double *h_u, const double *h_boundary_u, const double *h_p, const double *h_boundary_p, const double *h_nu_eff, const double *h_boundary_nu_eff, const double *h_boundary_rho);
 	void process();

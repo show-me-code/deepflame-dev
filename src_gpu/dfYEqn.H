@@ -142,7 +142,7 @@ public:
         double *sum_rhoD_grady, double *hDiff_corr_flux,
         const double *boundary_rhoD, const double *boundary_hai, const double *boundary_y, const double *boundary_grad_y,
         double *boundary_sum_rhoD_grady, double *boundary_hDiff_corr_flux);
-    void yeqn_compute_phiUc(cudaStream_t stream, int num_surfaces, int num_boundary_surfaces,
+    void yeqn_compute_phiUc(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces,
         const int *lowerAddr, const int *upperAddr,
         const double *weight, const double *sf, const double *sumY_diff_error, double *phiUc,
         const double *boundary_sf, const double *boundary_sumY_diff_error, double *boundary_phiUc);

@@ -211,6 +211,7 @@ void dfUEqn::postProcess(double *h_u) {
     checkCudaErrors(cudaStreamSynchronize(dataBase_.stream));
 
     // some boundary conditions may also need vf.boundary, deltaCoeffs.boundary, and weight.boundary
+    // FIXME: the boundary coeffs need to be updated at the begining
     update_boundary_coeffs_vector(dataBase_.stream, dataBase_.num_boundary_surfaces, dataBase_.num_patches,
             dataBase_.patch_size.data(), patch_type.data(),
             d_value_internal_coeffs, d_value_boundary_coeffs,
