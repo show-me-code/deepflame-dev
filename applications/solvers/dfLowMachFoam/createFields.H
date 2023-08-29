@@ -165,6 +165,22 @@ IOdictionary CanteraTorchProperties
         IOobject::NO_WRITE
     )
 );
+
+volScalarField UEqn_A
+(
+    IOobject
+    (
+        "A("+U.name()+')',
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedScalar(dimensionSet(1,-3,-1,0,0,0,0), Zero),
+    extrapolatedCalculatedFvPatchScalarField::typeName
+);
+
 const Switch splitting = CanteraTorchProperties.lookupOrDefault("splittingStrategy", false);
 #ifdef USE_PYTORCH
     const Switch log_ = CanteraTorchProperties.subDict("TorchSettings").lookupOrDefault("log", false);

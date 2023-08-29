@@ -106,21 +106,6 @@
     // preProcess
     // TODO: preProcessForRhoEqn for temp, now we only transfer phi(instead of rhoEqn) used by fvm::div(phi, U)
     UEqn_GPU.sync();
-    double *h_rho = dfDataBase.getFieldPointer("rho", location::cpu, position::internal);
-    double *h_phi = dfDataBase.getFieldPointer("phi", location::cpu, position::internal);
-    double *h_boundary_phi = dfDataBase.getFieldPointer("phi", location::cpu, position::boundary);
-    memcpy(h_rho, &rho[0], dfDataBase.cell_value_bytes);
-    memcpy(h_phi, &phi[0], dfDataBase.surface_value_bytes);
-    int offset = 0;
-    forAll(phi.boundaryField(), patchi)
-    {
-        const fvsPatchScalarField& patchPhi = phi.boundaryField()[patchi];
-        int patchsize = patchPhi.size();
-        memcpy(h_boundary_phi + offset, &patchPhi[0], patchsize * sizeof(double));
-        offset += patchsize;
-    }
-    UEqn_GPU.preProcessForRhoEqn(h_rho, h_phi, h_boundary_phi);
-    DEBUG_TRACE;
     
     TICK_START;
     // preparing u, p, nu_eff, and rho.boundary used by UEqn_GPU.preProcess()
@@ -141,7 +126,7 @@
     TICK_STOP(copy to pinned memory);
 
     TICK_START;
-    offset = 0;
+    int offset = 0;
     forAll(U.boundaryField(), patchi)
     {
         const fvPatchVectorField& patchU = U.boundaryField()[patchi];
@@ -182,6 +167,9 @@
     K = 0.5*magSqr(U);
     DEBUG_TRACE;
     TICK_STOP(post process time);
+
+    UEqn_GPU.A(&UEqn_A[0]);
+    UEqn_A.correctBoundaryConditions();
 
     // checkResult
     // TODO: for temp, now we compare ldu, finally we compare csr

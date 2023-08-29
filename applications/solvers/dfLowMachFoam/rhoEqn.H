@@ -63,6 +63,40 @@ Description
     time_monitor_rhoEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_rhoEqn_correctBC += double(end1 - start1) / double(CLOCKS_PER_SEC);
 }
+#elif defined GPUSolverNew_
+    rho.oldTime();
+
+    double *h_rho = dfDataBase.getFieldPointer("rho", location::cpu, position::internal);
+    double *h_phi = dfDataBase.getFieldPointer("phi", location::cpu, position::internal);
+    double *h_boundary_phi = dfDataBase.getFieldPointer("phi", location::cpu, position::boundary);
+    memcpy(h_phi, &phi[0], dfDataBase.surface_value_bytes);
+
+    int offset = 0;
+    forAll(phi.boundaryField(), patchi)
+    {
+        const fvsPatchScalarField& patchPhi = phi.boundaryField()[patchi];
+        int patchsize = patchPhi.size();
+        memcpy(h_boundary_phi + offset, &patchPhi[0], patchsize * sizeof(double));
+        offset += patchsize;
+    }
+    rhoEqn_GPU.preProcess(h_phi, h_boundary_phi);
+
+    rhoEqn_GPU.process();
+
+    rhoEqn_GPU.solve();
+
+    rhoEqn_GPU.postProcess(h_rho);
+    memcpy(&rho[0], h_rho, dfDataBase.cell_value_bytes);
+    rho.correctBoundaryConditions();
+
+    // checkValue
+    fvScalarMatrix rhoEqn
+    (
+        fvm::ddt(rho)
+      + fvc::div(phi)
+    );
+    rhoEqn_GPU.compareResult(&rhoEqn.diag()[0], &rhoEqn.source()[0], false);
+
 #else
 {
     start1 = std::clock();

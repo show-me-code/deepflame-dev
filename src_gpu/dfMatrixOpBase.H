@@ -1,6 +1,6 @@
 #pragma once
 #include <cuda_runtime.h>
-#define TIME_GPU
+// #define TIME_GPU
 
 // tools
 void permute_vector_d2h(cudaStream_t stream, int num_cells, const double *input, double *output);
@@ -23,6 +23,10 @@ void update_boundary_coeffs_vector(cudaStream_t stream, int num_boundary_surface
         double *gradient_internal_coeffs, double *gradient_boundary_coeffs);
 
 // fvm ops
+
+void fvm_ddt_scalar(cudaStream_t stream, int num_cells, double rDeltaT, 
+        const double *vf_old, const double *volume, 
+        double *diag, double *source, double sign = 1.);
 
 void fvm_ddt_vector(cudaStream_t stream, int num_cells, double rDeltaT,
         const double *rho, const double *rho_old, const double *vf, const double *volume,
@@ -97,3 +101,6 @@ void fvMtx_H(cudaStream_t stream, int num_cells, int num_surfaces, int num_bound
         const int *boundary_cell_face, const double *internal_coffs, const double *boundary_coeffs, 
         const double *lower, const double *upper, const double *source, const double *psi, 
         double *H_pEqn, double *H_pEqn_perm, double sign = 1.);
+
+void solve_explicit_scalar(cudaStream_t stream, int num_cells, const double *diag, const double *source,
+        double *psi);
