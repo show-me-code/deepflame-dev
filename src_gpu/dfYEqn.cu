@@ -26,6 +26,19 @@ __global__ void yeqn_compute_thermo_alpha_boundary(int num_boundary_surfaces,
     boundary_thermo_alpha[index] = boundary_rhoD[index];
 }
 
+__global__ void yeqn_compute_DEff_kernel(int num_species, int num,
+        const double *rhoD, const double *mut_sct, double *DEff)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
+        return;
+
+    double mutsct = mut_sct[index];
+    for (int s = 0; s < num_species; s++) {
+        DEff[num * s + index] =  rhoD[num * s + index] + mutsct;
+    }
+}
+
 __global__ void yeqn_compute_phiUc_internal(int num_cells, int num_surfaces,
         const int *lower_index, const int *upper_index,
         const double *weight, const double *sf, const double *sumY_diff_error, double *phiUc)
@@ -86,9 +99,9 @@ __global__ void yeqn_sumError_and_compute_hDiffCorrFlux(int num_species, int num
         double hai_value = hai[num * s + index];
         double rhoD_value = rhoD[num * s + index];
         double y_value = y[num * s + index];
-        double grady_x = grady[num * s * 3 + index * 3 + 0];
-        double grady_y = grady[num * s * 3 + index * 3 + 1];
-        double grady_z = grady[num * s * 3 + index * 3 + 2];
+        double grady_x = grady[num * s * 3 + num * 0 + index];
+        double grady_y = grady[num * s * 3 + num * 1 + index];
+        double grady_z = grady[num * s * 3 + num * 2 + index];
         sum_hai_rhoD_grady_x += hai_value * rhoD_value * grady_x;
         sum_hai_rhoD_grady_y += hai_value * rhoD_value * grady_y;
         sum_hai_rhoD_grady_z += hai_value * rhoD_value * grady_z;
@@ -259,6 +272,7 @@ void dfYEqn::createNonConstantFieldsInternal() {
     checkCudaErrors(cudaMalloc((void**)&d_phi_special_weight, dataBase_.surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_phiUc_special_weight, dataBase_.surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_DEff, dataBase_.cell_value_bytes * dataBase_.num_species));
+    checkCudaErrors(cudaMalloc((void**)&d_permute, dataBase_.cell_value_vec_bytes));
     // computed on CPU, used on GPU, need memcpyh2d
     checkCudaErrors(cudaMallocHost((void**)&h_rhoD, dataBase_.cell_value_bytes * dataBase_.num_species));
     // UnityLewis
@@ -281,6 +295,7 @@ void dfYEqn::createNonConstantFieldsBoundary() {
     checkCudaErrors(cudaMalloc((void**)&d_boundary_sumY_diff_error, dataBase_.boundary_surface_value_vec_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_phiUc, dataBase_.boundary_surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_DEff, dataBase_.boundary_surface_value_bytes * dataBase_.num_species));
+    checkCudaErrors(cudaMalloc((void**)&d_boundary_permute, dataBase_.boundary_surface_value_vec_bytes));
     // computed on CPU, used on GPU, need memcpyh2d
     checkCudaErrors(cudaMallocHost((void**)&h_boundary_rhoD, dataBase_.boundary_surface_value_bytes * dataBase_.num_species));
     // UnityLewis
@@ -342,6 +357,10 @@ void dfYEqn::preProcess(const double *h_rhoD, const double *h_boundary_rhoD,
     checkCudaErrors(cudaMemcpyAsync(d_mut_sct, h_mut_sct, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_mut_sct, h_boundary_mut_sct, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
 
+    checkCudaErrors(cudaMemsetAsync(dataBase_.d_diff_alphaD, 0, dataBase_.cell_value_bytes, dataBase_.stream));
+    checkCudaErrors(cudaMemsetAsync(dataBase_.d_boundary_diff_alphaD, 0, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
+    checkCudaErrors(cudaMemsetAsync(d_grad_y, 0, dataBase_.cell_value_vec_bytes * dataBase_.num_species, dataBase_.stream));
+    checkCudaErrors(cudaMemsetAsync(d_boundary_grad_y, 0, dataBase_.boundary_surface_value_vec_bytes * dataBase_.num_species, dataBase_.stream));
 
     DEBUG_TRACE;
     checkCudaErrors(cudaStreamSynchronize(dataBase_.stream));
@@ -365,8 +384,6 @@ void dfYEqn::process() {
                 dataBase_.num_cells, d_rhoD, dataBase_.d_thermo_alpha,
                 dataBase_.num_boundary_surfaces, d_boundary_rhoD, dataBase_.d_boundary_thermo_alpha);
         // compute diffAlphaD
-        checkCudaErrors(cudaMemsetAsync(dataBase_.d_diff_alphaD, 0, dataBase_.cell_value_bytes, dataBase_.stream));
-        checkCudaErrors(cudaMemsetAsync(dataBase_.d_boundary_diff_alphaD, 0, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
         yeqn_fvc_laplacian_scalar(dataBase_.stream, dataBase_.num_species,
                 dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
                 dataBase_.d_owner, dataBase_.d_neighbor,
@@ -376,8 +393,6 @@ void dfYEqn::process() {
                 dataBase_.d_boundary_face_cell, dataBase_.d_boundary_mag_sf, dataBase_.d_boundary_delta_coeffs,
                 dataBase_.d_boundary_thermo_alpha, d_boundary_hai, dataBase_.d_boundary_y, dataBase_.d_boundary_diff_alphaD);
         // fvc::grad(Yi)
-        checkCudaErrors(cudaMemsetAsync(d_grad_y, 0, dataBase_.cell_value_vec_bytes * dataBase_.num_species, dataBase_.stream));
-        checkCudaErrors(cudaMemsetAsync(d_boundary_grad_y, 0, dataBase_.boundary_surface_value_vec_bytes * dataBase_.num_species, dataBase_.stream));
         for (int s = 0; s < dataBase_.num_species; s++) {
             fvc_grad_cell_scalar_withBC(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
                     dataBase_.d_owner, dataBase_.d_neighbor,
@@ -407,8 +422,8 @@ void dfYEqn::process() {
         // turbulence->mut()/Sct = 0 when UnityLewis.
         // double *d_DEff = d_rhoD;
         // double *d_boundary_DEff = d_boundary_rhoD;
-        field_add_scalar(dataBase_.stream, dataBase_.num_cells, d_rhoD, d_mut_sct, d_DEff,
-                dataBase_.num_boundary_surfaces, d_boundary_rhoD, d_boundary_mut_sct, d_boundary_DEff);
+        yeqn_compute_DEff(dataBase_.stream, dataBase_.num_species, dataBase_.num_cells, dataBase_.num_boundary_surfaces,
+                d_rhoD, d_mut_sct, d_DEff, d_boundary_rhoD, d_boundary_mut_sct, d_boundary_DEff);
 
         checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph));
         checkCudaErrors(cudaGraphInstantiate(&graph_instance, graph, NULL, NULL, 0));
@@ -418,8 +433,14 @@ void dfYEqn::process() {
     checkCudaErrors(cudaGraphLaunch(graph_instance, dataBase_.stream));
 
     // construct YiEqn and solve
-#if defined DEBUG_
-    for (int s = 0; s < 1; s++) {
+    // NOTE: ldu and yi can't be compared at the same time
+    // to compare ldu data, you should open both DEBUG_ and DEBUG_CHECK_LDU in src_gpu
+    // to compare yi, you should only open DEBUG_ in src_gpu.
+    // Besides, if you compare ldu data, be patient to keep specie_index in YEqn.H and dfYEqn.cu the same.
+//#define DEBUG_CHECK_LDU
+#if defined DEBUG_CHECK_LDU
+    int specie_index = 0;
+    for (int s = specie_index; s < specie_index + 1; s++) {
 #else
     for (int s = 0; s < dataBase_.num_species; s++) {
 #endif
@@ -465,19 +486,18 @@ void dfYEqn::process() {
                     d_gradient_internal_coeffs + dataBase_.num_boundary_surfaces * s,
                     d_gradient_boundary_coeffs + dataBase_.num_boundary_surfaces * s,
                     d_internal_coeffs, d_boundary_coeffs, -1.);
-#ifndef DEBUG_
+#ifndef DEBUG_CHECK_LDU
             // ldu to csr
             // use d_source as d_b
             ldu_to_csr_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
                     dataBase_.d_boundary_face_cell,
                     dataBase_.d_ldu_to_csr_index, dataBase_.d_diag_to_csr_index,
                     d_ldu, d_source, d_internal_coeffs, d_boundary_coeffs, d_A);
-            // not open solve yet
-            //solve(s);
+            solve(s);
+#endif
+            }
             if (s == dataBase_.num_species - 1)
                 num_iteration++;
-#endif                
-            }
         }
 
     checkCudaErrors(cudaEventRecord(stop,0));
@@ -540,6 +560,19 @@ void dfYEqn::yeqn_compute_thermo_alpha(cudaStream_t stream,
             num_boundary_surfaces, boundary_rhoD, boundary_thermo_alpha);
 }
 
+void dfYEqn::yeqn_compute_DEff(cudaStream_t stream, int num_species, int num_cells, int num_boundary_surfaces,
+        const double *rhoD, const double *mut_sct, double *DEff,
+        const double *boundary_rhoD, const double *boundary_mut_sct, double *boundary_DEff)
+{
+    size_t threads_per_block = 1024;
+    size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
+    yeqn_compute_DEff_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_species, num_cells,
+            rhoD, mut_sct, DEff);
+    blocks_per_grid = (num_boundary_surfaces + threads_per_block - 1) / threads_per_block;
+    yeqn_compute_DEff_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_species, num_boundary_surfaces,
+            boundary_rhoD, boundary_mut_sct, boundary_DEff);
+}
+
 void dfYEqn::yeqn_fvc_laplacian_scalar(cudaStream_t stream, int num_species, int num_cells, int num_surfaces, int num_boundary_surfaces,
         const int *lowerAddr, const int *upperAddr,
         const double *weight, const double *mag_sf, const double *delta_coeffs, const double *volume,
@@ -581,6 +614,7 @@ void dfYEqn::yeqn_fvc_laplacian_scalar(cudaStream_t stream, int num_species, int
     yeqn_divide_cell_volume_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, volume, output);
 
     // correct boundary condition
+    blocks_per_grid = (num_boundary_surfaces + threads_per_block - 1) / threads_per_block;
     yeqn_buildBC_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces,
             boundary_cell_face, output, boundary_output);
 }
@@ -637,18 +671,21 @@ void dfYEqn::comparediffAlphaD(const double *diffAlphaD, const double *boundary_
     DEBUG_TRACE;
 }
 
-void dfYEqn::comparegrady0(const double *grad_y0, const double *boundary_grad_y0, bool printFlag)
+void dfYEqn::comparegradyi(const double *grad_yi, const double *boundary_grad_yi, int specie_index, bool printFlag)
 {
     DEBUG_TRACE;
-    std::vector<double> h_grad_y0;
-    h_grad_y0.resize(dataBase_.num_cells * 3);
-    checkCudaErrors(cudaMemcpy(h_grad_y0.data(), d_grad_y, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToHost));
-    checkVectorEqual(dataBase_.num_cells * 3, grad_y0, h_grad_y0.data(), 1e-10, printFlag);
+    permute_vector_d2h(dataBase_.stream, dataBase_.num_cells, d_grad_y + dataBase_.num_cells * specie_index * 3, d_permute);
+    permute_vector_d2h(dataBase_.stream, dataBase_.num_boundary_surfaces, d_boundary_grad_y + dataBase_.num_boundary_surfaces * specie_index * 3, d_boundary_permute);
+
+    std::vector<double> h_grad_yi;
+    h_grad_yi.resize(dataBase_.num_cells * 3);
+    checkCudaErrors(cudaMemcpy(h_grad_yi.data(), d_permute, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToHost));
+    checkVectorEqual(dataBase_.num_cells * 3, grad_yi, h_grad_yi.data(), 1e-10, printFlag);
     DEBUG_TRACE;
-    std::vector<double> h_boundary_grad_y0;
-    h_boundary_grad_y0.resize(dataBase_.num_boundary_surfaces * 3);
-    checkCudaErrors(cudaMemcpy(h_boundary_grad_y0.data(), d_boundary_grad_y, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyDeviceToHost));
-    checkVectorEqual(dataBase_.num_boundary_surfaces * 3, boundary_grad_y0, h_boundary_grad_y0.data(), 1e-10, printFlag);
+    std::vector<double> h_boundary_grad_yi;
+    h_boundary_grad_yi.resize(dataBase_.num_boundary_surfaces * 3);
+    checkCudaErrors(cudaMemcpy(h_boundary_grad_yi.data(), d_boundary_permute, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyDeviceToHost));
+    checkVectorEqual(dataBase_.num_boundary_surfaces * 3, boundary_grad_yi, h_boundary_grad_yi.data(), 1e-10, printFlag);
     DEBUG_TRACE;
 
 }
@@ -656,14 +693,17 @@ void dfYEqn::comparegrady0(const double *grad_y0, const double *boundary_grad_y0
 void dfYEqn::comparesumYDiffError(const double *sumYDiffError, const double *boundary_sumYDiffError, bool printFlag)
 {
     DEBUG_TRACE;
+    permute_vector_d2h(dataBase_.stream, dataBase_.num_cells, d_sumY_diff_error, d_permute);
+    permute_vector_d2h(dataBase_.stream, dataBase_.num_boundary_surfaces, d_boundary_sumY_diff_error, d_boundary_permute);
+
     std::vector<double> h_sumYDiffError;
     h_sumYDiffError.resize(dataBase_.num_cells * 3);
-    checkCudaErrors(cudaMemcpy(h_sumYDiffError.data(), d_sumY_diff_error, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToHost));
+    checkCudaErrors(cudaMemcpy(h_sumYDiffError.data(), d_permute, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToHost));
     checkVectorEqual(dataBase_.num_cells * 3, sumYDiffError, h_sumYDiffError.data(), 1e-10, printFlag);
     DEBUG_TRACE;
     std::vector<double> h_boundary_sumYDiffError;
     h_boundary_sumYDiffError.resize(dataBase_.num_boundary_surfaces * 3);
-    checkCudaErrors(cudaMemcpy(h_boundary_sumYDiffError.data(), d_boundary_sumY_diff_error, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyDeviceToHost));
+    checkCudaErrors(cudaMemcpy(h_boundary_sumYDiffError.data(), d_boundary_permute, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyDeviceToHost));
     checkVectorEqual(dataBase_.num_boundary_surfaces * 3, boundary_sumYDiffError, h_boundary_sumYDiffError.data(), 1e-10, printFlag);
     DEBUG_TRACE;
 }
@@ -671,14 +711,17 @@ void dfYEqn::comparesumYDiffError(const double *sumYDiffError, const double *bou
 void dfYEqn::comparehDiffCorrFlux(const double *hDiffCorrFlux, const double *boundary_hDiffCorrFlux, bool printFlag)
 {
     DEBUG_TRACE;
+    permute_vector_d2h(dataBase_.stream, dataBase_.num_cells, dataBase_.d_hDiff_corr_flux, d_permute);
+    permute_vector_d2h(dataBase_.stream, dataBase_.num_boundary_surfaces, dataBase_.d_boundary_hDiff_corr_flux, d_boundary_permute);
+
     std::vector<double> h_hDiffCorrFlux;
     h_hDiffCorrFlux.resize(dataBase_.num_cells * 3);
-    checkCudaErrors(cudaMemcpy(h_hDiffCorrFlux.data(), dataBase_.d_hDiff_corr_flux, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToHost));
+    checkCudaErrors(cudaMemcpy(h_hDiffCorrFlux.data(), d_permute, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToHost));
     checkVectorEqual(dataBase_.num_cells * 3, hDiffCorrFlux, h_hDiffCorrFlux.data(), 1e-10, printFlag);
     DEBUG_TRACE;
     std::vector<double> h_boundary_hDiffCorrFlux;
     h_boundary_hDiffCorrFlux.resize(dataBase_.num_boundary_surfaces * 3);
-    checkCudaErrors(cudaMemcpy(h_boundary_hDiffCorrFlux.data(), dataBase_.d_boundary_hDiff_corr_flux, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyDeviceToHost));
+    checkCudaErrors(cudaMemcpy(h_boundary_hDiffCorrFlux.data(), d_boundary_permute, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyDeviceToHost));
     checkVectorEqual(dataBase_.num_boundary_surfaces * 3, boundary_hDiffCorrFlux, h_boundary_hDiffCorrFlux.data(), 1e-10, printFlag);
     DEBUG_TRACE;
 }
@@ -739,4 +782,12 @@ void dfYEqn::compareResult(const double *lower, const double *upper, const doubl
     DEBUG_TRACE;
 }
 
+void dfYEqn::compareYi(const double *yi, int specie_index, bool printFlag) {
+    DEBUG_TRACE;
+    std::vector<double> h_yi;
+    h_yi.resize(dataBase_.num_cells);
+    checkCudaErrors(cudaMemcpy(h_yi.data(), dataBase_.d_y + dataBase_.num_cells * specie_index, dataBase_.cell_value_bytes, cudaMemcpyDeviceToHost));
+    checkVectorEqual(dataBase_.num_cells, yi, h_yi.data(), 1e-10, printFlag);
+    DEBUG_TRACE;
+}
 #endif

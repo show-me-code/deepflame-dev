@@ -13,7 +13,6 @@ find_package(CUDAToolkit REQUIRED)
 find_library(LIBAMGXSH amgxsh PATHS $ENV{AMGX_DIR}/build)
 
 add_compile_options(-arch=sm_70 -fmad=false)
-#add_definitions("-DDEBUG_")
 
 include_directories(
     ${MPI_INCLUDE_PATH}
@@ -36,7 +35,7 @@ target_link_libraries(${PROJECT_NAME}
     ${LIBAMGXSH}
 )
 target_compile_options(dfMatrix PUBLIC -g)
-option(DFMATRIX_ENABLE_DETAILED_DEBUG "Enable detailed debug build" OFF)
+option(DFMATRIX_ENABLE_DETAILED_DEBUG "Enable detailed debug build" ON)
 if (DFMATRIX_ENABLE_DETAILED_DEBUG)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE DEBUG)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE DEBUG_)
 endif()

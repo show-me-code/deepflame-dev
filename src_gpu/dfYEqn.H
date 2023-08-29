@@ -43,6 +43,7 @@ private:
     double *d_phi_special_weight = nullptr;
     double *d_phiUc_special_weight = nullptr;
     double *d_DEff = nullptr;
+    double *d_permute = nullptr;
     // computed on CPU, used on GPU, need memcpyh2d
 	double *h_hai = nullptr;
 	double *h_rhoD = nullptr;
@@ -58,6 +59,7 @@ private:
     double *d_boundary_sumY_diff_error = nullptr;
     double *d_boundary_phiUc = nullptr;
     double *d_boundary_DEff = nullptr;
+    double *d_boundary_permute = nullptr;
 	// computed on CPU, used on GPU, need memcpyh2d - host
 	double *h_boundary_hai = nullptr;
 	double *h_boundary_rhoD = nullptr;
@@ -123,6 +125,9 @@ public:
     void yeqn_compute_thermo_alpha(cudaStream_t stream,
             int num_cells, const double *rhoD, double *thermo_alpha,
             int num_boundary_surfaces, const double *boundary_rhoD, double *boundary_thermo_alpha);
+    void yeqn_compute_DEff(cudaStream_t stream, int num_species, int num_cells, int num_boundary_surfaces,
+        const double *rhoD, const double *mut_sct, double *DEff,
+        const double *boundary_rhoD, const double *boundary_mut_sct, double *boundary_DEff);
     void yeqn_fvc_laplacian_scalar(cudaStream_t stream, int num_species, int num_cells, int num_surfaces, int num_boundary_surfaces,
             const int *lowerAddr, const int *upperAddr,
             const double *weight, const double *mag_sf, const double *delta_coeffs, const double *volume,
@@ -145,11 +150,12 @@ public:
 
 #if defined DEBUG_
     void comparediffAlphaD(const double *diffAlphaD, const double *boundary_diffAlphaD, bool printFlag);
-    void comparegrady0(const double *grad_y0, const double *boundary_grad_y0, bool printFlag);
+    void comparegradyi(const double *grad_yi, const double *boundary_grad_yi, int specie_index, bool printFlag);
     void comparesumYDiffError(const double *sumYDiffError, const double *boundary_sumYDiffError, bool printFlag);
     void comparehDiffCorrFlux(const double *hDiffCorrFlux, const double *boundary_hDiffCorrFlux, bool printFlag);
     void comparephiUc(const double *phiUc, const double *boundary_phiUc, bool printFlag);
     void compareResult(const double *lower, const double *upper, const double *diag, const double *source,
             const double *internal_coeffs, const double *boundary_coeffs, bool printFlag);
+    void compareYi(const double *yi, int specie_index, bool printFlag);
 #endif
 };
