@@ -26,6 +26,7 @@ add_library(${PROJECT_NAME}
         dfMatrixDataBase.cu
         dfMatrixOpBase.cu
         dfUEqn.cu
+        dfYEqn.cu
         dfRhoEqn.cu)
 
 target_link_libraries(${PROJECT_NAME}
@@ -34,7 +35,7 @@ target_link_libraries(${PROJECT_NAME}
     ${LIBAMGXSH}
 )
 target_compile_options(dfMatrix PUBLIC -g)
-option(DFMATRIX_ENABLE_DETAILED_DEBUG "Enable detailed debug build" OFF)
+option(DFMATRIX_ENABLE_DETAILED_DEBUG "Enable detailed debug build" ON)
 if (DFMATRIX_ENABLE_DETAILED_DEBUG)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE DEBUG)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE DEBUG_)
 endif()

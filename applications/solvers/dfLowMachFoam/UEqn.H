@@ -90,6 +90,7 @@
     const tmp<volScalarField> nuEff_tmp(turbulence->nuEff());
     const volScalarField& nuEff = nuEff_tmp();
 
+#if defined DEBUG_
     // run CPU, for temp
     tmp<fvVectorMatrix> tUEqn
     (
@@ -101,6 +102,7 @@
         == -fvc::grad(p)
     );
     fvVectorMatrix& UEqn = tUEqn.ref();
+#endif
 
     // run GPU
     // preProcess
@@ -171,27 +173,29 @@
     UEqn_GPU.A(&UEqn_A[0]);
     UEqn_A.correctBoundaryConditions();
 
+#if defined DEBUG_
     // checkResult
     // TODO: for temp, now we compare ldu, finally we compare csr
-    // std::vector<double> h_internal_coeffs(dfDataBase.num_boundary_surfaces * 3);
-    // std::vector<double> h_boundary_coeffs(dfDataBase.num_boundary_surfaces * 3);
-    // Info << "location 0 " << endl;
-    // offset = 0;
-    // for (int patchi = 0; patchi < dfDataBase.num_patches; patchi++)
-    // {
-    //     int patchsize = dfDataBase.patch_size[patchi];
-    //     const double* internal_coeff_ptr = &UEqn.internalCoeffs()[patchi][0][0];
-    //     const double* boundary_coeff_ptr = &UEqn.boundaryCoeffs()[patchi][0][0];
-    //     memcpy(h_internal_coeffs.data() + offset * 3, internal_coeff_ptr, patchsize * 3 * sizeof(double));
-    //     memcpy(h_boundary_coeffs.data() + offset * 3, boundary_coeff_ptr, patchsize * 3 * sizeof(double));
-    //     offset += patchsize;
-    // }
-    // bool printFlag = false;
-    // UEqn_GPU.compareResult(&UEqn.lower()[0], &UEqn.upper()[0], &UEqn.diag()[0], &UEqn.source()[0][0],
-    //         h_internal_coeffs.data(), h_boundary_coeffs.data(), 
-    //         // &DivTensor[0][0], 
-    //         printFlag);
-    // DEBUG_TRACE;
+    std::vector<double> h_internal_coeffs(dfDataBase.num_boundary_surfaces * 3);
+    std::vector<double> h_boundary_coeffs(dfDataBase.num_boundary_surfaces * 3);
+    Info << "location 0 " << endl;
+    offset = 0;
+    for (int patchi = 0; patchi < dfDataBase.num_patches; patchi++)
+    {
+        int patchsize = dfDataBase.patch_size[patchi];
+        const double* internal_coeff_ptr = &UEqn.internalCoeffs()[patchi][0][0];
+        const double* boundary_coeff_ptr = &UEqn.boundaryCoeffs()[patchi][0][0];
+        memcpy(h_internal_coeffs.data() + offset * 3, internal_coeff_ptr, patchsize * 3 * sizeof(double));
+        memcpy(h_boundary_coeffs.data() + offset * 3, boundary_coeff_ptr, patchsize * 3 * sizeof(double));
+        offset += patchsize;
+    }
+    bool printFlag = false;
+    UEqn_GPU.compareResult(&UEqn.lower()[0], &UEqn.upper()[0], &UEqn.diag()[0], &UEqn.source()[0][0],
+            h_internal_coeffs.data(), h_boundary_coeffs.data(), 
+            // &DivTensor[0][0], 
+            printFlag);
+    DEBUG_TRACE;
+#endif
 
 #else
     start1 = std::clock();

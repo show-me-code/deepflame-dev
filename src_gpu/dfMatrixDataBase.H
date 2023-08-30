@@ -14,9 +14,9 @@
 #include <cmath>
 #include <unordered_map>
 
-// #define DEBUG
+// #define DEBUG_
 
-#ifdef DEBUG
+#ifdef DEBUG_
     #define DEBUG_TRACE fprintf(stderr, "%s %d\n", __FILE__, __LINE__);
 #else
     #define DEBUG_TRACE
@@ -44,7 +44,7 @@ inline void checkVectorEqual(int count, const double* basevec, double* vec, doub
         double abs_diff = fabs(basevec[i] - vec[i]);
         double rel_diff = fabs(basevec[i] - vec[i]) / fabs(basevec[i]);
         if (print)
-            fprintf(stderr, "index %d, cpu data: %.16lf, gpu data: %.16lf, relative error: %.16lf\n", i, basevec[i], vec[i], rel_diff);
+            fprintf(stderr, "index %d, cpu data: %.24lf, gpu data: %.24lf, relative error: %.24lf\n", i, basevec[i], vec[i], rel_diff);
         // if (abs_diff > 1e-12 && rel_diff > max_relative_error && !std::isinf(rel_diff))
         if (abs_diff > 1e-15 && rel_diff > max_relative_error)
             fprintf(stderr, "mismatch index %d, cpu data: %.30lf, gpu data: %.30lf, relative error: %.16lf\n", i, basevec[i], vec[i], rel_diff);
@@ -144,6 +144,10 @@ struct dfMatrixDataBase
     //double *d_p_old = nullptr;
     // other shared fields between eqns
     double *d_phi = nullptr;
+    // other shared fields between eqns - thermophysical
+    double *d_thermo_alpha = nullptr;
+    double *d_hDiff_corr_flux = nullptr;
+    double *d_diff_alphaD = nullptr;
     // computed on GPU, used on CPU, need memcpyd2h - host
     double *h_rho = nullptr;
     double *h_rho_old = nullptr;
@@ -170,6 +174,10 @@ struct dfMatrixDataBase
     //double *d_boundary_p_old = nullptr;
     // other shared fields between eqns
     double *d_boundary_phi = nullptr;
+    // other shared fields between eqns - thermophysical
+    double *d_boundary_thermo_alpha = nullptr;
+    double *d_boundary_hDiff_corr_flux = nullptr;
+    double *d_boundary_diff_alphaD = nullptr;
     // computed on GPU, used on CPU, need memcpyd2h - host
     double *h_boundary_rho = nullptr;
     double *h_boundary_rho_old = nullptr;

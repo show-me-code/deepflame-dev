@@ -12,6 +12,18 @@ tmp<fv::convectionScheme<scalar>> mvConvection
         mesh.divScheme("div(phi,Yi_h)")
     )
 );
+#if defined GPUSolverNew_
+#if defined DEBUG_
+    //randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(0)));
+    //randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(1)));
+    //randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(2)));
+    //randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(3)));
+    //randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(4)));
+    //randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(5)));
+    //randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(6)));
+#endif
+#endif
+
 #ifdef GPUSolver_
     start1 = std::clock();
     UEqn_GPU.solve();
@@ -110,7 +122,17 @@ tmp<fv::convectionScheme<scalar>> mvConvection
     end1 = std::clock();
     time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_YEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
+#elif defined GPUSolverNew_
+#if defined DEBUG_
+    forAll(Y, i)
+    {
+        sumYDiffError += chemistry->rhoD(i)*fvc::grad(Y[i]);
+    }
+    const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
 #else
+    // do nothing
+#endif
+#else // should only for CPUSolver
     start1 = std::clock();
     forAll(Y, i)
     {
@@ -153,6 +175,175 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
     end1 = std::clock();
     time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_YEqn_correctBC += double(end1 - start1) / double(CLOCKS_PER_SEC);
+#elif defined GPUSolverNew_
+#if defined DEBUG_
+    // run CPU
+    forAll(Y, i)
+    {
+        volScalarField& Yi = Y[i];
+        hDiffCorrFlux += chemistry->hai(i)*(chemistry->rhoD(i)*fvc::grad(Yi) - Yi*sumYDiffError);
+        diffAlphaD += fvc::laplacian(thermo.alpha()*chemistry->hai(i), Yi);
+    }
+
+    int specie_index = 0;
+
+    // should compute grad_yi before YiEqn.solve()
+    const volVectorField grad_yi = fvc::grad(Y[specie_index]);
+
+    tmp<volScalarField> DEff = chemistry->rhoD(specie_index) + turbulence->mut()/Sct;
+    fvScalarMatrix YiEqn
+        (
+         fvm::ddt(rho, Y[specie_index])
+         + mvConvection->fvmDiv(phi, Y[specie_index])
+         + mvConvection->fvmDiv(phiUc, Y[specie_index])
+         ==
+         fvm::laplacian(DEff(), Y[specie_index])
+        );
+    YiEqn.relax();
+    YiEqn.solve("Yi");
+    Y[specie_index].max(0.0);
+#endif
+
+    TICK_START;
+    // run GPU
+    // preProcess
+    // preparing rhoD, hai, mut_sct used by YEqn_GPU.preProcess()
+    double *h_rhoD = YEqn_GPU.getFieldPointer("rhoD", location::cpu, position::internal);
+    double *h_boundary_rhoD = YEqn_GPU.getFieldPointer("rhoD", location::cpu, position::boundary);
+    // UnityLewis
+    double *h_hai = YEqn_GPU.getFieldPointer("hai", location::cpu, position::internal);
+    double *h_boundary_hai = YEqn_GPU.getFieldPointer("hai", location::cpu, position::boundary);
+    for (size_t i = 0; i < Y.size(); ++i)
+    {
+        const volScalarField& rhoDi = chemistry->rhoD(i);
+        memcpy(h_rhoD + dfDataBase.num_cells * i, &rhoDi[0], dfDataBase.num_cells * sizeof(double));
+        // UnityLewis
+        const volScalarField& haii = chemistry->hai(i);
+        memcpy(h_hai + dfDataBase.num_cells * i, &haii[0], dfDataBase.num_cells * sizeof(double));
+        offset = 0;
+        forAll(rhoDi.boundaryField(), patchi)
+        {
+            const scalarField& patchRhoDi = rhoDi.boundaryField()[patchi];
+            int patchSize = patchRhoDi.size();
+            memcpy(h_boundary_rhoD + dfDataBase.num_boundary_surfaces * i + offset, &patchRhoDi[0], patchSize*sizeof(double));
+            // UnityLewis
+            const scalarField& patchHaii = haii.boundaryField()[patchi];
+            memcpy(h_boundary_hai + dfDataBase.num_boundary_surfaces * i + offset, &patchHaii[0], patchSize*sizeof(double));
+            offset += patchSize;
+        }
+    }
+    // UnityLewis
+    volScalarField mut_sct = turbulence->mut().ref() / Sct;
+    double *h_mut_sct = YEqn_GPU.getFieldPointer("mut_sct", location::cpu, position::internal);
+    double *h_boundary_mut_sct = YEqn_GPU.getFieldPointer("mut_sct", location::cpu, position::boundary);
+    memcpy(h_mut_sct, &mut_sct[0], dfDataBase.num_cells * sizeof(double));
+    offset = 0;
+    forAll(mut_sct.boundaryField(), patchi)
+    {
+        const scalarField& patchMutSct = mut_sct.boundaryField()[patchi];
+        int patchSize = patchMutSct.size();
+        memcpy(h_boundary_mut_sct + offset, &patchMutSct[0], patchSize*sizeof(double));
+        offset += patchSize;
+    }
+    TICK_STOP(prepare on CPU);
+
+    TICK_START;
+    YEqn_GPU.preProcess(h_rhoD, h_boundary_rhoD, h_hai, h_boundary_hai, h_mut_sct, h_boundary_mut_sct);
+    TICK_STOP(prepare on GPU);
+
+    DEBUG_TRACE;
+    TICK_START;
+    // process
+    YEqn_GPU.process();
+    TICK_STOP(process on GPU);
+    DEBUG_TRACE;
+
+#if defined DEBUG_
+    std::vector<double> h_boundary_diffAlphaD;
+    std::vector<double> h_boundary_grad_yi;
+    std::vector<double> h_boundary_sumYDiffError;
+    std::vector<double> h_boundary_hDiffCorrFlux;
+    std::vector<double> h_boundary_phiUc;
+    h_boundary_diffAlphaD.resize(dfDataBase.num_boundary_surfaces);
+    h_boundary_grad_yi.resize(dfDataBase.num_boundary_surfaces * 3);
+    h_boundary_sumYDiffError.resize(dfDataBase.num_boundary_surfaces * 3);
+    h_boundary_hDiffCorrFlux.resize(dfDataBase.num_boundary_surfaces * 3);
+    h_boundary_phiUc.resize(dfDataBase.num_boundary_surfaces);
+    offset = 0;
+    forAll(diffAlphaD.boundaryField(), patchi)
+    {
+        const scalarField& patchdiffAlphaD = diffAlphaD.boundaryField()[patchi];
+        const vectorField& patchgradyi = grad_yi.boundaryField()[patchi];
+        const vectorField& patchsumYDiffError = sumYDiffError.boundaryField()[patchi];
+        const vectorField& patchhDiffCorrFlux = hDiffCorrFlux.boundaryField()[patchi];
+        const scalarField& patchphiUc = phiUc.boundaryField()[patchi];
+        int patchSize = patchdiffAlphaD.size();
+        memcpy(h_boundary_diffAlphaD.data() + offset, &patchdiffAlphaD[0], patchSize*sizeof(double));
+        memcpy(h_boundary_grad_yi.data() + offset * 3, &patchgradyi[0][0], patchSize * 3 *sizeof(double));
+        memcpy(h_boundary_sumYDiffError.data() + offset * 3, &patchsumYDiffError[0][0], patchSize * 3 *sizeof(double));
+        memcpy(h_boundary_hDiffCorrFlux.data() + offset * 3, &patchhDiffCorrFlux[0][0], patchSize * 3 *sizeof(double));
+        memcpy(h_boundary_phiUc.data() + offset, &patchphiUc[0], patchSize*sizeof(double));
+        offset += patchSize;
+    }
+    DEBUG_TRACE;
+    YEqn_GPU.comparediffAlphaD(&diffAlphaD[0], h_boundary_diffAlphaD.data(), false);
+    YEqn_GPU.comparegradyi(&grad_yi[0][0], h_boundary_grad_yi.data(), specie_index, false);
+    YEqn_GPU.comparesumYDiffError(&sumYDiffError[0][0], h_boundary_sumYDiffError.data(), false);
+    YEqn_GPU.comparehDiffCorrFlux(&hDiffCorrFlux[0][0], h_boundary_hDiffCorrFlux.data(), false);
+    YEqn_GPU.comparephiUc(&phiUc[0], h_boundary_phiUc.data(), false);
+    DEBUG_TRACE;
+
+    // checkResult
+    // TODO: for temp, now we compare ldu, finally we compare csr
+    std::vector<double> yeqn_h_internal_coeffs(dfDataBase.num_boundary_surfaces);
+    std::vector<double> yeqn_h_boundary_coeffs(dfDataBase.num_boundary_surfaces);
+    offset = 0;
+    for (int patchi = 0; patchi < dfDataBase.num_patches; patchi++)
+    {
+        int patchsize = dfDataBase.patch_size[patchi];
+        const double* internal_coeff_ptr = &YiEqn.internalCoeffs()[patchi][0];
+        const double* boundary_coeff_ptr = &YiEqn.boundaryCoeffs()[patchi][0];
+        memcpy(yeqn_h_internal_coeffs.data() + offset, internal_coeff_ptr, patchsize * sizeof(double));
+        memcpy(yeqn_h_boundary_coeffs.data() + offset, boundary_coeff_ptr, patchsize * sizeof(double));
+        offset += patchsize;
+    }
+    // NOTE: ldu and yi can't be compared at the same time
+    // to compare ldu data, you should open both DEBUG_ and DEBUG_CHECK_LDU in src_gpu
+    // to compare yi, you should only open DEBUG_ in src_gpu.
+    // Besides, if you compare ldu data, be patient to keep specie_index in YEqn.H and dfYEqn.cu the same.
+    //DEBUG_TRACE;
+    //YEqn_GPU.compareResult(&YiEqn.lower()[0], &YiEqn.upper()[0], &YiEqn.diag()[0], &YiEqn.source()[0],
+    //    yeqn_h_internal_coeffs.data(), yeqn_h_boundary_coeffs.data(), false);
+    DEBUG_TRACE;
+    YEqn_GPU.compareYi(&Y[specie_index][0], specie_index, false);
+    DEBUG_TRACE;
+#endif
+
+    TICK_START;
+    // postProcess
+    double *h_y = dfDataBase.getFieldPointer("y", location::cpu, position::internal);
+    YEqn_GPU.postProcess(h_y);
+    TICK_STOP(postProcess on GPU);
+    DEBUG_TRACE;
+
+    // copy h_y to Y(cpu)
+    offset = 0;
+    forAll(Y, i)
+    {
+        volScalarField& Yi = Y[i];
+        memcpy(&Yi[0], h_y + offset, Yi.size() * sizeof(double));
+        offset += Yi.size();
+    }
+
+    // correct boundary conditions of Y(cpu)
+    forAll(Y, i)
+    {
+        volScalarField& Yi = Y[i];
+        Yi.correctBoundaryConditions();
+    }
+    DEBUG_TRACE;
+
+    fflush(stderr);
 #else
     start2 = std::clock();
     volScalarField Yt(0.0*Y[0]);
