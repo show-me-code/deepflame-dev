@@ -8,6 +8,8 @@ void constructBoundarySelectorPerPatch(int *patchTypeSelector, const std::string
         {"zeroGradient", zeroGradient},
         {"fixedValue", fixedValue},
         {"empty", empty},
+        {"gradientEnergy", gradientEnergy},
+        {"calculated", calculated},
         {"coupled", coupled}
     };
     auto iter = BCMap.find(patchTypeStr);
@@ -257,14 +259,18 @@ void dfMatrixDataBase::createNonConstantFieldsInternal() {
     checkCudaErrors(cudaMalloc((void**)&d_y, cell_value_bytes * num_species));
     checkCudaErrors(cudaMalloc((void**)&d_he, cell_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_p, cell_value_bytes));
+    checkCudaErrors(cudaMalloc((void**)&d_k, cell_value_bytes));
     fieldPointerMap["d_rho"] = d_rho;
     fieldPointerMap["d_u"] = d_u;
     fieldPointerMap["d_y"] = d_y;
     fieldPointerMap["d_he"] = d_he;
     fieldPointerMap["d_p"] = d_p;
+    fieldPointerMap["d_k"] = d_k;
     
     checkCudaErrors(cudaMalloc((void**)&d_rho_old, cell_value_bytes));
+    checkCudaErrors(cudaMalloc((void**)&d_k_old, cell_value_bytes));
     fieldPointerMap["d_rho_old"] = d_rho_old;
+    fieldPointerMap["d_k_old"] = d_k_old;
     // checkCudaErrors(cudaMalloc((void**)&d_u_old, cell_value_vec_bytes));
     // checkCudaErrors(cudaMalloc((void**)&d_y_old, cell_value_bytes * num_species));
     // checkCudaErrors(cudaMalloc((void**)&d_he_old, cell_value_bytes));
@@ -284,11 +290,15 @@ void dfMatrixDataBase::createNonConstantFieldsInternal() {
     checkCudaErrors(cudaMallocHost((void**)&h_u, cell_value_vec_bytes));
     checkCudaErrors(cudaMallocHost((void**)&h_y, cell_value_bytes * num_species));
     checkCudaErrors(cudaMallocHost((void**)&h_he, cell_value_bytes));
+    checkCudaErrors(cudaMallocHost((void**)&h_k, cell_value_bytes));
+    checkCudaErrors(cudaMallocHost((void**)&h_k_old, cell_value_bytes));
     fieldPointerMap["h_rho"] = h_rho;
     fieldPointerMap["h_rho_old"] = h_rho_old;
     fieldPointerMap["h_u"] = h_u;
     fieldPointerMap["h_y"] = h_y;
     fieldPointerMap["h_he"] = h_he;
+    fieldPointerMap["h_k"] = h_k;
+    fieldPointerMap["h_k_old"] = h_k_old;
 
     // computed on CPU, used on GPU, need memcpyh2d
     checkCudaErrors(cudaMallocHost((void**)&h_p, cell_value_bytes));
@@ -303,11 +313,13 @@ void dfMatrixDataBase::createNonConstantFieldsBoundary() {
     checkCudaErrors(cudaMalloc((void**)&d_boundary_y, boundary_surface_value_bytes * num_species));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_he, boundary_surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_p, boundary_surface_value_bytes));
+    checkCudaErrors(cudaMalloc((void**)&d_boundary_k, boundary_surface_value_bytes));
     fieldPointerMap["d_boundary_rho"] = d_boundary_rho;
     fieldPointerMap["d_boundary_u"] = d_boundary_u;
     fieldPointerMap["d_boundary_y"] = d_boundary_y;
     fieldPointerMap["d_boundary_he"] = d_boundary_he;
     fieldPointerMap["d_boundary_p"] = d_boundary_p;
+    fieldPointerMap["d_boundary_k"] = d_boundary_k;
 
     checkCudaErrors(cudaMalloc((void**)&d_boundary_rho_old, boundary_surface_value_bytes));
     fieldPointerMap["d_boundary_rho_old"] = d_boundary_rho_old;
@@ -330,11 +342,13 @@ void dfMatrixDataBase::createNonConstantFieldsBoundary() {
     checkCudaErrors(cudaMallocHost((void**)&h_boundary_u, boundary_surface_value_vec_bytes));
     checkCudaErrors(cudaMallocHost((void**)&h_boundary_y, boundary_surface_value_bytes * num_species));
     checkCudaErrors(cudaMallocHost((void**)&h_boundary_he, boundary_surface_value_bytes));
+    checkCudaErrors(cudaMallocHost((void**)&h_boundary_k, boundary_surface_value_bytes));
     fieldPointerMap["h_boundary_rho"] = h_boundary_rho;
     fieldPointerMap["h_boundary_rho_old"] = h_boundary_rho_old;
     fieldPointerMap["h_boundary_u"] = h_boundary_u;
     fieldPointerMap["h_boundary_y"] = h_boundary_y;
     fieldPointerMap["h_boundary_he"] = h_boundary_he;
+    fieldPointerMap["h_boundary_k"] = h_boundary_k;
 
     // computed on CPU, used on GPU, need memcpyh2d
     checkCudaErrors(cudaMallocHost((void**)&h_boundary_p, boundary_surface_value_bytes));

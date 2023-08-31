@@ -65,7 +65,9 @@ enum boundaryConditions{
     zeroGradient,
     fixedValue,
     coupled,
-    empty
+    empty,
+    gradientEnergy,
+    calculated
 };
 
 void constructBoundarySelectorPerPatch(int *patchTypeSelector, const std::string& patchTypeStr);
@@ -135,9 +137,11 @@ struct dfMatrixDataBase
     double *d_y = nullptr;
     double *d_he = nullptr;
     double *d_p = nullptr;
+    double *d_k = nullptr;
     // fields solved by eqns - old 
     // TODO: not all fields need to store oldTime
     double *d_rho_old = nullptr;
+    double *d_k_old = nullptr;
     //double *d_u_old = nullptr;
     //double *d_y_old = nullptr;
     //double *d_he_old = nullptr;
@@ -154,6 +158,8 @@ struct dfMatrixDataBase
     double *h_u= nullptr;
     double *h_y= nullptr;
     double *h_he= nullptr;
+    double *h_k= nullptr;
+    double *h_k_old = nullptr;
     // computed on CPU, used on GPU, need memcpyh2d - host
     double *h_p= nullptr;
     double *h_phi= nullptr;
@@ -166,6 +172,7 @@ struct dfMatrixDataBase
     double *d_boundary_y = nullptr;
     double *d_boundary_he = nullptr;
     double *d_boundary_p = nullptr;
+    double *d_boundary_k = nullptr;
     // fields solved by eqns - old
     double *d_boundary_rho_old = nullptr;
     //double *d_boundary_u_old = nullptr;
@@ -184,6 +191,7 @@ struct dfMatrixDataBase
     double *h_boundary_u= nullptr;
     double *h_boundary_y= nullptr;
     double *h_boundary_he= nullptr;
+    double *h_boundary_k = nullptr;
     // computed on CPU, used on GPU, need memcpyh2d - host
     double *h_boundary_p= nullptr;
     double *h_boundary_phi= nullptr;

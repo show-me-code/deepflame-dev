@@ -136,7 +136,7 @@ gaussConvectionSchemeFvcDiv
     
     tmp<GeometricField<Type, fvPatchField, volMesh>> tConvection
     (
-        fvc::surfaceIntegrate(gaussConvectionSchemeFlux(faceFlux, vf, tinterpScheme_))
+        fvcSurfaceIntegrate(gaussConvectionSchemeFlux(faceFlux, vf, tinterpScheme_)())
     );
 
     tConvection.ref().rename
@@ -284,7 +284,6 @@ gaussConvectionSchemeFlux
     tmp<surfaceInterpolationScheme<Type>> tinterpScheme
 )
 {
-    Info << vf.name() <<tinterpScheme().interpolate(vf) << endl;
     return faceFlux*tinterpScheme().interpolate(vf);
 }
 

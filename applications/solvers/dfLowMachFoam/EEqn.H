@@ -104,29 +104,134 @@
     end1 = std::clock();
     time_monitor_EEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_EEqn_correctBC += double(end1 - start1) / double(CLOCKS_PER_SEC);
+#elif defined GPUSolverNew_
+    double *h_he = dfDataBase.getFieldPointer("he", location::cpu, position::internal);
+    double *h_k = dfDataBase.getFieldPointer("k", location::cpu, position::internal);
+    double *h_k_old = dfDataBase.getFieldPointer("k_old", location::cpu, position::internal);
+    double *h_boundary_k = dfDataBase.getFieldPointer("k", location::cpu, position::boundary);
+    double *h_boundary_heGradient = EEqn_GPU.getFieldPointer("heGradient", location::cpu, position::boundary);
+    double *h_dpdt = EEqn_GPU.getFieldPointer("dpdt", location::cpu, position::internal);
+    he.oldTime();
+    K.oldTime();
+    memcpy(h_he, &he.oldTime()[0], dfDataBase.cell_value_bytes); 
+    memcpy(h_k, &K[0], dfDataBase.cell_value_bytes); 
+    memcpy(h_k_old, &K.oldTime()[0], dfDataBase.cell_value_bytes); 
+    memcpy(h_dpdt, &dpdt[0], dfDataBase.cell_value_bytes); 
+
+    // get boundary value
+    int eeqn_offset = 0;
+    int patchNum = 0;
+    //TODO: check the difference between patchGradMau and patchGrad
+    forAll(he.boundaryField(), patchi)
+    {
+        patchNum++;
+        const fvsPatchScalarField& pw = mesh.surfaceInterpolation::weights().boundaryField()[patchi];
+        int patchSize = pw.size();
+
+        // construct gradient manually
+        const fvPatchScalarField& hew = he.boundaryField()[patchi];
+        const basicThermo& bThermo = basicThermo::lookupThermo(hew);
+        const scalarField& ppw = bThermo.p().boundaryField()[patchi];
+        fvPatchScalarField& Tw =
+            const_cast<fvPatchScalarField&>(bThermo.T().boundaryField()[patchi]);
+        scalarField& Tw_v = Tw;
+
+        Tw.evaluate();
+        const scalarField& patchDeltaCoeff = mesh.boundary()[patchi].deltaCoeffs();
+        const scalarField heInternal = bThermo.he(ppw, Tw, patchi)();
+        const scalarField heBoundary = bThermo.he(ppw, Tw, mesh.boundary()[patchi].faceCells())();
+        const scalarField patchGradMau = patchDeltaCoeff * (heInternal - heBoundary);
+
+        const scalarField& patchK = K.boundaryField()[patchi];
+        // const scalarField& patchAlphaEff = alphaEff.boundaryField()[patchi]; // not H2Dcopy when use UnityLewis
+        // const scalarField& patchGrad = he.boundaryField()[patchi].gradientBoundaryCoeffs(); // gradient_
+
+        // const DimensionedField<scalar, volMesh>& patchHa_ = he.boundaryField()[patchi];
+        // const gradientEnergyFvPatchScalarField patchHa(mesh.boundary()[patchi], patchHa_);
+        // const scalarField& patchGrad = patchHa.gradient(); // gradient_
+        memcpy(h_boundary_k + eeqn_offset, &patchK[0], patchSize*sizeof(double)); // tmp
+        // memcpy(boundary_alphaEff + eeqn_offset, &patchAlphaEff[0], patchSize*sizeof(double));
+        memcpy(h_boundary_heGradient + eeqn_offset, &patchGradMau[0], patchSize*sizeof(double)); // tmp
+
+        eeqn_offset += patchSize;
+    }
+
+    EEqn_GPU.preProcess(h_he, h_k, h_k_old, h_dpdt, h_boundary_k, h_boundary_heGradient);
+
+    EEqn_GPU.process();
+
+    EEqn_GPU.postProcess(h_he);
+    memcpy(&he[0], h_he, dfDataBase.cell_value_bytes);
+    he.correctBoundaryConditions();
+
+#if defined DEBUG_ // DEBUG_CHECK_LDU
+    // fvScalarMatrix EEqn
+    // (
+
+    //     fvm::ddt(rho, he) + mvConvection->fvmDiv(phi, he)
+    // +   fvc::ddt(rho, K) + fvc::div(phi, K)
+    // -   dpdt
+    // ==
+    //     (
+    //         turbName == "laminar"
+    //         ?
+    //         (
+    //             fvm::laplacian(turbulence->alpha(), he)
+    //         -   diffAlphaD
+    //         +   fvc::div(hDiffCorrFlux)
+    //         )
+    //         :
+    //         (
+    //             fvm::laplacian(turbulence->alphaEff(), he)
+    //         )
+    //     )
+    // );
+    // EEqn.relax();
+    // EEqn.solve("ha");
+    // // checkResult
+    // // TODO: for temp, now we compare ldu, finally we compare csr
+    // std::vector<double> h_internal_coeffs(dfDataBase.num_boundary_surfaces);
+    // std::vector<double> h_boundary_coeffs(dfDataBase.num_boundary_surfaces);
+
+    // offset = 0;
+    // for (int patchi = 0; patchi < dfDataBase.num_patches; patchi++)
+    // {
+    //     int patchsize = dfDataBase.patch_size[patchi];
+    //     const double* internal_coeff_ptr = &EEqn.internalCoeffs()[patchi][0];
+    //     const double* boundary_coeff_ptr = &EEqn.boundaryCoeffs()[patchi][0];
+    //     memcpy(h_internal_coeffs.data() + offset, internal_coeff_ptr, patchsize * sizeof(double));
+    //     memcpy(h_boundary_coeffs.data() + offset, boundary_coeff_ptr, patchsize * sizeof(double));
+    //     offset += patchsize;
+    // }
+    // bool printFlag = false;
+    // EEqn_GPU.compareResult(&EEqn.lower()[0], &EEqn.upper()[0], &EEqn.diag()[0], &EEqn.source()[0],
+    //         h_internal_coeffs.data(), h_boundary_coeffs.data(), printFlag);
+    // DEBUG_TRACE;
+#endif
+
 #else
     start1 = std::clock();
     fvScalarMatrix EEqn
     (
 
-            fvm::ddt(rho, he) + mvConvection->fvmDiv(phi, he)
-        +   fvc::ddt(rho, K) + fvc::div(phi, K)
-        -   dpdt
-        ==
+        fvm::ddt(rho, he) + mvConvection->fvmDiv(phi, he)
+    +   fvc::ddt(rho, K) + fvc::div(phi, K)
+    -   dpdt
+    ==
+        (
+            turbName == "laminar"
+            ?
             (
-                turbName == "laminar"
-                ?
-                (
-                    fvm::laplacian(turbulence->alpha(), he)
-                -   diffAlphaD
-                +   fvc::div(hDiffCorrFlux)
-                )
-                :
-                (
-                    fvm::laplacian(turbulence->alphaEff(), he)
-                )
+                fvm::laplacian(turbulence->alpha(), he)
+            -   diffAlphaD
+            +   fvc::div(hDiffCorrFlux)
             )
-        );
+            :
+            (
+                fvm::laplacian(turbulence->alphaEff(), he)
+            )
+        )
+    );
     end1 = std::clock();
     time_monitor_EEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_EEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);

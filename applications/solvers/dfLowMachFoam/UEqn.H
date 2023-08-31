@@ -178,7 +178,7 @@
     // TODO: for temp, now we compare ldu, finally we compare csr
     std::vector<double> h_internal_coeffs(dfDataBase.num_boundary_surfaces * 3);
     std::vector<double> h_boundary_coeffs(dfDataBase.num_boundary_surfaces * 3);
-    Info << "location 0 " << endl;
+
     offset = 0;
     for (int patchi = 0; patchi < dfDataBase.num_patches; patchi++)
     {
@@ -192,7 +192,7 @@
     bool printFlag = false;
     UEqn_GPU.compareResult(&UEqn.lower()[0], &UEqn.upper()[0], &UEqn.diag()[0], &UEqn.source()[0][0],
             h_internal_coeffs.data(), h_boundary_coeffs.data(), 
-            // &DivTensor[0][0], 
+            // &gradU[0][0], 
             printFlag);
     DEBUG_TRACE;
 #endif

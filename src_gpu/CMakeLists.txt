@@ -27,6 +27,7 @@ add_library(${PROJECT_NAME}
         dfMatrixOpBase.cu
         dfUEqn.cu
         dfYEqn.cu
+        dfEEqn.cu
         dfRhoEqn.cu)
 
 target_link_libraries(${PROJECT_NAME}

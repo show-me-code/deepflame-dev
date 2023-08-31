@@ -93,6 +93,9 @@ void dfUEqn::preProcess(const double *h_u, const double *h_boundary_u, const dou
   checkCudaErrors(cudaMemsetAsync(d_b, 0, dataBase_.cell_value_vec_bytes, dataBase_.stream));
   checkCudaErrors(cudaMemsetAsync(d_A_pEqn, 0, dataBase_.cell_value_bytes, dataBase_.stream));
   checkCudaErrors(cudaMemsetAsync(d_H_pEqn, 0, dataBase_.cell_value_vec_bytes, dataBase_.stream));
+
+  checkCudaErrors(cudaMemsetAsync(d_grad_u, 0, dataBase_.cell_value_tsr_bytes, dataBase_.stream));
+  checkCudaErrors(cudaMemsetAsync(d_boundary_grad_u, 0, dataBase_.boundary_surface_value_tsr_bytes, dataBase_.stream));
 }
 
 void dfUEqn::process() {
@@ -330,10 +333,23 @@ void dfUEqn::compareResult(const double *lower, const double *upper, const doubl
     checkVectorEqual(dataBase_.num_boundary_surfaces * 3, h_boundary_coeffs_ref.data(), h_boundary_coeffs.data(), 1e-14, printFlag);
     DEBUG_TRACE;
 
-    // std::vector<double> h_tmpVal;
-    // h_tmpVal.resize(dataBase_.num_cells * 3);
-    // checkCudaErrors(cudaMemcpy(h_tmpVal.data(), d_fvc_output, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToHost));
-    // checkVectorEqual(dataBase_.num_cells * 3, tmpVal, h_tmpVal.data(), 1e-14, printFlag);
+    // std::vector<double> h_tmpVal, h_tmpVal_ref;
+    // h_tmpVal.resize(dataBase_.num_cells * 9);
+    // h_tmpVal_ref.resize(dataBase_.num_cells * 9);
+    // for (int i = 0; i < dataBase_.num_cells; i++) {
+    //     h_tmpVal_ref[0 * dataBase_.num_cells + i] = tmpVal[i * 9 + 0];
+    //     h_tmpVal_ref[1 * dataBase_.num_cells + i] = tmpVal[i * 9 + 1];
+    //     h_tmpVal_ref[2 * dataBase_.num_cells + i] = tmpVal[i * 9 + 2];
+    //     h_tmpVal_ref[3 * dataBase_.num_cells + i] = tmpVal[i * 9 + 3];
+    //     h_tmpVal_ref[4 * dataBase_.num_cells + i] = tmpVal[i * 9 + 4];
+    //     h_tmpVal_ref[5 * dataBase_.num_cells + i] = tmpVal[i * 9 + 5];
+    //     h_tmpVal_ref[6 * dataBase_.num_cells + i] = tmpVal[i * 9 + 6];
+    //     h_tmpVal_ref[7 * dataBase_.num_cells + i] = tmpVal[i * 9 + 7];
+    //     h_tmpVal_ref[8 * dataBase_.num_cells + i] = tmpVal[i * 9 + 8];
+    // }
+    // checkCudaErrors(cudaMemcpy(h_tmpVal.data(), d_grad_u, dataBase_.cell_value_tsr_bytes, cudaMemcpyDeviceToHost));
+    // fprintf(stderr, "check h_grad_U\n");
+    // checkVectorEqual(dataBase_.num_cells * 9, h_tmpVal_ref.data(), h_tmpVal.data(), 1e-14, printFlag);
     // DEBUG_TRACE;
 }
 #endif
