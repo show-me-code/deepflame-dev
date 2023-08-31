@@ -4,7 +4,7 @@ dfMatrixDataBase dfDataBase;
 dfRhoEqn rhoEqn_GPU(dfDataBase);
 dfUEqn UEqn_GPU(dfDataBase);
 dfYEqn YEqn_GPU(dfDataBase);
-//dfEEqn EEqn_GPU;
+dfEEqn EEqn_GPU(dfDataBase);
 
 #if defined(DEBUG_)
 template <typename T>
@@ -203,4 +203,28 @@ void createGPUYEqn(const IOdictionary& CanteraTorchProperties, PtrList<volScalar
     YEqn_GPU.createNonConstantLduAndCsrFields();
     YEqn_GPU.initNonConstantFieldsInternal();
     YEqn_GPU.initNonConstantFieldsBoundary();
+}
+
+void createGPUEEqn(const IOdictionary& CanteraTorchProperties, volScalarField& he, volScalarField& K) {
+    DEBUG_TRACE;
+    // prepare mode_string and setting_path
+    string mode_string = "dDDI";
+    string settingPath;
+    settingPath = CanteraTorchProperties.subDict("AmgxSettings").lookupOrDefault("UEqnSettingPath", string(""));
+    EEqn_GPU.setConstantValues(mode_string, settingPath);
+
+    // prepare patch_type
+    std::vector<int> patch_type_he(dfDataBase.num_patches), patch_type_k(dfDataBase.num_patches);
+    fprintf(stderr, "num_species: %d\n", dfDataBase.num_species);
+    forAll(he.boundaryField(), patchi)
+    {
+        constructBoundarySelectorPerPatch(&(patch_type_he[patchi]), he.boundaryField()[patchi].type());
+        constructBoundarySelectorPerPatch(&(patch_type_k[patchi]), K.boundaryField()[patchi].type());
+    }
+    EEqn_GPU.setConstantFields(patch_type_he, patch_type_k);
+
+    // prepare internal and boundary of xxx
+    EEqn_GPU.createNonConstantFieldsInternal();
+    EEqn_GPU.createNonConstantFieldsBoundary();
+    EEqn_GPU.createNonConstantLduAndCsrFields();
 }

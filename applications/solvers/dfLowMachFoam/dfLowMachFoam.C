@@ -68,7 +68,7 @@ Description
 #include "dfUEqn.H"
 #include "dfYEqn.H"
 #include "dfRhoEqn.H"
-// #include "dfEEqn.H"
+#include "dfEEqn.H"
 #include "dfMatrixDataBase.H"
 #include "dfMatrixOpBase.H"
 #include <cuda_runtime.h>
@@ -185,6 +185,7 @@ int main(int argc, char *argv[])
     createGPUBase(mesh, Y);
     createGPUUEqn(CanteraTorchProperties, U);
     createGPUYEqn(CanteraTorchProperties, Y, inertIndex);
+    createGPUEEqn(CanteraTorchProperties, thermo.he(), K);
     rhoEqn_GPU.createNonConstantLduAndCsrFields();
 #endif
 

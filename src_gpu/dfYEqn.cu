@@ -504,7 +504,7 @@ void dfYEqn::process() {
     checkCudaErrors(cudaEventSynchronize(start));
     checkCudaErrors(cudaEventSynchronize(stop));
     checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
-    fprintf(stderr, "yeqn process time：%f(ms)\n",time_elapsed);
+    fprintf(stderr, "yeqn process time: %f(ms)\n",time_elapsed);
 }
 
 void dfYEqn::solve(int solverIndex) {
