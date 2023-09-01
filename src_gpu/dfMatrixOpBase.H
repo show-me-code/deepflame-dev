@@ -1,6 +1,7 @@
 #pragma once
 #include <cuda_runtime.h>
 // #define TIME_GPU
+// #define DEBUG_CHECK_LDU
 
 // tools
 void permute_vector_d2h(cudaStream_t stream, int num_cells, const double *input, double *output);
@@ -26,8 +27,7 @@ void ldu_to_csr_scalar(cudaStream_t stream, int num_cells, int num_surfaces, int
 
 void ldu_to_csr(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surface,
         const int* boundary_cell_face, const int *ldu_to_csr_index, const int *diag_to_csr_index,
-        const double *ldu, const double *source, const double *internal_coeffs, const double *boundary_coeffs,
-        double *A, double *b);
+        const double *ldu, const double *internal_coeffs, const double *boundary_coeffs, double *source, double *A);
 
 void update_boundary_coeffs_scalar(cudaStream_t stream, int num_patches,
         const int *patch_size, const int *patch_type,
@@ -107,7 +107,7 @@ void fvc_div_surface_scalar(cudaStream_t stream, int num_cells, int num_surfaces
         const int *lowerAddr, const int *upperAddr, const double *ssf, const int *boundary_cell_face,
         const double *boundary_ssf, const double *volume, double *output, double sign = 1.);
 
-void fvc_div_cell_vector(cudaStream_t stream, int num_cells, int num_surfaces,
+void fvc_div_cell_vector(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces,
         const int *lowerAddr, const int *upperAddr,
         const double *weight, const double *Sf, const double *vf, double *output, // end for internal
         int num_patches, const int *patch_size, const int *patch_type,
@@ -128,7 +128,7 @@ void fvc_div_surface_scalar_vol_scalar(cudaStream_t stream, int num_surfaces,
         const int *boundary_cell_face, const double *boundary_vf, const double *boundary_ssf, 
         double sign = 1.);
 
-void fvc_grad_cell_scalar(cudaStream_t stream, int num_cells, int num_surfaces, 
+void fvc_grad_cell_scalar(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces, 
         const int *lowerAddr, const int *upperAddr, 
         const double *weight, const double *Sf, const double *vf, double *output, // end for internal
         int num_patches, const int *patch_size, const int *patch_type,

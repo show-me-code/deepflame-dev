@@ -146,12 +146,19 @@ void dfEEqn::process() {
             d_lower, d_upper, d_diag, // end for internal
             dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_he.data(), dataBase_.d_boundary_mag_sf, dataBase_.d_boundary_thermo_alpha,
             d_gradient_internal_coeffs, d_gradient_boundary_coeffs, d_internal_coeffs, d_boundary_coeffs, -1);
-    fvc_div_cell_vector(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.d_owner, dataBase_.d_neighbor, 
+    fvc_div_cell_vector(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, 
+            dataBase_.d_owner, dataBase_.d_neighbor, 
             dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_hDiff_corr_flux, d_source,
             dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_he.data(), dataBase_.d_boundary_face_cell, 
             dataBase_.d_boundary_hDiff_corr_flux, dataBase_.d_boundary_sf, dataBase_.d_volume);
     fvc_to_source_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.d_volume, d_dpdt, d_source);
     fvc_to_source_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.d_volume, dataBase_.d_diff_alphaD, d_source, -1);
+#ifndef DEBUG_CHECK_LDU
+    ldu_to_csr_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
+            dataBase_.d_boundary_face_cell,
+            dataBase_.d_ldu_to_csr_index, dataBase_.d_diag_to_csr_index,
+            d_ldu, d_source, d_internal_coeffs, d_boundary_coeffs, d_A);
+#endif
 #ifndef TIME_GPU
         checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph));
         checkCudaErrors(cudaGraphInstantiate(&graph_instance, graph, NULL, NULL, 0));
@@ -160,13 +167,14 @@ void dfEEqn::process() {
     DEBUG_TRACE;
     checkCudaErrors(cudaGraphLaunch(graph_instance, dataBase_.stream));
 #endif
+    checkCudaErrors(cudaEventRecord(stop,0));
+    checkCudaErrors(cudaEventSynchronize(start));
+    checkCudaErrors(cudaEventSynchronize(stop));
+    checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
+    fprintf(stderr, "eeqn assembly time:%f(ms)\n",time_elapsed);
+
+    checkCudaErrors(cudaEventRecord(start,0));
 #ifndef DEBUG_CHECK_LDU
-    // ldu to csr
-    // use d_source as d_b
-    ldu_to_csr_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
-            dataBase_.d_boundary_face_cell,
-            dataBase_.d_ldu_to_csr_index, dataBase_.d_diag_to_csr_index,
-            d_ldu, d_source, d_internal_coeffs, d_boundary_coeffs, d_A);
     solve();
 #endif
 
@@ -174,9 +182,9 @@ void dfEEqn::process() {
     checkCudaErrors(cudaEventSynchronize(start));
     checkCudaErrors(cudaEventSynchronize(stop));
     checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
-    fprintf(stderr, "eeqn process time: %f(ms)\n",time_elapsed);
+    fprintf(stderr, "eeqn solve time: %f(ms)\n",time_elapsed);
 }
-
+#if defined DEBUG_
 void dfEEqn::compareResult(const double *lower, const double *upper, const double *diag, 
         const double *source, const double *internal_coeffs, const double *boundary_coeffs, bool printFlag)
 {
@@ -223,6 +231,7 @@ void dfEEqn::compareResult(const double *lower, const double *upper, const doubl
     checkVectorEqual(dataBase_.num_boundary_surfaces, boundary_coeffs, h_boundary_coeffs.data(), 1e-14, printFlag);
     DEBUG_TRACE;
 }
+#endif
 
 void dfEEqn::sync()
 {

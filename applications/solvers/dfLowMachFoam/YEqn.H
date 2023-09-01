@@ -312,11 +312,11 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
     // to compare yi, you should only open DEBUG_ in src_gpu.
     // Besides, if you compare ldu data, be patient to keep specie_index in YEqn.H and dfYEqn.cu the same.
     //DEBUG_TRACE;
-    //YEqn_GPU.compareResult(&YiEqn.lower()[0], &YiEqn.upper()[0], &YiEqn.diag()[0], &YiEqn.source()[0],
-    //    yeqn_h_internal_coeffs.data(), yeqn_h_boundary_coeffs.data(), false);
+    YEqn_GPU.compareResult(&YiEqn.lower()[0], &YiEqn.upper()[0], &YiEqn.diag()[0], &YiEqn.source()[0],
+       yeqn_h_internal_coeffs.data(), yeqn_h_boundary_coeffs.data(), false);
     DEBUG_TRACE;
-    YEqn_GPU.compareYi(&Y[specie_index][0], specie_index, false);
-    DEBUG_TRACE;
+    // YEqn_GPU.compareYi(&Y[specie_index][0], specie_index, false);
+    // DEBUG_TRACE;
 #endif
 
     TICK_START;
