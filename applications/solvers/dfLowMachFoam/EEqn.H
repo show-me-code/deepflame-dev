@@ -1,3 +1,5 @@
+//#undef GPUSolverNew_
+//#define CPUSolver_
 {
     volScalarField& he = thermo.he();
 #ifdef GPUSolver_
@@ -244,3 +246,5 @@
     time_monitor_EEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
 #endif
 }
+//#undef CPUSolver_
+//#define GPUSolverNew_
