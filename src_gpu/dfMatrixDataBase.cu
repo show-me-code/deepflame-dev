@@ -224,6 +224,9 @@ void dfMatrixDataBase::createConstantFieldsInternal() {
     fieldPointerMap["d_weight"] = d_weight;
     fieldPointerMap["d_delta_coeffs"] = d_delta_coeffs;
     fieldPointerMap["d_volume"] = d_volume;
+
+    checkCudaErrors(cudaMallocHost((void**)&h_sf, surface_value_vec_bytes));
+    fieldPointerMap["h_sf"] = h_sf;
 }
 
 void dfMatrixDataBase::createConstantFieldsBoundary() {
@@ -234,11 +237,20 @@ void dfMatrixDataBase::createConstantFieldsBoundary() {
     fieldPointerMap["d_boundary_sf"] = d_boundary_sf;
     fieldPointerMap["d_boundary_mag_sf"] = d_boundary_mag_sf;
     fieldPointerMap["d_boundary_delta_coeffs"] = d_boundary_delta_coeffs;
+
+    checkCudaErrors(cudaMallocHost((void**)&h_boundary_sf, boundary_surface_value_vec_bytes));
+    fieldPointerMap["h_boundary_sf"] = h_boundary_sf;
 }
 
 void dfMatrixDataBase::initConstantFieldsInternal(const double *sf, const double *mag_sf, 
         const double *weight, const double *delta_coeffs, const double *volume) {
-    checkCudaErrors(cudaMemcpyAsync(d_sf, sf, surface_value_vec_bytes, cudaMemcpyHostToDevice, stream));
+    // permute sf
+    for (int i = 0; i < num_surfaces; i++) {
+        h_sf[num_surfaces * 0 + i] = sf[i * 3 + 0];
+        h_sf[num_surfaces * 1 + i] = sf[i * 3 + 1];
+        h_sf[num_surfaces * 2 + i] = sf[i * 3 + 2];
+    }
+    checkCudaErrors(cudaMemcpyAsync(d_sf, h_sf, surface_value_vec_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_mag_sf, mag_sf, surface_value_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_weight, weight, surface_value_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_delta_coeffs, delta_coeffs, surface_value_bytes, cudaMemcpyHostToDevice, stream));
@@ -247,7 +259,13 @@ void dfMatrixDataBase::initConstantFieldsInternal(const double *sf, const double
 
 void dfMatrixDataBase::initConstantFieldsBoundary(const double *boundary_sf, const double *boundary_mag_sf, 
         const double *boundary_delta_coeffs, const int *boundary_face_cell) {
-    checkCudaErrors(cudaMemcpyAsync(d_boundary_sf, boundary_sf, boundary_surface_value_vec_bytes, cudaMemcpyHostToDevice, stream));
+    // permute bouSf
+    for (int i = 0; i < num_boundary_surfaces; i++) {
+        h_boundary_sf[num_boundary_surfaces * 0 + i] = boundary_sf[i * 3 + 0];
+        h_boundary_sf[num_boundary_surfaces * 1 + i] = boundary_sf[i * 3 + 1];
+        h_boundary_sf[num_boundary_surfaces * 2 + i] = boundary_sf[i * 3 + 2];
+    }
+    checkCudaErrors(cudaMemcpyAsync(d_boundary_sf, h_boundary_sf, boundary_surface_value_vec_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_mag_sf, boundary_mag_sf, boundary_surface_value_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_delta_coeffs, boundary_delta_coeffs, boundary_surface_value_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_face_cell, boundary_face_cell, boundary_surface_index_bytes, cudaMemcpyHostToDevice, stream));

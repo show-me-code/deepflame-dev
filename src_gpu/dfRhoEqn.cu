@@ -33,7 +33,7 @@ void dfRhoEqn::process()
             d_diag, d_source);
     fvc_div_surface_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, dataBase_.d_owner,
             dataBase_.d_neighbor, dataBase_.d_phi, dataBase_.d_boundary_face_cell, dataBase_.d_boundary_phi, dataBase_.d_volume, d_source, -1);
-    
+    solve();
 #ifndef TIME_GPU
         checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph));
         checkCudaErrors(cudaGraphInstantiate(&graph_instance, graph, NULL, NULL, 0));

@@ -89,6 +89,7 @@ Description
     memcpy(&rho[0], h_rho, dfDataBase.cell_value_bytes);
     rho.correctBoundaryConditions();
 
+#ifdef DEBUG_
     // checkValue
     fvScalarMatrix rhoEqn
     (
@@ -96,6 +97,7 @@ Description
       + fvc::div(phi)
     );
     rhoEqn_GPU.compareResult(&rhoEqn.diag()[0], &rhoEqn.source()[0], false);
+#endif
 
 #else
 {

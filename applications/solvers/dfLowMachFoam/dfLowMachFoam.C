@@ -61,8 +61,8 @@ Description
 #include "CombustionModel.H"
 
 #define GPUSolverNew_
-#define TIME
-#define DEBUG_ // if application open DEBUG_, srg_gpu should also open DEBUG_
+// #define TIME
+// #define DEBUG_ // if application open DEBUG_, srg_gpu should also open DEBUG_
 
 #ifdef GPUSolverNew_
 #include "dfUEqn.H"

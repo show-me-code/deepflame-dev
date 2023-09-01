@@ -147,15 +147,16 @@ void dfUEqn::process() {
                dataBase_.d_weight, dataBase_.d_sf, d_grad_u, d_source, // end for internal
                dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
                dataBase_.d_boundary_face_cell, d_boundary_grad_u, dataBase_.d_boundary_sf, dataBase_.d_volume);
-        fvc_grad_cell_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces,
+        fvc_grad_cell_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
                 dataBase_.d_owner, dataBase_.d_neighbor,
                 dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_p, d_source,
                 dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
                 dataBase_.d_boundary_face_cell, dataBase_.d_boundary_p, dataBase_.d_boundary_sf, dataBase_.d_volume, -1.);
+#ifndef DEBUG_CHECK_LDU   
         ldu_to_csr(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
             dataBase_.d_boundary_face_cell, dataBase_.d_ldu_to_csr_index, dataBase_.d_diag_to_csr_index, 
-            d_ldu, d_source, d_internal_coeffs, d_boundary_coeffs, d_A, d_b);
-
+            d_ldu, d_internal_coeffs, d_boundary_coeffs, d_source, d_A);
+#endif
 #ifndef TIME_GPU
         checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph));
         checkCudaErrors(cudaGraphInstantiate(&graph_instance, graph, NULL, NULL, 0));
@@ -164,14 +165,21 @@ void dfUEqn::process() {
     DEBUG_TRACE;
     checkCudaErrors(cudaGraphLaunch(graph_instance, dataBase_.stream));
 #endif
-
     checkCudaErrors(cudaEventRecord(stop,0));
     checkCudaErrors(cudaEventSynchronize(start));
     checkCudaErrors(cudaEventSynchronize(stop));
     checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
-    fprintf(stderr, "ueqn process time:%f(ms)\n",time_elapsed);
+    fprintf(stderr, "ueqn assembly time:%f(ms)\n",time_elapsed);
 
-    //solve();
+    checkCudaErrors(cudaEventRecord(start,0));
+#ifndef DEBUG_CHECK_LDU
+    solve();
+#endif
+    checkCudaErrors(cudaEventRecord(stop,0));
+    checkCudaErrors(cudaEventSynchronize(start));
+    checkCudaErrors(cudaEventSynchronize(stop));
+    checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
+    fprintf(stderr, "ueqn solve time:%f(ms)\n",time_elapsed);
 }
 
 void dfUEqn::sync()
@@ -202,9 +210,9 @@ void dfUEqn::solve() {
         UySolver->updateOperator(dataBase_.num_cells, nNz, d_A + nNz);
         UzSolver->updateOperator(dataBase_.num_cells, nNz, d_A + 2 * nNz);
     }
-    UxSolver->solve(dataBase_.num_cells, d_permute, d_b);
-    UySolver->solve(dataBase_.num_cells, d_permute + dataBase_.num_cells, d_b + dataBase_.num_cells);
-    UzSolver->solve(dataBase_.num_cells, d_permute + 2 * dataBase_.num_cells, d_b + 2 * dataBase_.num_cells);
+    UxSolver->solve(dataBase_.num_cells, d_permute, d_source);
+    UySolver->solve(dataBase_.num_cells, d_permute + dataBase_.num_cells, d_source + dataBase_.num_cells);
+    UzSolver->solve(dataBase_.num_cells, d_permute + 2 * dataBase_.num_cells, d_source + 2 * dataBase_.num_cells);
     num_iteration++;
 }
 

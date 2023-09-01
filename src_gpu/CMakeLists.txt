@@ -36,7 +36,7 @@ target_link_libraries(${PROJECT_NAME}
     ${LIBAMGXSH}
 )
 target_compile_options(dfMatrix PUBLIC -g)
-option(DFMATRIX_ENABLE_DETAILED_DEBUG "Enable detailed debug build" ON)
+option(DFMATRIX_ENABLE_DETAILED_DEBUG "Enable detailed debug build" OFF)
 if (DFMATRIX_ENABLE_DETAILED_DEBUG)
     target_compile_definitions(${PROJECT_NAME} PRIVATE DEBUG_)
 endif()

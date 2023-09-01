@@ -153,13 +153,7 @@
     // process
     TICK_START;
     UEqn_GPU.process();
-    DEBUG_TRACE;
-    UEqn_GPU.sync();
     TICK_STOP(GPU process time);
-
-    TICK_START;
-    UEqn_GPU.solve();
-    TICK_STOP(GPU solve time);
 
     // postProcess
     TICK_START;
@@ -174,6 +168,9 @@
     UEqn_A.correctBoundaryConditions();
 
 #if defined DEBUG_
+    UEqn.relax();
+    UEqn.solve();
+    K = 0.5*magSqr(U);
     // checkResult
     // TODO: for temp, now we compare ldu, finally we compare csr
     std::vector<double> h_internal_coeffs(dfDataBase.num_boundary_surfaces * 3);

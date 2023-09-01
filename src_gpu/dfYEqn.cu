@@ -50,9 +50,9 @@ __global__ void yeqn_compute_phiUc_internal(int num_cells, int num_surfaces,
     int owner = lower_index[index];
     int neighbor = upper_index[index];
 
-    double sfx = sf[index * 3 + 0];
-    double sfy = sf[index * 3 + 1];
-    double sfz = sf[index * 3 + 2];
+    double sfx = sf[num_surfaces * 0 + index];
+    double sfy = sf[num_surfaces * 1 + index];
+    double sfz = sf[num_surfaces * 2 + index];
 
     double w = weight[index]; 
     double ssfx = (w * (sumY_diff_error[num_cells * 0 + owner] - sumY_diff_error[num_cells * 0 + neighbor]) + sumY_diff_error[num_cells * 0 + neighbor]);
@@ -69,9 +69,9 @@ __global__ void yeqn_compute_phiUc_boundary(int num_boundary_surfaces,
     if (index >= num_boundary_surfaces)
         return;
 
-    double boundary_sfx = boundary_sf[index * 3 + 0];
-    double boundary_sfy = boundary_sf[index * 3 + 1];
-    double boundary_sfz = boundary_sf[index * 3 + 2];
+    double boundary_sfx = boundary_sf[num_boundary_surfaces * 0 + index];
+    double boundary_sfy = boundary_sf[num_boundary_surfaces * 1 + index];
+    double boundary_sfz = boundary_sf[num_boundary_surfaces * 2 + index];
 
     double boundary_ssfx = boundary_sumY_diff_error[num_boundary_surfaces * 0 + index];
     double boundary_ssfy = boundary_sumY_diff_error[num_boundary_surfaces * 1 + index];
@@ -375,10 +375,11 @@ void dfYEqn::process() {
     checkCudaErrors(cudaEventCreate(&stop));
     checkCudaErrors(cudaEventRecord(start,0));
 
+#ifndef TIME_GPU
     if(!graph_created) {
         DEBUG_TRACE;
         checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
-
+#endif
         // compute thermo_alpha
         yeqn_compute_thermo_alpha(dataBase_.stream,
                 dataBase_.num_cells, d_rhoD, dataBase_.d_thermo_alpha,
@@ -424,20 +425,20 @@ void dfYEqn::process() {
         // double *d_boundary_DEff = d_boundary_rhoD;
         yeqn_compute_DEff(dataBase_.stream, dataBase_.num_species, dataBase_.num_cells, dataBase_.num_boundary_surfaces,
                 d_rhoD, d_mut_sct, d_DEff, d_boundary_rhoD, d_boundary_mut_sct, d_boundary_DEff);
-
+#ifndef TIME_GPU
         checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph));
         checkCudaErrors(cudaGraphInstantiate(&graph_instance, graph, NULL, NULL, 0));
         graph_created = true;
     }
     DEBUG_TRACE;
     checkCudaErrors(cudaGraphLaunch(graph_instance, dataBase_.stream));
-
+#endif
     // construct YiEqn and solve
     // NOTE: ldu and yi can't be compared at the same time
     // to compare ldu data, you should open both DEBUG_ and DEBUG_CHECK_LDU in src_gpu
     // to compare yi, you should only open DEBUG_ in src_gpu.
     // Besides, if you compare ldu data, be patient to keep specie_index in YEqn.H and dfYEqn.cu the same.
-//#define DEBUG_CHECK_LDU
+// #define DEBUG_CHECK_LDU
 #if defined DEBUG_CHECK_LDU
     int specie_index = 0;
     for (int s = specie_index; s < specie_index + 1; s++) {
@@ -662,11 +663,13 @@ void dfYEqn::comparediffAlphaD(const double *diffAlphaD, const double *boundary_
     std::vector<double> h_diffAlphaD;
     h_diffAlphaD.resize(dataBase_.num_cells);
     checkCudaErrors(cudaMemcpy(h_diffAlphaD.data(), dataBase_.d_diff_alphaD, dataBase_.cell_value_bytes, cudaMemcpyDeviceToHost));
+    fprintf(stderr, "check h_diffAlphaD\n");
     checkVectorEqual(dataBase_.num_cells, diffAlphaD, h_diffAlphaD.data(), 1e-10, printFlag);
     DEBUG_TRACE;
     std::vector<double> h_boundary_diffAlphaD;
     h_boundary_diffAlphaD.resize(dataBase_.num_boundary_surfaces);
     checkCudaErrors(cudaMemcpy(h_boundary_diffAlphaD.data(), dataBase_.d_boundary_diff_alphaD, dataBase_.boundary_surface_value_bytes, cudaMemcpyDeviceToHost));
+    fprintf(stderr, "check h_boundary_diffAlphaD\n");
     checkVectorEqual(dataBase_.num_boundary_surfaces, boundary_diffAlphaD, h_boundary_diffAlphaD.data(), 1e-10, printFlag);
     DEBUG_TRACE;
 }
@@ -680,11 +683,13 @@ void dfYEqn::comparegradyi(const double *grad_yi, const double *boundary_grad_yi
     std::vector<double> h_grad_yi;
     h_grad_yi.resize(dataBase_.num_cells * 3);
     checkCudaErrors(cudaMemcpy(h_grad_yi.data(), d_permute, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToHost));
+    fprintf(stderr, "check h_grad_yi\n");
     checkVectorEqual(dataBase_.num_cells * 3, grad_yi, h_grad_yi.data(), 1e-10, printFlag);
     DEBUG_TRACE;
     std::vector<double> h_boundary_grad_yi;
     h_boundary_grad_yi.resize(dataBase_.num_boundary_surfaces * 3);
     checkCudaErrors(cudaMemcpy(h_boundary_grad_yi.data(), d_boundary_permute, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyDeviceToHost));
+    fprintf(stderr, "check h_boundary_grad_yi\n");
     checkVectorEqual(dataBase_.num_boundary_surfaces * 3, boundary_grad_yi, h_boundary_grad_yi.data(), 1e-10, printFlag);
     DEBUG_TRACE;
 
@@ -699,11 +704,13 @@ void dfYEqn::comparesumYDiffError(const double *sumYDiffError, const double *bou
     std::vector<double> h_sumYDiffError;
     h_sumYDiffError.resize(dataBase_.num_cells * 3);
     checkCudaErrors(cudaMemcpy(h_sumYDiffError.data(), d_permute, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToHost));
+    fprintf(stderr, "check h_sumYDiffError\n");
     checkVectorEqual(dataBase_.num_cells * 3, sumYDiffError, h_sumYDiffError.data(), 1e-10, printFlag);
     DEBUG_TRACE;
     std::vector<double> h_boundary_sumYDiffError;
     h_boundary_sumYDiffError.resize(dataBase_.num_boundary_surfaces * 3);
     checkCudaErrors(cudaMemcpy(h_boundary_sumYDiffError.data(), d_boundary_permute, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyDeviceToHost));
+    fprintf(stderr, "check h_boundary_sumYDiffError\n");
     checkVectorEqual(dataBase_.num_boundary_surfaces * 3, boundary_sumYDiffError, h_boundary_sumYDiffError.data(), 1e-10, printFlag);
     DEBUG_TRACE;
 }
@@ -717,11 +724,13 @@ void dfYEqn::comparehDiffCorrFlux(const double *hDiffCorrFlux, const double *bou
     std::vector<double> h_hDiffCorrFlux;
     h_hDiffCorrFlux.resize(dataBase_.num_cells * 3);
     checkCudaErrors(cudaMemcpy(h_hDiffCorrFlux.data(), d_permute, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToHost));
+    fprintf(stderr, "check h_hDiffCorrFlux\n");
     checkVectorEqual(dataBase_.num_cells * 3, hDiffCorrFlux, h_hDiffCorrFlux.data(), 1e-10, printFlag);
     DEBUG_TRACE;
     std::vector<double> h_boundary_hDiffCorrFlux;
     h_boundary_hDiffCorrFlux.resize(dataBase_.num_boundary_surfaces * 3);
     checkCudaErrors(cudaMemcpy(h_boundary_hDiffCorrFlux.data(), d_boundary_permute, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyDeviceToHost));
+    fprintf(stderr, "check h_boundary_hDiffCorrFlux\n");
     checkVectorEqual(dataBase_.num_boundary_surfaces * 3, boundary_hDiffCorrFlux, h_boundary_hDiffCorrFlux.data(), 1e-10, printFlag);
     DEBUG_TRACE;
 }
@@ -732,11 +741,13 @@ void dfYEqn::comparephiUc(const double *phiUc, const double *boundary_phiUc,  bo
     std::vector<double> h_phiUc;
     h_phiUc.resize(dataBase_.num_surfaces);
     checkCudaErrors(cudaMemcpy(h_phiUc.data(), d_phiUc, dataBase_.surface_value_bytes, cudaMemcpyDeviceToHost));
+    fprintf(stderr, "check h_phiUc\n");
     checkVectorEqual(dataBase_.num_surfaces, phiUc, h_phiUc.data(), 1e-10, printFlag);
     DEBUG_TRACE;
     std::vector<double> h_boundary_phiUc;
     h_boundary_phiUc.resize(dataBase_.num_boundary_surfaces);
     checkCudaErrors(cudaMemcpy(h_boundary_phiUc.data(), d_boundary_phiUc, dataBase_.boundary_surface_value_bytes, cudaMemcpyDeviceToHost));
+    fprintf(stderr, "check h_boundary_phiUc\n");
     checkVectorEqual(dataBase_.num_boundary_surfaces, boundary_phiUc, h_boundary_phiUc.data(), 1e-10, printFlag);
     DEBUG_TRACE;
 }
@@ -748,36 +759,42 @@ void dfYEqn::compareResult(const double *lower, const double *upper, const doubl
     std::vector<double> h_lower;
     h_lower.resize(dataBase_.num_surfaces);
     checkCudaErrors(cudaMemcpy(h_lower.data(), d_lower, dataBase_.surface_value_bytes, cudaMemcpyDeviceToHost));
+    fprintf(stderr, "check h_lower");
     checkVectorEqual(dataBase_.num_surfaces, lower, h_lower.data(), 1e-14, printFlag);
     DEBUG_TRACE;
 
     std::vector<double> h_upper;
     h_upper.resize(dataBase_.num_surfaces);
     checkCudaErrors(cudaMemcpy(h_upper.data(), d_upper, dataBase_.surface_value_bytes, cudaMemcpyDeviceToHost));
+    fprintf(stderr, "check h_upper");
     checkVectorEqual(dataBase_.num_surfaces, upper, h_upper.data(), 1e-14, printFlag);
     DEBUG_TRACE;
 
     std::vector<double> h_diag;
     h_diag.resize(dataBase_.num_cells);
     checkCudaErrors(cudaMemcpy(h_diag.data(), d_diag, dataBase_.cell_value_bytes, cudaMemcpyDeviceToHost));
+    fprintf(stderr, "check h_diag");
     checkVectorEqual(dataBase_.num_cells, diag, h_diag.data(), 1e-14, printFlag);
     DEBUG_TRACE;
 
     std::vector<double> h_source;
     h_source.resize(dataBase_.num_cells);
     checkCudaErrors(cudaMemcpy(h_source.data(), d_source, dataBase_.cell_value_bytes, cudaMemcpyDeviceToHost));
+    fprintf(stderr, "check h_source");
     checkVectorEqual(dataBase_.num_cells, source, h_source.data(), 1e-14, printFlag);
     DEBUG_TRACE;
 
     std::vector<double> h_internal_coeffs;
     h_internal_coeffs.resize(dataBase_.num_boundary_surfaces);
     checkCudaErrors(cudaMemcpy(h_internal_coeffs.data(), d_internal_coeffs, dataBase_.boundary_surface_value_bytes, cudaMemcpyDeviceToHost));
+    fprintf(stderr, "check h_internal_coeffs");
     checkVectorEqual(dataBase_.num_boundary_surfaces, internal_coeffs, h_internal_coeffs.data(), 1e-14, printFlag);
     DEBUG_TRACE;
 
     std::vector<double> h_boundary_coeffs;
     h_boundary_coeffs.resize(dataBase_.num_boundary_surfaces);
     checkCudaErrors(cudaMemcpy(h_boundary_coeffs.data(), d_boundary_coeffs, dataBase_.boundary_surface_value_bytes, cudaMemcpyDeviceToHost));
+    fprintf(stderr, "check h_boundary_coeffs");
     checkVectorEqual(dataBase_.num_boundary_surfaces, boundary_coeffs, h_boundary_coeffs.data(), 1e-14, printFlag);
     DEBUG_TRACE;
 }

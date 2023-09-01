@@ -164,49 +164,49 @@
     memcpy(&he[0], h_he, dfDataBase.cell_value_bytes);
     he.correctBoundaryConditions();
 
-#if defined DEBUG_ // DEBUG_CHECK_LDU
-    // fvScalarMatrix EEqn
-    // (
+#if defined DEBUG_
+    fvScalarMatrix EEqn
+    (
 
-    //     fvm::ddt(rho, he) + mvConvection->fvmDiv(phi, he)
-    // +   fvc::ddt(rho, K) + fvc::div(phi, K)
-    // -   dpdt
-    // ==
-    //     (
-    //         turbName == "laminar"
-    //         ?
-    //         (
-    //             fvm::laplacian(turbulence->alpha(), he)
-    //         -   diffAlphaD
-    //         +   fvc::div(hDiffCorrFlux)
-    //         )
-    //         :
-    //         (
-    //             fvm::laplacian(turbulence->alphaEff(), he)
-    //         )
-    //     )
-    // );
-    // EEqn.relax();
-    // EEqn.solve("ha");
-    // // checkResult
-    // // TODO: for temp, now we compare ldu, finally we compare csr
-    // std::vector<double> h_internal_coeffs(dfDataBase.num_boundary_surfaces);
-    // std::vector<double> h_boundary_coeffs(dfDataBase.num_boundary_surfaces);
+        fvm::ddt(rho, he) + mvConvection->fvmDiv(phi, he)
+    +   fvc::ddt(rho, K) + fvc::div(phi, K)
+    -   dpdt
+    ==
+        (
+            turbName == "laminar"
+            ?
+            (
+                fvm::laplacian(turbulence->alpha(), he)
+            -   diffAlphaD
+            +   fvc::div(hDiffCorrFlux)
+            )
+            :
+            (
+                fvm::laplacian(turbulence->alphaEff(), he)
+            )
+        )
+    );
+    EEqn.relax();
+    EEqn.solve("ha");
+    // checkResult
+    // TODO: for temp, now we compare ldu, finally we compare csr
+    std::vector<double> h_internal_coeffs(dfDataBase.num_boundary_surfaces);
+    std::vector<double> h_boundary_coeffs(dfDataBase.num_boundary_surfaces);
 
-    // offset = 0;
-    // for (int patchi = 0; patchi < dfDataBase.num_patches; patchi++)
-    // {
-    //     int patchsize = dfDataBase.patch_size[patchi];
-    //     const double* internal_coeff_ptr = &EEqn.internalCoeffs()[patchi][0];
-    //     const double* boundary_coeff_ptr = &EEqn.boundaryCoeffs()[patchi][0];
-    //     memcpy(h_internal_coeffs.data() + offset, internal_coeff_ptr, patchsize * sizeof(double));
-    //     memcpy(h_boundary_coeffs.data() + offset, boundary_coeff_ptr, patchsize * sizeof(double));
-    //     offset += patchsize;
-    // }
-    // bool printFlag = false;
-    // EEqn_GPU.compareResult(&EEqn.lower()[0], &EEqn.upper()[0], &EEqn.diag()[0], &EEqn.source()[0],
-    //         h_internal_coeffs.data(), h_boundary_coeffs.data(), printFlag);
-    // DEBUG_TRACE;
+    offset = 0;
+    for (int patchi = 0; patchi < dfDataBase.num_patches; patchi++)
+    {
+        int patchsize = dfDataBase.patch_size[patchi];
+        const double* internal_coeff_ptr = &EEqn.internalCoeffs()[patchi][0];
+        const double* boundary_coeff_ptr = &EEqn.boundaryCoeffs()[patchi][0];
+        memcpy(h_internal_coeffs.data() + offset, internal_coeff_ptr, patchsize * sizeof(double));
+        memcpy(h_boundary_coeffs.data() + offset, boundary_coeff_ptr, patchsize * sizeof(double));
+        offset += patchsize;
+    }
+    bool printFlag = false;
+    EEqn_GPU.compareResult(&EEqn.lower()[0], &EEqn.upper()[0], &EEqn.diag()[0], &EEqn.source()[0],
+            h_internal_coeffs.data(), h_boundary_coeffs.data(), printFlag);
+    DEBUG_TRACE;
 #endif
 
 #else

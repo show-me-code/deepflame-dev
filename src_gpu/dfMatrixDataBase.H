@@ -122,12 +122,16 @@ struct dfMatrixDataBase
     double *d_delta_coeffs = nullptr;
     double *d_volume = nullptr;
     
+    double *h_sf = nullptr;
+
     // constant fields - boundary
     double *d_boundary_sf = nullptr;
     double *d_boundary_mag_sf = nullptr;
     double *d_boundary_weight = nullptr;
     double *d_boundary_delta_coeffs = nullptr;
     int *d_boundary_face_cell = nullptr;
+
+    double *h_boundary_sf = nullptr;
 
     // non-constant fields - internal 
     // TODO: further estimate
