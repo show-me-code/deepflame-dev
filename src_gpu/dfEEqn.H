@@ -32,9 +32,6 @@ class dfEEqn
     double *d_dpdt = nullptr;
     double *h_dpdt = nullptr;
 
-    // div weight
-    double *d_phi_special_weight = nullptr;
-
     // non-constant fields - boundary
     // gradient
     double *d_boundary_heGradient = nullptr;

@@ -168,6 +168,9 @@ void createGPUUEqn(const IOdictionary& CanteraTorchProperties, const volVectorFi
     {
         constructBoundarySelectorPerPatch(&(patch_type[patchi]), U.boundaryField()[patchi].type());
     }
+    forAll(patch_type, patchi){
+        Info << "patch_type_U " << patchi << " = " << patch_type[patchi] << endl;
+    }
     UEqn_GPU.setConstantFields(patch_type);
 
     // prepare internal and boundary of xxx

@@ -202,7 +202,7 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
          fvm::laplacian(DEff(), Y[specie_index])
         );
     YiEqn.relax();
-    YiEqn.solve("Yi");
+    // YiEqn.solve("Yi");
     Y[specie_index].max(0.0);
 #endif
 
