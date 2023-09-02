@@ -77,65 +77,6 @@ void dfUEqn::preProcessForRhoEqn(const double *h_rho, const double *h_phi, const
 
 void dfUEqn::preProcess(const double *h_u, const double *h_boundary_u, const double *h_p, const double *h_boundary_p, 
         const double *h_nu_eff, const double *h_boundary_nu_eff, const double *h_boundary_rho) {
-
-  // thermophysical fields
-  checkCudaErrors(cudaMallocAsync((void**)&d_nu_eff, dataBase_.cell_value_bytes, dataBase_.stream));
-  // intermediate fields
-  checkCudaErrors(cudaMallocAsync((void**)&d_grad_u, dataBase_.cell_value_tsr_bytes, dataBase_.stream));
-  checkCudaErrors(cudaMallocAsync((void**)&d_rho_nueff, dataBase_.cell_value_bytes, dataBase_.stream));
-  checkCudaErrors(cudaMallocAsync((void**)&d_fvc_output, dataBase_.cell_value_vec_bytes, dataBase_.stream));
-
-  // thermophysical fields
-  checkCudaErrors(cudaMallocAsync((void**)&d_boundary_nu_eff, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
-  // intermediate fields
-  checkCudaErrors(cudaMallocAsync((void**)&d_boundary_grad_u, dataBase_.boundary_surface_value_tsr_bytes, dataBase_.stream));
-  checkCudaErrors(cudaMallocAsync((void**)&d_boundary_rho_nueff, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
-  // boundary coeff fields
-  checkCudaErrors(cudaMallocAsync((void**)&d_value_internal_coeffs, dataBase_.boundary_surface_value_vec_bytes, dataBase_.stream));
-  checkCudaErrors(cudaMallocAsync((void**)&d_value_boundary_coeffs, dataBase_.boundary_surface_value_vec_bytes, dataBase_.stream));
-  checkCudaErrors(cudaMallocAsync((void**)&d_gradient_internal_coeffs, dataBase_.boundary_surface_value_vec_bytes, dataBase_.stream));
-  checkCudaErrors(cudaMallocAsync((void**)&d_gradient_boundary_coeffs, dataBase_.boundary_surface_value_vec_bytes, dataBase_.stream));
-
-  checkCudaErrors(cudaMallocAsync((void**)&d_A, dataBase_.csr_value_vec_bytes, dataBase_.stream));
-  checkCudaErrors(cudaMallocAsync((void**)&d_b, dataBase_.cell_value_vec_bytes, dataBase_.stream));
-
-  int sumBytes = 0;
-  sumBytes += dataBase_.cell_value_bytes;
-  sumBytes += dataBase_.cell_value_tsr_bytes;
-  sumBytes += dataBase_.cell_value_bytes;
-  sumBytes += dataBase_.cell_value_vec_bytes;
-  sumBytes += dataBase_.boundary_surface_value_bytes;
-  sumBytes += dataBase_.boundary_surface_value_tsr_bytes;
-  sumBytes += dataBase_.boundary_surface_value_bytes;
-  sumBytes += dataBase_.boundary_surface_value_vec_bytes;
-  sumBytes += dataBase_.boundary_surface_value_vec_bytes;
-  sumBytes += dataBase_.boundary_surface_value_vec_bytes;
-  sumBytes += dataBase_.boundary_surface_value_vec_bytes;
-  sumBytes += dataBase_.csr_value_vec_bytes;
-  sumBytes += dataBase_.cell_value_vec_bytes;
-  double sumGB = sumBytes * 1.0 / 1024 / 1024 / 1024;
-  fprintf(stderr, "sum bytes of UEqn is: %lf GB\n", sumGB);
-
-
-  checkCudaErrors(cudaMemcpyAsync(dataBase_.d_u, h_u, dataBase_.cell_value_vec_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
-  checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_u, h_boundary_u, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
-  checkCudaErrors(cudaMemcpyAsync(dataBase_.d_p, h_p, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
-  checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_p, h_boundary_p, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
-  checkCudaErrors(cudaMemcpyAsync(d_nu_eff, h_nu_eff, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
-  checkCudaErrors(cudaMemcpyAsync(d_boundary_nu_eff, h_boundary_nu_eff, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
-  checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_rho, h_boundary_rho, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
-
-  checkCudaErrors(cudaMemsetAsync(d_ldu, 0, dataBase_.csr_value_bytes, dataBase_.stream)); // d_ldu contains d_lower, d_diag, and d_upper
-  checkCudaErrors(cudaMemsetAsync(d_source, 0, dataBase_.cell_value_vec_bytes, dataBase_.stream));
-  checkCudaErrors(cudaMemsetAsync(d_internal_coeffs, 0, dataBase_.boundary_surface_value_vec_bytes, dataBase_.stream));
-  checkCudaErrors(cudaMemsetAsync(d_boundary_coeffs, 0, dataBase_.boundary_surface_value_vec_bytes, dataBase_.stream));
-  checkCudaErrors(cudaMemsetAsync(d_A, 0, dataBase_.csr_value_vec_bytes, dataBase_.stream));
-  checkCudaErrors(cudaMemsetAsync(d_b, 0, dataBase_.cell_value_vec_bytes, dataBase_.stream));
-  checkCudaErrors(cudaMemsetAsync(d_A_pEqn, 0, dataBase_.cell_value_bytes, dataBase_.stream));
-  checkCudaErrors(cudaMemsetAsync(d_H_pEqn, 0, dataBase_.cell_value_vec_bytes, dataBase_.stream));
-
-  checkCudaErrors(cudaMemsetAsync(d_grad_u, 0, dataBase_.cell_value_tsr_bytes, dataBase_.stream));
-  checkCudaErrors(cudaMemsetAsync(d_boundary_grad_u, 0, dataBase_.boundary_surface_value_tsr_bytes, dataBase_.stream));
 }
 
 void dfUEqn::process() {
@@ -151,6 +92,65 @@ void dfUEqn::process() {
         DEBUG_TRACE;
         checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
 #endif
+
+	// thermophysical fields
+	checkCudaErrors(cudaMallocAsync((void**)&d_nu_eff, dataBase_.cell_value_bytes, dataBase_.stream));
+	// intermediate fields
+	checkCudaErrors(cudaMallocAsync((void**)&d_grad_u, dataBase_.cell_value_tsr_bytes, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_rho_nueff, dataBase_.cell_value_bytes, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_fvc_output, dataBase_.cell_value_vec_bytes, dataBase_.stream));
+
+	// thermophysical fields
+	checkCudaErrors(cudaMallocAsync((void**)&d_boundary_nu_eff, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
+	// intermediate fields
+	checkCudaErrors(cudaMallocAsync((void**)&d_boundary_grad_u, dataBase_.boundary_surface_value_tsr_bytes, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_boundary_rho_nueff, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
+	// boundary coeff fields
+	checkCudaErrors(cudaMallocAsync((void**)&d_value_internal_coeffs, dataBase_.boundary_surface_value_vec_bytes, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_value_boundary_coeffs, dataBase_.boundary_surface_value_vec_bytes, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_gradient_internal_coeffs, dataBase_.boundary_surface_value_vec_bytes, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_gradient_boundary_coeffs, dataBase_.boundary_surface_value_vec_bytes, dataBase_.stream));
+
+	checkCudaErrors(cudaMallocAsync((void**)&d_A, dataBase_.csr_value_vec_bytes, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_b, dataBase_.cell_value_vec_bytes, dataBase_.stream));
+
+	//int sumBytes = 0;
+	//sumBytes += dataBase_.cell_value_bytes;
+	//sumBytes += dataBase_.cell_value_tsr_bytes;
+	//sumBytes += dataBase_.cell_value_bytes;
+	//sumBytes += dataBase_.cell_value_vec_bytes;
+	//sumBytes += dataBase_.boundary_surface_value_bytes;
+	//sumBytes += dataBase_.boundary_surface_value_tsr_bytes;
+	//sumBytes += dataBase_.boundary_surface_value_bytes;
+	//sumBytes += dataBase_.boundary_surface_value_vec_bytes;
+	//sumBytes += dataBase_.boundary_surface_value_vec_bytes;
+	//sumBytes += dataBase_.boundary_surface_value_vec_bytes;
+	//sumBytes += dataBase_.boundary_surface_value_vec_bytes;
+	//sumBytes += dataBase_.csr_value_vec_bytes;
+	//sumBytes += dataBase_.cell_value_vec_bytes;
+	//double sumGB = sumBytes * 1.0 / 1024 / 1024 / 1024;
+	//fprintf(stderr, "sum bytes of UEqn is: %lf GB\n", sumGB);
+
+
+	checkCudaErrors(cudaMemcpyAsync(dataBase_.d_u, dataBase_.h_u, dataBase_.cell_value_vec_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+	checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_u, dataBase_.h_boundary_u, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+	checkCudaErrors(cudaMemcpyAsync(dataBase_.d_p, dataBase_.h_p, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+	checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_p, dataBase_.h_boundary_p, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+	checkCudaErrors(cudaMemcpyAsync(d_nu_eff, h_nu_eff, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+	checkCudaErrors(cudaMemcpyAsync(d_boundary_nu_eff, h_boundary_nu_eff, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+	checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_rho, dataBase_.h_boundary_rho, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+
+	checkCudaErrors(cudaMemsetAsync(d_ldu, 0, dataBase_.csr_value_bytes, dataBase_.stream)); // d_ldu contains d_lower, d_diag, and d_upper
+	checkCudaErrors(cudaMemsetAsync(d_source, 0, dataBase_.cell_value_vec_bytes, dataBase_.stream));
+	checkCudaErrors(cudaMemsetAsync(d_internal_coeffs, 0, dataBase_.boundary_surface_value_vec_bytes, dataBase_.stream));
+	checkCudaErrors(cudaMemsetAsync(d_boundary_coeffs, 0, dataBase_.boundary_surface_value_vec_bytes, dataBase_.stream));
+	checkCudaErrors(cudaMemsetAsync(d_A, 0, dataBase_.csr_value_vec_bytes, dataBase_.stream));
+	checkCudaErrors(cudaMemsetAsync(d_b, 0, dataBase_.cell_value_vec_bytes, dataBase_.stream));
+	checkCudaErrors(cudaMemsetAsync(d_A_pEqn, 0, dataBase_.cell_value_bytes, dataBase_.stream));
+	checkCudaErrors(cudaMemsetAsync(d_H_pEqn, 0, dataBase_.cell_value_vec_bytes, dataBase_.stream));
+
+	checkCudaErrors(cudaMemsetAsync(d_grad_u, 0, dataBase_.cell_value_tsr_bytes, dataBase_.stream));
+	checkCudaErrors(cudaMemsetAsync(d_boundary_grad_u, 0, dataBase_.boundary_surface_value_tsr_bytes, dataBase_.stream));
 
         permute_vector_h2d(dataBase_.stream, dataBase_.num_cells, dataBase_.d_u, d_permute);
         update_boundary_coeffs_vector(dataBase_.stream, dataBase_.num_boundary_surfaces, dataBase_.num_patches,

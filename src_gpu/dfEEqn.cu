@@ -70,6 +70,21 @@ void dfEEqn::createNonConstantLduAndCsrFields() {
 
 void dfEEqn::preProcess(const double *h_he, const double *h_k, const double *h_k_old, const double *h_dpdt, const double *h_boundary_k, const double *h_boundary_heGradient)
 {
+}
+
+void dfEEqn::process() {
+    //使用event计算时间
+    float time_elapsed=0;
+    cudaEvent_t start,stop;
+    checkCudaErrors(cudaEventCreate(&start));
+    checkCudaErrors(cudaEventCreate(&stop));
+    checkCudaErrors(cudaEventRecord(start,0));
+
+#ifndef TIME_GPU
+    if(!graph_created) {
+        DEBUG_TRACE;
+        checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
+#endif
     // thermophysical fields
     checkCudaErrors(cudaMallocAsync((void**)&d_dpdt, dataBase_.cell_value_bytes, dataBase_.stream));
     // fiv weight fields
@@ -88,11 +103,11 @@ void dfEEqn::preProcess(const double *h_he, const double *h_k, const double *h_k
     checkCudaErrors(cudaMallocAsync((void**)&d_A, dataBase_.csr_value_bytes, dataBase_.stream));
     checkCudaErrors(cudaMallocAsync((void**)&d_b, dataBase_.cell_value_bytes, dataBase_.stream));
 
-    checkCudaErrors(cudaMemcpyAsync(dataBase_.d_he, h_he, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
-    checkCudaErrors(cudaMemcpyAsync(dataBase_.d_k, h_k, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
-    checkCudaErrors(cudaMemcpyAsync(dataBase_.d_k_old, h_k_old, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+    checkCudaErrors(cudaMemcpyAsync(dataBase_.d_he, dataBase_.h_he, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+    checkCudaErrors(cudaMemcpyAsync(dataBase_.d_k, dataBase_.h_k, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+    checkCudaErrors(cudaMemcpyAsync(dataBase_.d_k_old, dataBase_.h_k_old, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
     checkCudaErrors(cudaMemcpyAsync(d_dpdt, h_dpdt, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
-    checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_k, h_boundary_k, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+    checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_k, dataBase_.h_boundary_k, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_heGradient, h_boundary_heGradient, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
 
     checkCudaErrors(cudaMemsetAsync(d_ldu, 0, dataBase_.csr_value_bytes, dataBase_.stream)); // d_ldu contains d_lower, d_diag, and d_upper
@@ -101,21 +116,7 @@ void dfEEqn::preProcess(const double *h_he, const double *h_k, const double *h_k
     checkCudaErrors(cudaMemsetAsync(d_boundary_coeffs, 0, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
     checkCudaErrors(cudaMemsetAsync(d_A, 0, dataBase_.csr_value_bytes, dataBase_.stream));
     checkCudaErrors(cudaMemsetAsync(d_b, 0, dataBase_.cell_value_bytes, dataBase_.stream));
-}
 
-void dfEEqn::process() {
-    //使用event计算时间
-    float time_elapsed=0;
-    cudaEvent_t start,stop;
-    checkCudaErrors(cudaEventCreate(&start));
-    checkCudaErrors(cudaEventCreate(&stop));
-    checkCudaErrors(cudaEventRecord(start,0));
-
-#ifndef TIME_GPU
-    if(!graph_created) {
-        DEBUG_TRACE;
-        checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
-#endif
     update_boundary_coeffs_scalar(dataBase_.stream,
             dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_he.data(),
             dataBase_.d_boundary_delta_coeffs, dataBase_.d_boundary_y + dataBase_.num_boundary_surfaces,
