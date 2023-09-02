@@ -2,12 +2,13 @@
 
 void dfRhoEqn::createNonConstantLduAndCsrFields()
 {
-    checkCudaErrors(cudaMalloc((void**)&d_source, dataBase_.cell_value_bytes));
-    checkCudaErrors(cudaMalloc((void**)&d_diag, dataBase_.cell_value_bytes));
 }
 
 void dfRhoEqn::preProcess(const double *h_phi, const double *h_boundary_phi)
 {
+    checkCudaErrors(cudaMallocAsync((void**)&d_source, dataBase_.cell_value_bytes, dataBase_.stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_diag, dataBase_.cell_value_bytes, dataBase_.stream));
+
     checkCudaErrors(cudaMemcpyAsync(dataBase_.d_phi, h_phi, dataBase_.surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
     checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_phi, h_boundary_phi, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
 
@@ -61,6 +62,9 @@ void dfRhoEqn::solve()
 
 void dfRhoEqn::postProcess(double *h_rho)
 {
+    checkCudaErrors(cudaFreeAsync(d_source, dataBase_.stream));
+    checkCudaErrors(cudaFreeAsync(d_diag, dataBase_.stream));
+
     checkCudaErrors(cudaMemcpyAsync(h_rho, dataBase_.d_rho, dataBase_.cell_value_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
     sync();
     // TODO: correct boundary conditions
