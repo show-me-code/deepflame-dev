@@ -119,6 +119,7 @@ struct dfMatrixDataBase
     double *d_sf = nullptr;
     double *d_mag_sf = nullptr;
     double *d_weight = nullptr;
+    double *d_phi_weight = nullptr; // weight for mvConvection->fvmDiv
     double *d_delta_coeffs = nullptr;
     double *d_volume = nullptr;
     

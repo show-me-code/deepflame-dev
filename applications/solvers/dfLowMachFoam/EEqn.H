@@ -186,8 +186,8 @@
             )
         )
     );
-    EEqn.relax();
-    EEqn.solve("ha");
+    // EEqn.relax();
+    // EEqn.solve("ha");
     // checkResult
     // TODO: for temp, now we compare ldu, finally we compare csr
     std::vector<double> h_internal_coeffs(dfDataBase.num_boundary_surfaces);

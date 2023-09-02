@@ -1,22 +1,5 @@
 #include "dfEEqn.H"
 
-__global__ void eeqn_update_boundary_coeffs_scalar(int num_boundary_surfaces, 
-        const double *gradient, const double *boundary_deltaCoeffs, 
-        double *value_internal_coeffs, double *value_boundary_coeffs,
-        double *gradient_internal_coeffs, double *gradient_boundary_coeffs)
-{
-    int index = blockDim.x * blockIdx.x + threadIdx.x;
-    if (index >= num_boundary_surfaces)
-        return;
-
-    double grad = gradient[index];
-
-    value_internal_coeffs[index] = 1.;
-    value_boundary_coeffs[index] = grad / boundary_deltaCoeffs[index];
-    gradient_internal_coeffs[index] = 0.;
-    gradient_boundary_coeffs[index] = grad;
-}
-
 double* dfEEqn::getFieldPointer(const char* fieldAlias, location loc, position pos) {
     char mergedName[256];
     if (pos == position::internal) {
@@ -51,8 +34,6 @@ void dfEEqn::setConstantFields(const std::vector<int> patch_type_he, const std::
 void dfEEqn::createNonConstantFieldsInternal() {
     // thermophysical fields
     checkCudaErrors(cudaMalloc((void**)&d_dpdt, dataBase_.cell_value_bytes));
-    // fiv weight fields
-    checkCudaErrors(cudaMalloc((void**)&d_phi_special_weight, dataBase_.cell_value_bytes));
     // boundary coeffs
     checkCudaErrors(cudaMalloc((void**)&d_value_internal_coeffs, dataBase_.boundary_surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_value_boundary_coeffs, dataBase_.boundary_surface_value_bytes));
@@ -102,14 +83,6 @@ void dfEEqn::preProcess(const double *h_he, const double *h_k, const double *h_k
     checkCudaErrors(cudaMemsetAsync(d_boundary_coeffs, 0, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
     checkCudaErrors(cudaMemsetAsync(d_A, 0, dataBase_.csr_value_bytes, dataBase_.stream));
     checkCudaErrors(cudaMemsetAsync(d_b, 0, dataBase_.cell_value_bytes, dataBase_.stream));
-
-    // update boundary coeffs
-    size_t threads_per_block = 1024;
-    size_t blocks_per_grid = (dataBase_.num_boundary_surfaces + threads_per_block - 1) / threads_per_block;
-    // TODO: combine in func update_boundary_coeffs_scalar
-    eeqn_update_boundary_coeffs_scalar<<<blocks_per_grid, threads_per_block, 0, dataBase_.stream>>>(dataBase_.num_boundary_surfaces, 
-            d_boundary_heGradient, dataBase_.d_boundary_delta_coeffs, d_value_internal_coeffs, d_value_boundary_coeffs, 
-            d_gradient_internal_coeffs, d_gradient_boundary_coeffs);
 }
 
 void dfEEqn::process() {
@@ -125,11 +98,15 @@ void dfEEqn::process() {
         DEBUG_TRACE;
         checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
 #endif
-    compute_upwind_weight(dataBase_.stream, dataBase_.num_surfaces, dataBase_.d_phi, d_phi_special_weight);
+    update_boundary_coeffs_scalar(dataBase_.stream,
+            dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_he.data(),
+            dataBase_.d_boundary_delta_coeffs, dataBase_.d_boundary_y + dataBase_.num_boundary_surfaces,
+            d_value_internal_coeffs, d_value_boundary_coeffs,
+            d_gradient_internal_coeffs, d_gradient_boundary_coeffs, d_boundary_heGradient);
     fvm_ddt_vol_scalar_vol_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.rdelta_t, dataBase_.d_rho, dataBase_.d_rho_old, 
             dataBase_.d_he, dataBase_.d_volume, d_diag, d_source);
     fvm_div_scalar(dataBase_.stream, dataBase_.num_surfaces, dataBase_.d_owner, dataBase_.d_neighbor,
-            dataBase_.d_phi, d_phi_special_weight,
+            dataBase_.d_phi, dataBase_.d_phi_weight,
             d_lower, d_upper, d_diag, // end for internal
             dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_he.data(),
             dataBase_.d_boundary_phi,

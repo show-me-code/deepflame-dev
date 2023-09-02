@@ -40,8 +40,6 @@ private:
     double *d_grad_y = nullptr;
     double *d_sumY_diff_error = nullptr;
     double *d_phiUc = nullptr;
-    double *d_phi_special_weight = nullptr;
-    double *d_phiUc_special_weight = nullptr;
     double *d_DEff = nullptr;
     double *d_permute = nullptr;
     // computed on CPU, used on GPU, need memcpyh2d

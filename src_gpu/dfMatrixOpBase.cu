@@ -134,6 +134,41 @@ __global__ void update_boundary_coeffs_zeroGradient_scalar(int num, int offset,
     gradient_boundary_coeffs[start_index] = 0;
 }
 
+__global__ void update_boundary_coeffs_fixedValue_scalar(int num, int offset,
+        const double *boundary_vf, const double *boundary_deltaCoeffs, 
+        double *value_internal_coeffs, double *value_boundary_coeffs,
+        double *gradient_internal_coeffs, double *gradient_boundary_coeffs)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
+        return;
+
+    int start_index = offset + index;
+    value_internal_coeffs[start_index] = 0.;
+    value_boundary_coeffs[start_index] = boundary_vf[start_index];
+    gradient_internal_coeffs[start_index] = -1 * boundary_deltaCoeffs[start_index];
+    gradient_boundary_coeffs[start_index] = boundary_vf[start_index] * boundary_deltaCoeffs[start_index];
+}
+
+__global__ void update_boundary_coeffs_gradientEnergy_scalar(int num, int offset,
+        const double *gradient, const double *boundary_deltaCoeffs, 
+        double *value_internal_coeffs, double *value_boundary_coeffs,
+        double *gradient_internal_coeffs, double *gradient_boundary_coeffs)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
+        return;
+
+    int start_index = offset + index;
+
+    double grad = gradient[start_index];
+
+    value_internal_coeffs[start_index] = 1.;
+    value_boundary_coeffs[start_index] = grad / boundary_deltaCoeffs[start_index];
+    gradient_internal_coeffs[start_index] = 0.;
+    gradient_boundary_coeffs[start_index] = grad;
+}
+
 __global__ void update_boundary_coeffs_zeroGradient_vector(int num_boundary_surfaces, int num, int offset,
         double *value_internal_coeffs, double *value_boundary_coeffs,
         double *gradient_internal_coeffs, double *gradient_boundary_coeffs)
@@ -159,6 +194,32 @@ __global__ void update_boundary_coeffs_zeroGradient_vector(int num_boundary_surf
     gradient_boundary_coeffs[num_boundary_surfaces * 0 + start_index] = 0;
     gradient_boundary_coeffs[num_boundary_surfaces * 1 + start_index] = 0;
     gradient_boundary_coeffs[num_boundary_surfaces * 2 + start_index] = 0;
+}
+
+__global__ void update_boundary_coeffs_fixedValue_vector(int num_boundary_surfaces, int num, int offset,
+        const double *boundary_vf, const double *boundary_deltaCoeffs, 
+        double *value_internal_coeffs, double *value_boundary_coeffs,
+        double *gradient_internal_coeffs, double *gradient_boundary_coeffs)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
+        return;
+
+    int start_index = offset + index;
+    double bouDeltaCoeffs = boundary_deltaCoeffs[start_index];
+
+    value_internal_coeffs[num_boundary_surfaces * 0 + start_index] = 0.; // valueInternalCoeffs = 0.
+    value_internal_coeffs[num_boundary_surfaces * 1 + start_index] = 0.;
+    value_internal_coeffs[num_boundary_surfaces * 2 + start_index] = 0.;
+    value_boundary_coeffs[num_boundary_surfaces * 0 + start_index] = boundary_vf[start_index * 3 + 0]; // valueBoundaryCoeffs = boundaryValue
+    value_boundary_coeffs[num_boundary_surfaces * 1 + start_index] = boundary_vf[start_index * 3 + 1];
+    value_boundary_coeffs[num_boundary_surfaces * 2 + start_index] = boundary_vf[start_index * 3 + 2];
+    gradient_internal_coeffs[num_boundary_surfaces * 0 + start_index] = -1 * bouDeltaCoeffs; // gradientInternalCoeffs = -1 * boundaryDeltaCoeffs
+    gradient_internal_coeffs[num_boundary_surfaces * 1 + start_index] = -1 * bouDeltaCoeffs;
+    gradient_internal_coeffs[num_boundary_surfaces * 2 + start_index] = -1 * bouDeltaCoeffs;
+    gradient_boundary_coeffs[num_boundary_surfaces * 0 + start_index] = bouDeltaCoeffs * boundary_vf[start_index * 3 + 0]; // gradientBoundaryCoeffs = boundaryDeltaCoeffs * boundaryValue
+    gradient_boundary_coeffs[num_boundary_surfaces * 1 + start_index] = bouDeltaCoeffs * boundary_vf[start_index * 3 + 1];
+    gradient_boundary_coeffs[num_boundary_surfaces * 2 + start_index] = bouDeltaCoeffs * boundary_vf[start_index * 3 + 2];
 }
 
 __global__ void scale_dev2t_tensor_kernel(int num, const double *vf1, double *vf2)
@@ -276,7 +337,7 @@ __global__ void fvm_div_scalar_boundary(int num, int offset,
     int start_index = offset + index;
     double boundary_f = boundary_phi[start_index];
     internal_coeffs[start_index] += boundary_f * value_internal_coeffs[start_index] * sign;
-    boundary_coeffs[start_index] += boundary_f * value_boundary_coeffs[start_index] * sign;
+    boundary_coeffs[start_index] -= boundary_f * value_boundary_coeffs[start_index] * sign;
 }
 
 __global__ void fvm_div_vector_internal(int num_surfaces,
@@ -295,7 +356,6 @@ __global__ void fvm_div_vector_internal(int num_surfaces,
     double upper_value = (1 - w) * f * sign;
     lower[index] += lower_value;
     upper[index] += upper_value;
-    // if (index == 0) printf("index = 0, lower: %.16lf, upper:%.16lf\n", lower[index], upper[index]);
 
     int owner = lower_index[index];
     int neighbor = upper_index[index];
@@ -317,9 +377,9 @@ __global__ void fvm_div_vector_boundary(int num_boundary_surfaces, int num, int 
     internal_coeffs[num_boundary_surfaces * 0 + start_index] += boundary_f * value_internal_coeffs[num_boundary_surfaces * 0 + start_index] * sign;
     internal_coeffs[num_boundary_surfaces * 1 + start_index] += boundary_f * value_internal_coeffs[num_boundary_surfaces * 1 + start_index] * sign;
     internal_coeffs[num_boundary_surfaces * 2 + start_index] += boundary_f * value_internal_coeffs[num_boundary_surfaces * 2 + start_index] * sign;
-    boundary_coeffs[num_boundary_surfaces * 0 + start_index] += boundary_f * value_boundary_coeffs[num_boundary_surfaces * 0 + start_index] * sign;
-    boundary_coeffs[num_boundary_surfaces * 1 + start_index] += boundary_f * value_boundary_coeffs[num_boundary_surfaces * 1 + start_index] * sign;
-    boundary_coeffs[num_boundary_surfaces * 2 + start_index] += boundary_f * value_boundary_coeffs[num_boundary_surfaces * 2 + start_index] * sign;
+    boundary_coeffs[num_boundary_surfaces * 0 + start_index] -= boundary_f * value_boundary_coeffs[num_boundary_surfaces * 0 + start_index] * sign;
+    boundary_coeffs[num_boundary_surfaces * 1 + start_index] -= boundary_f * value_boundary_coeffs[num_boundary_surfaces * 1 + start_index] * sign;
+    boundary_coeffs[num_boundary_surfaces * 2 + start_index] -= boundary_f * value_boundary_coeffs[num_boundary_surfaces * 2 + start_index] * sign;
 }
 
 __global__ void fvm_laplacian_internal(int num_surfaces,
@@ -363,7 +423,16 @@ __global__ void fvm_laplacian_scalar_boundary(int num, int offset,
     int start_index = offset + index;
     double boundary_value = boundary_gamma[start_index] * boundary_mag_sf[start_index];
     internal_coeffs[start_index] += boundary_value * gradient_internal_coeffs[start_index] * sign;
-    boundary_coeffs[start_index] += boundary_value * gradient_boundary_coeffs[start_index] * sign;
+    if (index == 0)
+    {
+        printf("boundary_coeffs[0] laplac = %.10e\n", boundary_coeffs[0]);
+    }
+    boundary_coeffs[start_index] -= boundary_value * gradient_boundary_coeffs[start_index] * sign;
+    if (index == 0)
+    {
+        printf("boundary_coeffs[0] laplac = %.10e, boundary_f = %.10e, gradient_boundary_coeffs[0] = %.10e\n", boundary_coeffs[0], 
+                boundary_value, gradient_boundary_coeffs[0]);
+    }
 }
 
 __global__ void fvm_laplacian_vector_boundary(int num_boundary_surfaces, int num, int offset,
@@ -380,9 +449,9 @@ __global__ void fvm_laplacian_vector_boundary(int num_boundary_surfaces, int num
     internal_coeffs[num_boundary_surfaces * 0 + start_index] += boundary_value * gradient_internal_coeffs[num_boundary_surfaces * 0 + start_index] * sign;
     internal_coeffs[num_boundary_surfaces * 1 + start_index] += boundary_value * gradient_internal_coeffs[num_boundary_surfaces * 1 + start_index] * sign;
     internal_coeffs[num_boundary_surfaces * 2 + start_index] += boundary_value * gradient_internal_coeffs[num_boundary_surfaces * 2 + start_index] * sign;
-    boundary_coeffs[num_boundary_surfaces * 0 + start_index] += boundary_value * gradient_boundary_coeffs[num_boundary_surfaces * 0 + start_index] * sign;
-    boundary_coeffs[num_boundary_surfaces * 1 + start_index] += boundary_value * gradient_boundary_coeffs[num_boundary_surfaces * 1 + start_index] * sign;
-    boundary_coeffs[num_boundary_surfaces * 2 + start_index] += boundary_value * gradient_boundary_coeffs[num_boundary_surfaces * 2 + start_index] * sign;
+    boundary_coeffs[num_boundary_surfaces * 0 + start_index] -= boundary_value * gradient_boundary_coeffs[num_boundary_surfaces * 0 + start_index] * sign;
+    boundary_coeffs[num_boundary_surfaces * 1 + start_index] -= boundary_value * gradient_boundary_coeffs[num_boundary_surfaces * 1 + start_index] * sign;
+    boundary_coeffs[num_boundary_surfaces * 2 + start_index] -= boundary_value * gradient_boundary_coeffs[num_boundary_surfaces * 2 + start_index] * sign;
 }
 
 __global__ void fvc_ddt_vol_scalar_vol_scalar_kernel(int num_cells, double rDeltaT,
@@ -647,7 +716,7 @@ __global__ void divide_cell_volume_scalar(int num_cells, const double* volume, d
 
 __global__ void fvc_grad_vector_correctBC_zeroGradient(int num_cells, int num_boundary_surfaces, 
         int num, int offset, const int *face2Cells, 
-        const double *internal_grad, const double *vf, const double *boundary_sf,
+        const double *internal_grad, const double *boundary_vf, const double *boundary_sf,
         const double *boundary_mag_sf, double *boundary_grad)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
@@ -716,9 +785,9 @@ __global__ void fvc_grad_vector_correctBC_fixedValue(int num_cells, int num_boun
     double n_z = boundary_sf[num_boundary_surfaces * 2 + start_index] / boundary_mag_sf[start_index];
     
     // sn_grad: solving according to fixedValue BC
-    double sn_grad_x = boundary_deltaCoeffs[start_index] * (boundary_vf[num_boundary_surfaces * 0 + start_index] - vf[num_cells * 0 + cellIndex]);
-    double sn_grad_y = boundary_deltaCoeffs[start_index] * (boundary_vf[num_boundary_surfaces * 1 + start_index] - vf[num_cells * 1 + cellIndex]);
-    double sn_grad_z = boundary_deltaCoeffs[start_index] * (boundary_vf[num_boundary_surfaces * 2 + start_index] - vf[num_cells * 2 + cellIndex]);
+    double sn_grad_x = boundary_deltaCoeffs[start_index] * (boundary_vf[start_index * 3 + 0] - vf[num_cells * 0 + cellIndex]);
+    double sn_grad_y = boundary_deltaCoeffs[start_index] * (boundary_vf[start_index * 3 + 1] - vf[num_cells * 1 + cellIndex]);
+    double sn_grad_z = boundary_deltaCoeffs[start_index] * (boundary_vf[start_index * 3 + 2] - vf[num_cells * 2 + cellIndex]);
 
     double grad_correction_x = sn_grad_x - (n_x * grad_xx + n_y * grad_yx + n_z * grad_zx); // sn_grad_x = 0
     double grad_correction_y = sn_grad_y - (n_x * grad_xy + n_y * grad_yy + n_z * grad_zy);
@@ -779,9 +848,9 @@ __global__ void fvc_grad_cell_scalar_correctBC_fixedValue(int num_cells, int num
     double grad_y = internal_grad[num_cells * 1 + cellIndex];
     double grad_z = internal_grad[num_cells * 2 + cellIndex];
 
-    double n_x = boundary_sf[num_boundary_surfaces * 0 + start_index] / boundary_mag_sf[cellIndex];
-    double n_y = boundary_sf[num_boundary_surfaces * 1 + start_index] / boundary_mag_sf[cellIndex];
-    double n_z = boundary_sf[num_boundary_surfaces * 2 + start_index] / boundary_mag_sf[cellIndex];
+    double n_x = boundary_sf[num_boundary_surfaces * 0 + start_index] / boundary_mag_sf[start_index];
+    double n_y = boundary_sf[num_boundary_surfaces * 1 + start_index] / boundary_mag_sf[start_index];
+    double n_z = boundary_sf[num_boundary_surfaces * 2 + start_index] / boundary_mag_sf[start_index];
 
     // sn_grad: solving according to fixedValue BC
     double sn_grad = boundary_deltaCoeffs[start_index] * (boundary_vf[start_index] - vf[cellIndex]);
@@ -1336,7 +1405,7 @@ void update_boundary_coeffs_scalar(cudaStream_t stream,
         int num_patches, const int *patch_size, const int *patch_type,
         const double *boundary_delta_coeffs, const double *boundary_vf,
         double *value_internal_coeffs, double *value_boundary_coeffs,
-        double *gradient_internal_coeffs, double *gradient_boundary_coeffs)
+        double *gradient_internal_coeffs, double *gradient_boundary_coeffs, const double *energy_gradient)
 {
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = 1;
@@ -1350,7 +1419,13 @@ void update_boundary_coeffs_scalar(cudaStream_t stream,
         if (patch_type[i] == boundaryConditions::zeroGradient) {
             update_boundary_coeffs_zeroGradient_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
                     value_internal_coeffs, value_boundary_coeffs, gradient_internal_coeffs, gradient_boundary_coeffs);
-        } else if (0) {
+        } else if (patch_type[i] == boundaryConditions::fixedValue) {
+            update_boundary_coeffs_fixedValue_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
+                    boundary_vf, boundary_delta_coeffs, value_internal_coeffs, value_boundary_coeffs, gradient_internal_coeffs, gradient_boundary_coeffs);
+        } else if (patch_type[i] == boundaryConditions::gradientEnergy) {
+            update_boundary_coeffs_gradientEnergy_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
+                    energy_gradient, boundary_delta_coeffs, value_internal_coeffs, value_boundary_coeffs, gradient_internal_coeffs, gradient_boundary_coeffs);
+        }else {
             // xxx
             fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
         }
@@ -1359,7 +1434,7 @@ void update_boundary_coeffs_scalar(cudaStream_t stream,
 }
 
 void update_boundary_coeffs_vector(cudaStream_t stream, int num_boundary_surfaces, int num_patches,
-        const int *patch_size, const int *patch_type,
+        const int *patch_size, const int *patch_type, const double *boundary_vf, const double *boundary_deltaCoeffs, 
         double *value_internal_coeffs, double *value_boundary_coeffs,
         double *gradient_internal_coeffs, double *gradient_boundary_coeffs)
 {
@@ -1375,7 +1450,10 @@ void update_boundary_coeffs_vector(cudaStream_t stream, int num_boundary_surface
         if (patch_type[i] == boundaryConditions::zeroGradient) {
             update_boundary_coeffs_zeroGradient_vector<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset,
                     value_internal_coeffs, value_boundary_coeffs, gradient_internal_coeffs, gradient_boundary_coeffs);
-        } else if (0) {
+        } else if (patch_type[i] == boundaryConditions::fixedValue) {
+            update_boundary_coeffs_fixedValue_vector<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset,
+                    boundary_vf, boundary_deltaCoeffs, value_internal_coeffs, value_boundary_coeffs, gradient_internal_coeffs, gradient_boundary_coeffs);
+        } else {
             // xxx
             fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
         }
@@ -1470,7 +1548,7 @@ void fvm_div_scalar(cudaStream_t stream, int num_surfaces, const int *lowerAddr,
                     boundary_phi, value_internal_coeffs, value_boundary_coeffs,
                     internal_coeffs, boundary_coeffs, sign);
             TICK_END_EVENT(fvm_div_scalar_boundary);
-        } else if (0) {
+        } else {
             // xxx
             fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
         }
@@ -1511,7 +1589,7 @@ void fvm_div_vector(cudaStream_t stream, int num_surfaces, int num_boundary_surf
                     boundary_phi, value_internal_coeffs, value_boundary_coeffs,
                     internal_coeffs, boundary_coeffs, sign);
             TICK_END_EVENT(fvm_div_vector_boundary);
-        } else if (0) {
+        } else {
             // xxx
             fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
         }
@@ -1541,14 +1619,15 @@ void fvm_laplacian_scalar(cudaStream_t stream, int num_surfaces, int num_boundar
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
         if (patch_type[i] == boundaryConditions::zeroGradient
-                || patch_type[i] == boundaryConditions::fixedValue) {
+                || patch_type[i] == boundaryConditions::fixedValue
+                || patch_type[i] == boundaryConditions::gradientEnergy) {
             // TODO: just vector version now
             TICK_START_EVENT;
             fvm_laplacian_scalar_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
                     boundary_mag_sf, boundary_gamma, gradient_internal_coeffs, gradient_boundary_coeffs,
                     internal_coeffs, boundary_coeffs, sign);
             TICK_END_EVENT(fvm_laplacian_scalar_boundary);
-        } else if (0) {
+        } else {
             // xxx
             fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
         }
@@ -1585,7 +1664,7 @@ void fvm_laplacian_vector(cudaStream_t stream, int num_surfaces, int num_boundar
                     boundary_mag_sf, boundary_gamma, gradient_internal_coeffs, gradient_boundary_coeffs,
                     internal_coeffs, boundary_coeffs, sign);
             TICK_END_EVENT(fvm_laplacian_vector_boundary);
-        } else if (0) {
+        } else {
             // xxx
             fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
         }
@@ -1636,7 +1715,7 @@ void fvc_grad_vector(cudaStream_t stream, int num_cells, int num_surfaces, int n
                     patch_size[i], offset, boundary_cell_face,
                     boundary_Sf, boundary_vf, output);
             TICK_END_EVENT(fvc_grad_vector_boundary);
-        } else if (0) {
+        } else {
             // xxx
             fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
         }
@@ -1668,8 +1747,8 @@ void fvc_grad_vector(cudaStream_t stream, int num_cells, int num_surfaces, int n
             fvc_grad_vector_correctBC_fixedValue<<<blocks_per_grid, threads_per_block, 0, stream>>>(
                     num_cells, num_boundary_surfaces,
                     patch_size[i], offset, boundary_cell_face,
-                    output, boundary_vf, boundary_Sf, boundary_mag_Sf, boundary_output, boundary_deltaCoeffs, boundary_vf);
-        } else if (0) {
+                    output, vf, boundary_Sf, boundary_mag_Sf, boundary_output, boundary_deltaCoeffs, boundary_vf);
+        } else {
             // xxx
             fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
         }
@@ -1738,7 +1817,7 @@ void fvc_div_cell_vector(cudaStream_t stream, int num_cells, int num_surfaces, i
             fvc_div_cell_vector_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset, boundary_cell_face,
                     boundary_Sf, boundary_vf, output, sign);
             TICK_END_EVENT(fvc_div_cell_vector_boundary);
-        } else if (0) {
+        } else {
             // xxx
             fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
         }
@@ -1774,7 +1853,7 @@ void fvc_div_cell_tensor(cudaStream_t stream, int num_cells, int num_surfaces, i
                     patch_size[i], offset, boundary_cell_face,
                     boundary_Sf, boundary_vf, output, sign);
             TICK_END_EVENT(fvc_div_cell_tensor_boundary);
-        } else if (0) {
+        } else {
             // xxx
             fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
         }
@@ -1809,7 +1888,7 @@ void fvc_div_surface_scalar_vol_scalar(cudaStream_t stream, int num_surfaces,
             fvc_div_surface_scalar_vol_scalar_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset, boundary_cell_face,
                     boundary_vf, boundary_ssf, output, sign);
             TICK_END_EVENT(fvc_div_surface_scalar_vol_scalar_boundary);
-        } else if (0) {
+        } else {
             // xxx
             fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
         }
@@ -1842,7 +1921,7 @@ void fvc_grad_cell_scalar(cudaStream_t stream, int num_cells, int num_surfaces, 
             fvc_grad_scalar_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, num_cells, patch_size[i], offset, boundary_cell_face,
                     boundary_Sf, boundary_vf, output, sign);
             TICK_END_EVENT(fvc_grad_scalar_boundary);
-        } else if (0) {
+        } else {
             // xxx
             fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
         }
@@ -1882,7 +1961,7 @@ void fvc_grad_cell_scalar_withBC(cudaStream_t stream, int num_cells, int num_sur
                     num_cells, num_boundary_surfaces,
                     patch_size[i], offset, boundary_cell_face,
                     output, vf, boundary_Sf, boundary_mag_Sf, boundary_output, boundary_deltaCoeffs, boundary_vf);
-        } else if (0) {
+        } else {
             // xxx
             fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
         }
@@ -1919,7 +1998,7 @@ void fvc_laplacian_scalar(cudaStream_t stream, int num_cells, int num_surfaces, 
             fvc_laplacian_scalar_boundary_fixedValue<<<blocks_per_grid, threads_per_block, 0, stream>>>(
                     patch_size[i], offset, boundary_cell_face,
                     boundary_mag_sf, boundary_delta_coeffs, boundary_gamma, vf, boundary_vf, output, sign);
-        } else if (0) {
+        } else {
             // xxx
             fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
         }
@@ -1981,7 +2060,7 @@ void fvMtx_H(cudaStream_t stream, int num_cells, int num_surfaces, int num_bound
             addBoundarySrc_unCoupled<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, patch_size[i], offset, 
                     num_boundary_surfaces, boundary_cell_face, boundary_coeffs, H_pEqn);
             TICK_END_EVENT(addBoundarySrc_unCoupled);
-        } else if (0) {
+        } else {
             // xxx
             fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
         }

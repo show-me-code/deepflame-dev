@@ -30,14 +30,24 @@ void constructBoundarySelectorPerPatch(int *patchTypeSelector, const std::string
             *patchTypeSelector = 1;
             break;
         }
-        case empty:
+        case coupled:
         {
             *patchTypeSelector = 2;
             break;
         }
-        case coupled:
+        case empty:
         {
             *patchTypeSelector = 3;
+            break;
+        }
+        case gradientEnergy:
+        {
+            *patchTypeSelector = 4;
+            break;
+        }
+        case calculated:
+        {
+            *patchTypeSelector = 5;
             break;
         }
     }
@@ -217,11 +227,13 @@ void dfMatrixDataBase::createConstantFieldsInternal() {
     checkCudaErrors(cudaMalloc((void**)&d_sf, surface_value_vec_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_mag_sf, surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_weight, surface_value_bytes));
+    checkCudaErrors(cudaMalloc((void**)&d_phi_weight, surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_delta_coeffs, surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_volume, cell_value_bytes));
     fieldPointerMap["d_sf"] = d_sf;
     fieldPointerMap["d_mag_sf"] = d_mag_sf;
     fieldPointerMap["d_weight"] = d_weight;
+    fieldPointerMap["d_phi_weight"] = d_phi_weight;
     fieldPointerMap["d_delta_coeffs"] = d_delta_coeffs;
     fieldPointerMap["d_volume"] = d_volume;
 

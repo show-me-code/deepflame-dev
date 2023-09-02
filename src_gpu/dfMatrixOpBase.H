@@ -29,14 +29,14 @@ void ldu_to_csr(cudaStream_t stream, int num_cells, int num_surfaces, int num_bo
         const int* boundary_cell_face, const int *ldu_to_csr_index, const int *diag_to_csr_index,
         const double *ldu, const double *internal_coeffs, const double *boundary_coeffs, double *source, double *A);
 
-void update_boundary_coeffs_scalar(cudaStream_t stream, int num_patches,
-        const int *patch_size, const int *patch_type,
+void update_boundary_coeffs_scalar(cudaStream_t stream,
+        int num_patches, const int *patch_size, const int *patch_type,
         const double *boundary_delta_coeffs, const double *boundary_vf,
         double *value_internal_coeffs, double *value_boundary_coeffs,
-        double *gradient_internal_coeffs, double *gradient_boundary_coeffs);
+        double *gradient_internal_coeffs, double *gradient_boundary_coeffs, const double *energy_gradient = nullptr);
 
 void update_boundary_coeffs_vector(cudaStream_t stream, int num_boundary_surfaces, int num_patches,
-        const int *patch_size, const int *patch_type,
+        const int *patch_size, const int *patch_type, const double *boundary_vf, const double *boundary_deltaCoeffs, 
         double *value_internal_coeffs, double *value_boundary_coeffs,
         double *gradient_internal_coeffs, double *gradient_boundary_coeffs);
 
