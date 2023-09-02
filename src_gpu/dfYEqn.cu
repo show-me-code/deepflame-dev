@@ -269,8 +269,6 @@ void dfYEqn::createNonConstantFieldsInternal() {
     checkCudaErrors(cudaMalloc((void**)&d_grad_y, dataBase_.cell_value_vec_bytes * dataBase_.num_species));
     checkCudaErrors(cudaMalloc((void**)&d_sumY_diff_error, dataBase_.cell_value_vec_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_phiUc, dataBase_.surface_value_bytes));
-    checkCudaErrors(cudaMalloc((void**)&d_phi_special_weight, dataBase_.surface_value_bytes));
-    checkCudaErrors(cudaMalloc((void**)&d_phiUc_special_weight, dataBase_.surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_DEff, dataBase_.cell_value_bytes * dataBase_.num_species));
     checkCudaErrors(cudaMalloc((void**)&d_permute, dataBase_.cell_value_vec_bytes));
     // computed on CPU, used on GPU, need memcpyh2d
@@ -402,6 +400,14 @@ void dfYEqn::process() {
                     dataBase_.d_boundary_face_cell, dataBase_.d_boundary_y + dataBase_.num_boundary_surfaces * s, dataBase_.d_boundary_sf,
                     dataBase_.d_volume, dataBase_.d_boundary_mag_sf, d_boundary_grad_y + dataBase_.num_boundary_surfaces * s * 3,
                     dataBase_.d_boundary_delta_coeffs);
+            // update boundary coeffs
+            update_boundary_coeffs_scalar(dataBase_.stream,
+                dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
+                dataBase_.d_boundary_delta_coeffs, dataBase_.d_boundary_y + dataBase_.num_boundary_surfaces * s,
+                d_value_internal_coeffs + dataBase_.num_boundary_surfaces * s,
+                d_value_boundary_coeffs + dataBase_.num_boundary_surfaces * s,
+                d_gradient_internal_coeffs + dataBase_.num_boundary_surfaces * s,
+                d_gradient_boundary_coeffs + dataBase_.num_boundary_surfaces * s);
         }
         // compute sumYDiffError and hDiffCorrFlux
         yeqn_compute_sumYDiffError_and_hDiffCorrFlux(dataBase_.stream,
@@ -415,8 +421,7 @@ void dfYEqn::process() {
                 dataBase_.d_weight, dataBase_.d_sf, d_sumY_diff_error, d_phiUc,
                 dataBase_.d_boundary_sf, d_boundary_sumY_diff_error, d_boundary_phiUc);
         // compute upwind weight of phi and phiUc: only need internal upwind-weight
-        compute_upwind_weight(dataBase_.stream, dataBase_.num_surfaces, dataBase_.d_phi, d_phi_special_weight);
-        compute_upwind_weight(dataBase_.stream, dataBase_.num_surfaces, d_phiUc, d_phiUc_special_weight);
+        compute_upwind_weight(dataBase_.stream, dataBase_.num_surfaces, dataBase_.d_phi, dataBase_.d_phi_weight);
         // compute DEff
         // UnityLewis
         // tmp<volScalarField> DEff = chemistry->rhoD(i) + turbulence->mut()/Sct;
@@ -460,7 +465,7 @@ void dfYEqn::process() {
                     d_diag, d_source, 1.);
             // fvmDiv(phi, Yi)
             fvm_div_scalar(dataBase_.stream, dataBase_.num_surfaces, dataBase_.d_owner, dataBase_.d_neighbor,
-                    dataBase_.d_phi, d_phi_special_weight,
+                    dataBase_.d_phi, dataBase_.d_phi_weight,
                     d_lower, d_upper, d_diag, // end for internal
                     dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
                     dataBase_.d_boundary_phi,
@@ -469,7 +474,7 @@ void dfYEqn::process() {
                     d_internal_coeffs, d_boundary_coeffs, 1.);
             // fvmDiv(phiUc, Yi)
             fvm_div_scalar(dataBase_.stream, dataBase_.num_surfaces, dataBase_.d_owner, dataBase_.d_neighbor,
-                    d_phiUc, d_phiUc_special_weight,
+                    d_phiUc, dataBase_.d_phi_weight,
                     d_lower, d_upper, d_diag, // end for internal
                     dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
                     d_boundary_phiUc,
@@ -532,17 +537,6 @@ void dfYEqn::solve(int solverIndex) {
 void dfYEqn::postProcess(double *h_y) {
     // compute y_inertIndex
     yeqn_compute_y_inertIndex(dataBase_.stream, dataBase_.num_species, inertIndex, dataBase_.num_cells, dataBase_.d_y);
-
-    // update boundary coeffs
-    for (int s = 0; s < dataBase_.num_species; s++) {
-        update_boundary_coeffs_scalar(dataBase_.stream,
-                dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
-                dataBase_.d_boundary_delta_coeffs, dataBase_.d_boundary_y + dataBase_.num_boundary_surfaces * s,
-                d_value_internal_coeffs + dataBase_.num_boundary_surfaces * s,
-                d_value_boundary_coeffs + dataBase_.num_boundary_surfaces * s,
-                d_gradient_internal_coeffs + dataBase_.num_boundary_surfaces * s,
-                d_gradient_boundary_coeffs + dataBase_.num_boundary_surfaces * s);
-    }
 
     // copy y to host
     checkCudaErrors(cudaMemcpyAsync(h_y, dataBase_.d_y, dataBase_.cell_value_bytes * dataBase_.num_species, cudaMemcpyDeviceToHost, dataBase_.stream));
@@ -759,42 +753,42 @@ void dfYEqn::compareResult(const double *lower, const double *upper, const doubl
     std::vector<double> h_lower;
     h_lower.resize(dataBase_.num_surfaces);
     checkCudaErrors(cudaMemcpy(h_lower.data(), d_lower, dataBase_.surface_value_bytes, cudaMemcpyDeviceToHost));
-    fprintf(stderr, "check h_lower");
+    fprintf(stderr, "check h_lower\n");
     checkVectorEqual(dataBase_.num_surfaces, lower, h_lower.data(), 1e-14, printFlag);
     DEBUG_TRACE;
 
     std::vector<double> h_upper;
     h_upper.resize(dataBase_.num_surfaces);
     checkCudaErrors(cudaMemcpy(h_upper.data(), d_upper, dataBase_.surface_value_bytes, cudaMemcpyDeviceToHost));
-    fprintf(stderr, "check h_upper");
+    fprintf(stderr, "check h_upper\n");
     checkVectorEqual(dataBase_.num_surfaces, upper, h_upper.data(), 1e-14, printFlag);
     DEBUG_TRACE;
 
     std::vector<double> h_diag;
     h_diag.resize(dataBase_.num_cells);
     checkCudaErrors(cudaMemcpy(h_diag.data(), d_diag, dataBase_.cell_value_bytes, cudaMemcpyDeviceToHost));
-    fprintf(stderr, "check h_diag");
+    fprintf(stderr, "check h_diag\n");
     checkVectorEqual(dataBase_.num_cells, diag, h_diag.data(), 1e-14, printFlag);
     DEBUG_TRACE;
 
     std::vector<double> h_source;
     h_source.resize(dataBase_.num_cells);
     checkCudaErrors(cudaMemcpy(h_source.data(), d_source, dataBase_.cell_value_bytes, cudaMemcpyDeviceToHost));
-    fprintf(stderr, "check h_source");
+    fprintf(stderr, "check h_source\n");
     checkVectorEqual(dataBase_.num_cells, source, h_source.data(), 1e-14, printFlag);
     DEBUG_TRACE;
 
     std::vector<double> h_internal_coeffs;
     h_internal_coeffs.resize(dataBase_.num_boundary_surfaces);
     checkCudaErrors(cudaMemcpy(h_internal_coeffs.data(), d_internal_coeffs, dataBase_.boundary_surface_value_bytes, cudaMemcpyDeviceToHost));
-    fprintf(stderr, "check h_internal_coeffs");
+    fprintf(stderr, "check h_internal_coeffs\n");
     checkVectorEqual(dataBase_.num_boundary_surfaces, internal_coeffs, h_internal_coeffs.data(), 1e-14, printFlag);
     DEBUG_TRACE;
 
     std::vector<double> h_boundary_coeffs;
     h_boundary_coeffs.resize(dataBase_.num_boundary_surfaces);
     checkCudaErrors(cudaMemcpy(h_boundary_coeffs.data(), d_boundary_coeffs, dataBase_.boundary_surface_value_bytes, cudaMemcpyDeviceToHost));
-    fprintf(stderr, "check h_boundary_coeffs");
+    fprintf(stderr, "check h_boundary_coeffs\n");
     checkVectorEqual(dataBase_.num_boundary_surfaces, boundary_coeffs, h_boundary_coeffs.data(), 1e-14, printFlag);
     DEBUG_TRACE;
 }
