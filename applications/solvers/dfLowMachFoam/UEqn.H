@@ -1,3 +1,6 @@
+//#undef GPUSolverNew_
+//#define CPUSolver_
+
 // Solve the Momentum equation
 #ifdef GPUSolver_
     start1 = std::clock();
@@ -238,3 +241,5 @@
 // time_monitor_CPU += double(end1 - start1) / double(CLOCKS_PER_SEC);
 // // Info << "U_amgx = " << U << endl;
 
+//#undef CPUSolver_
+//#define GPUSolverNew_

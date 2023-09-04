@@ -16,11 +16,12 @@
 
 // #define DEBUG_
 
-#ifdef DEBUG_
-    #define DEBUG_TRACE fprintf(stderr, "%s %d\n", __FILE__, __LINE__);
-#else
-    #define DEBUG_TRACE
-#endif
+//#ifdef DEBUG_
+//    #define DEBUG_TRACE fprintf(stderr, "%s %d\n", __FILE__, __LINE__);
+//#else
+//    #define DEBUG_TRACE
+//#endif
+#define DEBUG_TRACE fprintf(stderr, "%s %d\n", __FILE__, __LINE__);
 
 static const char *_cudaGetErrorEnum(cudaError_t error) {
   return cudaGetErrorName(error);

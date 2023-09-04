@@ -261,6 +261,7 @@ void dfYEqn::setConstantFields(const std::vector<int> patch_type) {
 }
 
 void dfYEqn::createNonConstantFieldsInternal() {
+#ifndef STREAM_ALLOCATOR
     // thermophysical fields
     checkCudaErrors(cudaMalloc((void**)&d_rhoD, dataBase_.cell_value_bytes * dataBase_.num_species));
     checkCudaErrors(cudaMalloc((void**)&d_hai, dataBase_.cell_value_bytes * dataBase_.num_species));
@@ -271,6 +272,7 @@ void dfYEqn::createNonConstantFieldsInternal() {
     checkCudaErrors(cudaMalloc((void**)&d_phiUc, dataBase_.surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_DEff, dataBase_.cell_value_bytes * dataBase_.num_species));
     checkCudaErrors(cudaMalloc((void**)&d_permute, dataBase_.cell_value_vec_bytes));
+#endif
     // computed on CPU, used on GPU, need memcpyh2d
     checkCudaErrors(cudaMallocHost((void**)&h_rhoD, dataBase_.cell_value_bytes * dataBase_.num_species));
     // UnityLewis
@@ -284,6 +286,7 @@ void dfYEqn::createNonConstantFieldsInternal() {
 }
 
 void dfYEqn::createNonConstantFieldsBoundary() {
+#ifndef STREAM_ALLOCATOR
     // thermophysical fields
     checkCudaErrors(cudaMalloc((void**)&d_boundary_rhoD, dataBase_.boundary_surface_value_bytes * dataBase_.num_species));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_hai, dataBase_.boundary_surface_value_bytes * dataBase_.num_species));
@@ -294,16 +297,17 @@ void dfYEqn::createNonConstantFieldsBoundary() {
     checkCudaErrors(cudaMalloc((void**)&d_boundary_phiUc, dataBase_.boundary_surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_DEff, dataBase_.boundary_surface_value_bytes * dataBase_.num_species));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_permute, dataBase_.boundary_surface_value_vec_bytes));
-    // computed on CPU, used on GPU, need memcpyh2d
-    checkCudaErrors(cudaMallocHost((void**)&h_boundary_rhoD, dataBase_.boundary_surface_value_bytes * dataBase_.num_species));
-    // UnityLewis
-    checkCudaErrors(cudaMallocHost((void**)&h_boundary_hai, dataBase_.boundary_surface_value_bytes * dataBase_.num_species));
-    checkCudaErrors(cudaMallocHost((void**)&h_boundary_mut_sct, dataBase_.boundary_surface_value_bytes));
     // boundary coeff fields
     checkCudaErrors(cudaMalloc((void**)&d_value_internal_coeffs, dataBase_.boundary_surface_value_bytes * dataBase_.num_species));
     checkCudaErrors(cudaMalloc((void**)&d_value_boundary_coeffs, dataBase_.boundary_surface_value_bytes * dataBase_.num_species));
     checkCudaErrors(cudaMalloc((void**)&d_gradient_internal_coeffs, dataBase_.boundary_surface_value_bytes * dataBase_.num_species));
     checkCudaErrors(cudaMalloc((void**)&d_gradient_boundary_coeffs, dataBase_.boundary_surface_value_bytes * dataBase_.num_species));
+#endif
+    // computed on CPU, used on GPU, need memcpyh2d
+    checkCudaErrors(cudaMallocHost((void**)&h_boundary_rhoD, dataBase_.boundary_surface_value_bytes * dataBase_.num_species));
+    // UnityLewis
+    checkCudaErrors(cudaMallocHost((void**)&h_boundary_hai, dataBase_.boundary_surface_value_bytes * dataBase_.num_species));
+    checkCudaErrors(cudaMallocHost((void**)&h_boundary_mut_sct, dataBase_.boundary_surface_value_bytes));
     // getter for h_boundary_xxx
     fieldPointerMap["h_boundary_rhoD"] = h_boundary_rhoD;
     // UnityLewis
@@ -316,12 +320,14 @@ void dfYEqn::createNonConstantLduAndCsrFields() {
     d_lower = d_ldu;
     d_diag = d_ldu + dataBase_.num_surfaces;
     d_upper = d_ldu + dataBase_.num_cells + dataBase_.num_surfaces;
+#ifndef STREAM_ALLOCATOR
     checkCudaErrors(cudaMalloc((void**)&d_source, dataBase_.cell_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_internal_coeffs, dataBase_.boundary_surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_coeffs, dataBase_.boundary_surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_A, dataBase_.csr_value_bytes));
     // use d_source as d_b
     //checkCudaErrors(cudaMalloc((void**)&d_b, dataBase_.cell_value_bytes));
+#endif
 }
 
 void dfYEqn::initNonConstantFieldsInternal() {
@@ -333,36 +339,23 @@ void dfYEqn::initNonConstantFieldsInternal() {
 }
 
 void dfYEqn::initNonConstantFieldsBoundary() {
-    for (int s = 0; s < dataBase_.num_species; s++) {
-        update_boundary_coeffs_scalar(dataBase_.stream,
-                dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
-                dataBase_.d_boundary_delta_coeffs, dataBase_.d_boundary_y + dataBase_.num_boundary_surfaces * s,
-                d_value_internal_coeffs + dataBase_.num_boundary_surfaces * s,
-                d_value_boundary_coeffs + dataBase_.num_boundary_surfaces * s,
-                d_gradient_internal_coeffs + dataBase_.num_boundary_surfaces * s,
-                d_gradient_boundary_coeffs + dataBase_.num_boundary_surfaces * s);
-    }
+    //for (int s = 0; s < dataBase_.num_species; s++) {
+    //    update_boundary_coeffs_scalar(dataBase_.stream,
+    //            dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
+    //            dataBase_.d_boundary_delta_coeffs, dataBase_.d_boundary_y + dataBase_.num_boundary_surfaces * s,
+    //            d_value_internal_coeffs + dataBase_.num_boundary_surfaces * s,
+    //            d_value_boundary_coeffs + dataBase_.num_boundary_surfaces * s,
+    //            d_gradient_internal_coeffs + dataBase_.num_boundary_surfaces * s,
+    //            d_gradient_boundary_coeffs + dataBase_.num_boundary_surfaces * s);
+    //}
 }
 
 void dfYEqn::preProcess(const double *h_rhoD, const double *h_boundary_rhoD,
         const double *h_hai, const double *h_boundary_hai,
         const double *h_mut_sct, const double *h_boundary_mut_sct) {
-    checkCudaErrors(cudaMemcpyAsync(d_rhoD, h_rhoD, dataBase_.cell_value_bytes * dataBase_.num_species, cudaMemcpyHostToDevice, dataBase_.stream));
-    checkCudaErrors(cudaMemcpyAsync(d_boundary_rhoD, h_boundary_rhoD, dataBase_.boundary_surface_value_bytes * dataBase_.num_species, cudaMemcpyHostToDevice, dataBase_.stream));
-    // UnityLewis
-    checkCudaErrors(cudaMemcpyAsync(d_hai, h_hai, dataBase_.cell_value_bytes * dataBase_.num_species, cudaMemcpyHostToDevice, dataBase_.stream));
-    checkCudaErrors(cudaMemcpyAsync(d_boundary_hai, h_boundary_hai, dataBase_.boundary_surface_value_bytes * dataBase_.num_species, cudaMemcpyHostToDevice, dataBase_.stream));
-    checkCudaErrors(cudaMemcpyAsync(d_mut_sct, h_mut_sct, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
-    checkCudaErrors(cudaMemcpyAsync(d_boundary_mut_sct, h_boundary_mut_sct, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
-
-    checkCudaErrors(cudaMemsetAsync(dataBase_.d_diff_alphaD, 0, dataBase_.cell_value_bytes, dataBase_.stream));
-    checkCudaErrors(cudaMemsetAsync(dataBase_.d_boundary_diff_alphaD, 0, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
-    checkCudaErrors(cudaMemsetAsync(d_grad_y, 0, dataBase_.cell_value_vec_bytes * dataBase_.num_species, dataBase_.stream));
-    checkCudaErrors(cudaMemsetAsync(d_boundary_grad_y, 0, dataBase_.boundary_surface_value_vec_bytes * dataBase_.num_species, dataBase_.stream));
-
-    DEBUG_TRACE;
-    checkCudaErrors(cudaStreamSynchronize(dataBase_.stream));
-    DEBUG_TRACE;
+    //DEBUG_TRACE;
+    //checkCudaErrors(cudaStreamSynchronize(dataBase_.stream));
+    //DEBUG_TRACE;
 }
 
 void dfYEqn::process() {
@@ -378,6 +371,52 @@ void dfYEqn::process() {
         DEBUG_TRACE;
         checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
 #endif
+
+#ifdef STREAM_ALLOCATOR
+	// thermophysical fields
+	checkCudaErrors(cudaMallocAsync((void**)&d_rhoD, dataBase_.cell_value_bytes * dataBase_.num_species, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_hai, dataBase_.cell_value_bytes * dataBase_.num_species, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_mut_sct, dataBase_.cell_value_bytes, dataBase_.stream));
+	// intermediate fields
+	checkCudaErrors(cudaMallocAsync((void**)&d_grad_y, dataBase_.cell_value_vec_bytes * dataBase_.num_species, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_sumY_diff_error, dataBase_.cell_value_vec_bytes, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_phiUc, dataBase_.surface_value_bytes, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_DEff, dataBase_.cell_value_bytes * dataBase_.num_species, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_permute, dataBase_.cell_value_vec_bytes, dataBase_.stream));
+	// thermophysical fields
+	checkCudaErrors(cudaMallocAsync((void**)&d_boundary_rhoD, dataBase_.boundary_surface_value_bytes * dataBase_.num_species, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_boundary_hai, dataBase_.boundary_surface_value_bytes * dataBase_.num_species, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_boundary_mut_sct, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
+	// intermediate fields
+	checkCudaErrors(cudaMallocAsync((void**)&d_boundary_grad_y, dataBase_.boundary_surface_value_vec_bytes * dataBase_.num_species, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_boundary_sumY_diff_error, dataBase_.boundary_surface_value_vec_bytes, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_boundary_phiUc, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_boundary_DEff, dataBase_.boundary_surface_value_bytes * dataBase_.num_species, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_boundary_permute, dataBase_.boundary_surface_value_vec_bytes, dataBase_.stream));
+	// boundary coeff fields
+	checkCudaErrors(cudaMallocAsync((void**)&d_value_internal_coeffs, dataBase_.boundary_surface_value_bytes * dataBase_.num_species, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_value_boundary_coeffs, dataBase_.boundary_surface_value_bytes * dataBase_.num_species, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_gradient_internal_coeffs, dataBase_.boundary_surface_value_bytes * dataBase_.num_species, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_gradient_boundary_coeffs, dataBase_.boundary_surface_value_bytes * dataBase_.num_species, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_source, dataBase_.cell_value_bytes, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_internal_coeffs, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_boundary_coeffs, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
+	checkCudaErrors(cudaMallocAsync((void**)&d_A, dataBase_.csr_value_bytes, dataBase_.stream));
+#endif
+
+	checkCudaErrors(cudaMemcpyAsync(d_rhoD, h_rhoD, dataBase_.cell_value_bytes * dataBase_.num_species, cudaMemcpyHostToDevice, dataBase_.stream));
+	checkCudaErrors(cudaMemcpyAsync(d_boundary_rhoD, h_boundary_rhoD, dataBase_.boundary_surface_value_bytes * dataBase_.num_species, cudaMemcpyHostToDevice, dataBase_.stream));
+	// UnityLewis
+	checkCudaErrors(cudaMemcpyAsync(d_hai, h_hai, dataBase_.cell_value_bytes * dataBase_.num_species, cudaMemcpyHostToDevice, dataBase_.stream));
+	checkCudaErrors(cudaMemcpyAsync(d_boundary_hai, h_boundary_hai, dataBase_.boundary_surface_value_bytes * dataBase_.num_species, cudaMemcpyHostToDevice, dataBase_.stream));
+	checkCudaErrors(cudaMemcpyAsync(d_mut_sct, h_mut_sct, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+	checkCudaErrors(cudaMemcpyAsync(d_boundary_mut_sct, h_boundary_mut_sct, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+
+	checkCudaErrors(cudaMemsetAsync(dataBase_.d_diff_alphaD, 0, dataBase_.cell_value_bytes, dataBase_.stream));
+	checkCudaErrors(cudaMemsetAsync(dataBase_.d_boundary_diff_alphaD, 0, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
+	checkCudaErrors(cudaMemsetAsync(d_grad_y, 0, dataBase_.cell_value_vec_bytes * dataBase_.num_species, dataBase_.stream));
+	checkCudaErrors(cudaMemsetAsync(d_boundary_grad_y, 0, dataBase_.boundary_surface_value_vec_bytes * dataBase_.num_species, dataBase_.stream));
+
         // compute thermo_alpha
         yeqn_compute_thermo_alpha(dataBase_.stream,
                 dataBase_.num_cells, d_rhoD, dataBase_.d_thermo_alpha,
@@ -537,6 +576,41 @@ void dfYEqn::solve(int solverIndex) {
 void dfYEqn::postProcess(double *h_y) {
     // compute y_inertIndex
     yeqn_compute_y_inertIndex(dataBase_.stream, dataBase_.num_species, inertIndex, dataBase_.num_cells, dataBase_.d_y);
+
+#ifdef STREAM_ALLOCATOR
+    // thermophysical fields
+    checkCudaErrors(cudaFreeAsync(d_rhoD, dataBase_.stream));
+    checkCudaErrors(cudaFreeAsync(d_hai, dataBase_.stream));
+    checkCudaErrors(cudaFreeAsync(d_mut_sct, dataBase_.stream));
+    // intermediate fields
+    checkCudaErrors(cudaFreeAsync(d_grad_y, dataBase_.stream));
+    checkCudaErrors(cudaFreeAsync(d_sumY_diff_error, dataBase_.stream));
+    checkCudaErrors(cudaFreeAsync(d_phiUc, dataBase_.stream));
+    checkCudaErrors(cudaFreeAsync(d_DEff, dataBase_.stream));
+    checkCudaErrors(cudaFreeAsync(d_permute, dataBase_.stream));
+
+    // thermophysical fields
+    checkCudaErrors(cudaFreeAsync(d_boundary_rhoD, dataBase_.stream));
+    checkCudaErrors(cudaFreeAsync(d_boundary_hai, dataBase_.stream));
+    checkCudaErrors(cudaFreeAsync(d_boundary_mut_sct, dataBase_.stream));
+    // intermediate fields
+    checkCudaErrors(cudaFreeAsync(d_boundary_grad_y, dataBase_.stream));
+    checkCudaErrors(cudaFreeAsync(d_boundary_sumY_diff_error, dataBase_.stream));
+    checkCudaErrors(cudaFreeAsync(d_boundary_phiUc, dataBase_.stream));
+    checkCudaErrors(cudaFreeAsync(d_boundary_DEff, dataBase_.stream));
+    checkCudaErrors(cudaFreeAsync(d_boundary_permute, dataBase_.stream));
+
+    // boundary coeff fields
+    checkCudaErrors(cudaFreeAsync(d_value_internal_coeffs, dataBase_.stream));
+    checkCudaErrors(cudaFreeAsync(d_value_boundary_coeffs, dataBase_.stream));
+    checkCudaErrors(cudaFreeAsync(d_gradient_internal_coeffs, dataBase_.stream));
+    checkCudaErrors(cudaFreeAsync(d_gradient_boundary_coeffs, dataBase_.stream));
+
+    checkCudaErrors(cudaFreeAsync(d_source, dataBase_.stream));
+    checkCudaErrors(cudaFreeAsync(d_internal_coeffs, dataBase_.stream));
+    checkCudaErrors(cudaFreeAsync(d_boundary_coeffs, dataBase_.stream));
+    checkCudaErrors(cudaFreeAsync(d_A, dataBase_.stream));
+#endif
 
     // copy y to host
     checkCudaErrors(cudaMemcpyAsync(h_y, dataBase_.d_y, dataBase_.cell_value_bytes * dataBase_.num_species, cudaMemcpyDeviceToHost, dataBase_.stream));

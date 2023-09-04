@@ -1,3 +1,5 @@
+//#undef GPUSolverNew_
+//#define CPUSolver_
 hDiffCorrFlux = Zero;
 diffAlphaD = Zero;
 sumYDiffError = Zero;
@@ -220,7 +222,7 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
         // UnityLewis
         const volScalarField& haii = chemistry->hai(i);
         memcpy(h_hai + dfDataBase.num_cells * i, &haii[0], dfDataBase.num_cells * sizeof(double));
-        offset = 0;
+        int offset = 0;
         forAll(rhoDi.boundaryField(), patchi)
         {
             const scalarField& patchRhoDi = rhoDi.boundaryField()[patchi];
@@ -237,7 +239,7 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
     double *h_mut_sct = YEqn_GPU.getFieldPointer("mut_sct", location::cpu, position::internal);
     double *h_boundary_mut_sct = YEqn_GPU.getFieldPointer("mut_sct", location::cpu, position::boundary);
     memcpy(h_mut_sct, &mut_sct[0], dfDataBase.num_cells * sizeof(double));
-    offset = 0;
+    int offset = 0;
     forAll(mut_sct.boundaryField(), patchi)
     {
         const scalarField& patchMutSct = mut_sct.boundaryField()[patchi];
@@ -396,3 +398,5 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
     time_monitor_YEqn += double(end2 - start2) / double(CLOCKS_PER_SEC);
 #endif
 }
+//#undef CPUSolver_
+//#define GPUSolverNew_
