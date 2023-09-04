@@ -1,6 +1,6 @@
 #pragma once
 #include <cuda_runtime.h>
-//#define TIME_GPU
+// #define TIME_GPU
 // #define DEBUG_CHECK_LDU
 
 // tools
