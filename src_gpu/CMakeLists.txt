@@ -40,3 +40,6 @@ option(DFMATRIX_ENABLE_DETAILED_DEBUG "Enable detailed debug build" OFF)
 if (DFMATRIX_ENABLE_DETAILED_DEBUG)
     target_compile_definitions(${PROJECT_NAME} PRIVATE DEBUG_)
 endif()
+
+target_compile_definitions(${PROJECT_NAME} PRIVATE STREAM_ALLOCATOR)
+

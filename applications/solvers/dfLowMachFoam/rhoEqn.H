@@ -28,6 +28,8 @@ Description
     Solve the continuity for density.
 
 \*---------------------------------------------------------------------------*/
+//#undef GPUSolverNew_
+//#define CPUSolver_
 #ifdef GPUSolver_
 {
     start1 = std::clock();
@@ -119,5 +121,6 @@ Description
     time_monitor_rhoEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
 }
 #endif
-
+//#undef CPUSolver_
+//#define GPUSolverNew_
 // ************************************************************************* //

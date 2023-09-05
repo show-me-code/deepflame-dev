@@ -1,3 +1,5 @@
+//#undef GPUSolverNew_
+//#define CPUSolver_
 if (!pimple.simpleRho())
 {
     rho = thermo.rho();
@@ -211,9 +213,14 @@ if (limitedp)
     rho = thermo.rho();
 }
 
+//#undef CPUSolver_
+//#define GPUSolverNew_
+
 #include "rhoEqn.H"
 #include "compressibleContinuityErrs.H"
 
+//#undef GPUSolverNew_
+//#define CPUSolver_
 // Explicitly relax pressure for momentum corrector
 p.relax();
 
@@ -251,3 +258,5 @@ if (thermo.dpdt())
 end2 = std::clock();
 time_monitor_pEqn += double(end2 - start2) / double(CLOCKS_PER_SEC);
 
+//#undef CPUSolver_
+//#define GPUSolverNew_
