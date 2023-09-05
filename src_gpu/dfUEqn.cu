@@ -273,17 +273,21 @@ void dfUEqn::createNonConstantLduAndCsrFields() {
   checkCudaErrors(cudaMalloc((void**)&d_A, dataBase_.csr_value_vec_bytes));
   checkCudaErrors(cudaMalloc((void**)&d_b, dataBase_.cell_value_vec_bytes));
 #endif
-  checkCudaErrors(cudaMalloc((void**)&d_A_pEqn, dataBase_.cell_value_bytes));
+  checkCudaErrors(cudaMalloc((void**)&d_A_pEqn, dataBase_.cell_value_bytes)); // TODO: delete redundant variables
   checkCudaErrors(cudaMalloc((void**)&d_H_pEqn, dataBase_.cell_value_vec_bytes));
   checkCudaErrors(cudaMalloc((void**)&d_H_pEqn_perm, dataBase_.cell_value_vec_bytes));
+
+  checkCudaErrors(cudaMalloc((void**)&d_u_host_order, dataBase_.cell_value_vec_bytes));
+  // intermediate boundary fields
+  checkCudaErrors(cudaMalloc((void**)&d_boundary_u_host_order, dataBase_.boundary_surface_value_vec_bytes));
 }
 
 void dfUEqn::initNonConstantFieldsBoundary() {
-    //update_boundary_coeffs_vector(dataBase_.stream, dataBase_.num_boundary_surfaces, dataBase_.num_patches,
+    // update_boundary_coeffs_vector(dataBase_.stream, dataBase_.num_boundary_surfaces, dataBase_.num_patches,
     //        dataBase_.patch_size.data(), patch_type.data(), dataBase_.d_boundary_u, dataBase_.d_boundary_delta_coeffs,
     //        d_value_internal_coeffs, d_value_boundary_coeffs,
     //        d_gradient_internal_coeffs, 
-  );
+    // );
 }
 
 void dfUEqn::preProcessForRhoEqn(const double *h_rho, const double *h_phi, const double *h_boundary_phi) {
@@ -318,7 +322,6 @@ void dfUEqn::process() {
         checkCudaErrors(cudaMallocAsync((void**)&d_grad_u, dataBase_.cell_value_tsr_bytes, dataBase_.stream));
         checkCudaErrors(cudaMallocAsync((void**)&d_rho_nueff, dataBase_.cell_value_bytes, dataBase_.stream));
         checkCudaErrors(cudaMallocAsync((void**)&d_fvc_output, dataBase_.cell_value_vec_bytes, dataBase_.stream));
-        checkCudaErrors(cudaMallocAsync((void**)&d_u_host_order, dataBase_.cell_value_vec_bytes, dataBase_.stream));
 
         // thermophysical fields
         checkCudaErrors(cudaMallocAsync((void**)&d_boundary_nu_eff, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
@@ -330,15 +333,13 @@ void dfUEqn::process() {
         checkCudaErrors(cudaMallocAsync((void**)&d_value_boundary_coeffs, dataBase_.boundary_surface_value_vec_bytes, dataBase_.stream));
         checkCudaErrors(cudaMallocAsync((void**)&d_gradient_internal_coeffs, dataBase_.boundary_surface_value_vec_bytes, dataBase_.stream));
         checkCudaErrors(cudaMallocAsync((void**)&d_gradient_boundary_coeffs, dataBase_.boundary_surface_value_vec_bytes, dataBase_.stream));
-        // intermediate boundary fields
-        checkCudaErrors(cudaMallocAsync((void**)&d_boundary_u_host_order, dataBase_.boundary_surface_value_vec_bytes, dataBase_.stream));
 
         checkCudaErrors(cudaMallocAsync((void**)&d_A, dataBase_.csr_value_vec_bytes, dataBase_.stream));
         checkCudaErrors(cudaMallocAsync((void**)&d_b, dataBase_.cell_value_vec_bytes, dataBase_.stream));
 #endif
 
-        checkCudaErrors(cudaMemcpyAsync(dataBase_.d_u, dataBase_.h_u, dataBase_.cell_value_vec_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
-        checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_u, dataBase_.h_boundary_u, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+        checkCudaErrors(cudaMemcpyAsync(d_u_host_order, dataBase_.h_u, dataBase_.cell_value_vec_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+        checkCudaErrors(cudaMemcpyAsync(d_boundary_u_host_order, dataBase_.h_boundary_u, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
         checkCudaErrors(cudaMemcpyAsync(dataBase_.d_p, dataBase_.h_p, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
         checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_p, dataBase_.h_boundary_p, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
         checkCudaErrors(cudaMemcpyAsync(d_nu_eff, h_nu_eff, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));

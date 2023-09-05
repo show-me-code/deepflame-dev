@@ -299,7 +299,7 @@ __global__ void fvm_ddt_vector_kernel(int num_cells, double rDeltaT,
     // TODO: skip moving
     source[num_cells * 0 + index] += rDeltaT * rho_old_kernel * vf[num_cells * 0 + index] * vol * sign;
     source[num_cells * 1 + index] += rDeltaT * rho_old_kernel * vf[num_cells * 1 + index] * vol * sign;
-    source[num_cells * 2 + index] += rDeltaT * rho_old_kernel * vf[num_cells * 2 + index] * vol * sign;
+    source[num_cells * 2 + index] += rDeltaT * rho_old_kernel * vf[num_cells * 2 + index] * vol * sign;    
 }
 
 // same with fvm_div_vector_internal
