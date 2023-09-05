@@ -98,9 +98,30 @@ start2 = std::clock();
     surfaceScalarField rhorAUf("rhorAUf", fvc::interpolate(rho*rAU));
     volVectorField HbyA(constrainHbyA(rAU*UEqn_H, U, p));
 #elif defined GPUSolverNew_
-    volScalarField rAU(1.0/UEqn_A);
+    volScalarField rAU(1/UEqn_A);
     surfaceScalarField rhorAUf("rhorAUf", fvc::interpolate(rho*rAU));
     volVectorField HbyA(constrainHbyA(rAU*UEqn_H, U, p));
+
+    UEqn_GPU.getHbyA();
+    UEqn_GPU.sync();
+
+#if defined DEBUG_
+    double *h_boundary_rAU = new double[dfDataBase.num_boundary_surfaces];
+    double *h_boundary_HbyA = new double[3 * dfDataBase.num_boundary_surfaces];
+    offset = 0;
+    forAll(rAU.boundaryField(), patchi)
+    {
+        const scalarField& patchrAU = rAU.boundaryField()[patchi];
+        const vectorField& patchHbyA = HbyA.boundaryField()[patchi];
+        int patchSize = patchrAU.size();
+        memcpy(h_boundary_rAU + offset, &patchrAU[0], patchSize*sizeof(double));
+        memcpy(h_boundary_HbyA + offset * 3, &patchHbyA[0][0], patchSize*3*sizeof(double));
+        offset += patchSize;
+    }
+    UEqn_GPU.compareHbyA(&HbyA[0][0], h_boundary_HbyA, false);
+    UEqn_GPU.comparerAU(&rAU[0], h_boundary_rAU, false);
+#endif
+
 #else
     volScalarField rAU(1.0/UEqn.A());
     surfaceScalarField rhorAUf("rhorAUf", fvc::interpolate(rho*rAU));

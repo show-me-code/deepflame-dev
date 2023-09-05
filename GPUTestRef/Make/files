@@ -2,5 +2,6 @@ gaussGrad.C
 gaussConvectionScheme.C
 gaussLaplacianScheme.C
 EulerDdtScheme.C
+GenMatrix_p.C
 
 LIB = $(DF_LIBBIN)/libdfGenMatrix

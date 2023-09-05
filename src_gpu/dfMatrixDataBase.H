@@ -169,6 +169,9 @@ struct dfMatrixDataBase
     // computed on CPU, used on GPU, need memcpyh2d - host
     double *h_p= nullptr;
     double *h_phi= nullptr;
+    // internal fields used between eqns
+    double *d_rAU = nullptr;
+    double *d_HbyA = nullptr;
 
     // non-constant fields - boundary
     // TODO: further estimate
@@ -191,6 +194,9 @@ struct dfMatrixDataBase
     double *d_boundary_thermo_alpha = nullptr;
     double *d_boundary_hDiff_corr_flux = nullptr;
     double *d_boundary_diff_alphaD = nullptr;
+    // boundary fields used between eqns
+    double *d_boundary_rAU = nullptr;
+    double *d_boundary_HbyA = nullptr;
     // computed on GPU, used on CPU, need memcpyd2h - host
     double *h_boundary_rho = nullptr;
     double *h_boundary_rho_old = nullptr;

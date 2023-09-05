@@ -171,8 +171,8 @@
     UEqn_A.correctBoundaryConditions();
 
 #if defined DEBUG_
-    UEqn.relax();
-    UEqn.solve();
+    // UEqn.relax();
+    // UEqn.solve();
     K = 0.5*magSqr(U);
     // checkResult
     // TODO: for temp, now we compare ldu, finally we compare csr
@@ -206,7 +206,6 @@
     == -fvc::grad(p)
     );
     fvVectorMatrix& UEqn = tUEqn.ref();
-
     end1 = std::clock();
     time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_UEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);

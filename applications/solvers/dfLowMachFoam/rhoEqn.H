@@ -98,6 +98,7 @@ Description
         fvm::ddt(rho)
       + fvc::div(phi)
     );
+    rhoEqn.solve();
     rhoEqn_GPU.compareResult(&rhoEqn.diag()[0], &rhoEqn.source()[0], false);
 #endif
 

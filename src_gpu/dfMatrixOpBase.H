@@ -151,6 +151,13 @@ void fvc_laplacian_scalar(cudaStream_t stream, int num_cells, int num_surfaces, 
         const double *boundary_mag_sf, const double *boundary_delta_coeffs,
         const double *boundary_gamma, const double *boundary_vf, double sign = 1.);
 
+void fvc_flux(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces,
+        const int *lowerAddr, const int *upperAddr, 
+        const double *weight, const double *Sf, const double *vf, double *output, // end for internal
+        int num_patches, const int *patch_size, const int *patch_type,
+        const int *boundary_cell_face, const double *boundary_vf, const double *boundary_Sf, 
+        double *boundary_output, double sign);
+
 // others
 void scale_dev2T_tensor(cudaStream_t stream, int num_cells, const double *vf1, double *vf2,
         int num_boundary_surfaces, const double *boundary_vf1, double *boundary_vf2);
