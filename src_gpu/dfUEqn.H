@@ -42,7 +42,7 @@ private:
 	// intermediate fields
 	double *d_grad_u = nullptr;
 	double *d_rho_nueff = nullptr;
-	double *d_permute = nullptr;
+	double *d_u_host_order = nullptr;
     double *d_fvc_output = nullptr; // TODO: no need anymore
 
 	// non-constant fields - boundary
@@ -58,6 +58,8 @@ private:
 	double *d_value_boundary_coeffs= nullptr;
 	double *d_gradient_internal_coeffs= nullptr;
 	double *d_gradient_boundary_coeffs= nullptr;
+    // intermediate fields
+    double *d_boundary_u_host_order = nullptr;
 
 	// non-constant fields - ldu
     double *d_ldu = nullptr;
@@ -115,7 +117,22 @@ public:
 
     void A(double *Psi);
     void H(double *Psi);
+    void getrAU(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces, 
+        const int *boundary_cell_face, const double *internal_coeffs, const double *volume, const double *diag, 
+        double *rAU, double *boundary_rAU);
+    void UEqnGetHbyA(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces, 
+        const int *lowerAddr, const int *upperAddr, const double *volume,
+        int num_patches, const int *patch_size, const int *patch_type,
+        const int *boundary_cell_face, const double *internal_coffs, const double *boundary_coeffs, 
+        const double *lower, const double *upper, const double *source, const double *psi, 
+        const double *rAU, const double *boundary_rAU, const double *boundary_u,
+        double *HbyA, double *boundary_HbyA);
+    void getHbyA();
     void correctPsi(double *Psi);
+    void ueqn_ldu_to_csr(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surface,
+        const int* boundary_cell_face, const int *ldu_to_csr_index, const int *diag_to_csr_index,
+        const double *ldu, const double *source, const double *internal_coeffs, const double *boundary_coeffs,
+        double *A, double *b);
 
     void solve();
     void sync();
@@ -125,4 +142,6 @@ public:
     // const double *tmpVal, 
     bool printFlag);
 #endif 
+    void compareHbyA(const double *HbyA, const double *boundary_HbyA, bool printFlag);
+    void comparerAU(const double *rAU, const double *boundary_rAU, bool printFlag);
 };

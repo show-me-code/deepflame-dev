@@ -314,6 +314,10 @@ void dfMatrixDataBase::createNonConstantFieldsInternal() {
     checkCudaErrors(cudaMalloc((void**)&d_hDiff_corr_flux, cell_value_vec_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_diff_alphaD, cell_value_bytes));
 
+    // internal fields used between eqns
+    checkCudaErrors(cudaMalloc((void**)&d_rAU, cell_value_bytes));
+    checkCudaErrors(cudaMalloc((void**)&d_HbyA, cell_value_vec_bytes));
+
     // computed on GPU, used on CPU, need memcpyd2h
     checkCudaErrors(cudaMallocHost((void**)&h_rho, cell_value_bytes));
     checkCudaErrors(cudaMallocHost((void**)&h_rho_old, cell_value_bytes));
@@ -365,6 +369,10 @@ void dfMatrixDataBase::createNonConstantFieldsBoundary() {
     checkCudaErrors(cudaMalloc((void**)&d_boundary_thermo_alpha, boundary_surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_hDiff_corr_flux, boundary_surface_value_vec_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_diff_alphaD, boundary_surface_value_bytes));
+
+    // internal fields used between eqns
+    checkCudaErrors(cudaMalloc((void**)&d_boundary_rAU, boundary_surface_value_bytes));
+    checkCudaErrors(cudaMalloc((void**)&d_boundary_HbyA, boundary_surface_value_vec_bytes));
 
     // computed on GPU, used on CPU, need memcpyd2h
     checkCudaErrors(cudaMallocHost((void**)&h_boundary_rho, boundary_surface_value_bytes));

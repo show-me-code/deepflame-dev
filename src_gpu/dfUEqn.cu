@@ -1,5 +1,213 @@
 #include "dfUEqn.H"
 
+__global__ void addAveInternaltoDiagUeqn(int num_cells, int num_boundary_surfaces, const int *face2Cells, 
+        const double *internal_coeffs, double *A_pEqn)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_boundary_surfaces)
+        return;
+
+    int cellIndex = face2Cells[index];
+
+    double internal_x = internal_coeffs[num_boundary_surfaces * 0 + index];
+    double internal_y = internal_coeffs[num_boundary_surfaces * 1 + index];
+    double internal_z = internal_coeffs[num_boundary_surfaces * 2 + index];
+
+    double ave_internal = (internal_x + internal_y + internal_z) / 3;
+
+    atomicAdd(&A_pEqn[cellIndex], ave_internal);
+}
+
+__global__ void divide_cell_volume_scalar_reverse(int num_cells, const double* volume, double *output)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_cells)
+        return;
+    
+    double vol = volume[index];
+
+    output[index] = 1/ (output[index] / vol);
+}
+
+__global__ void get_calculated_field_boundary(int num_boundary_surfaces, const double* output, 
+        const int *face2Cells, double *boundary_output)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_boundary_surfaces)
+        return;
+    
+    int cellIndex = face2Cells[index];
+
+    boundary_output[index] = output[cellIndex];
+}
+
+__global__ void ueqn_addBoundaryDiag(int num_cells, int num_boundary_surfaces, const int *face2Cells, 
+        const double *internal_coeffs, const double *psi, double *H_pEqn)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_boundary_surfaces)
+        return;
+    
+    // addBoundaryDiag(boundaryDiagCmpt, cmpt); // add internal coeffs
+    // boundaryDiagCmpt.negate();
+    double internal_x = internal_coeffs[num_boundary_surfaces * 0 + index];
+    double internal_y = internal_coeffs[num_boundary_surfaces * 1 + index];
+    double internal_z = internal_coeffs[num_boundary_surfaces * 2 + index];
+
+    // addCmptAvBoundaryDiag(boundaryDiagCmpt);
+    double ave_internal = (internal_x + internal_y + internal_z) / 3;
+
+    int cellIndex = face2Cells[index];
+
+    // if (index == 0)
+    // {
+    //     printf("gpu H_pEqn[8680] = %.20e\n", H_pEqn[8680]);
+    // }
+
+    // do not permute H anymore
+    atomicAdd(&H_pEqn[num_cells * 0 + cellIndex], (-internal_x + ave_internal) * psi[num_cells * 0 + cellIndex]);
+    atomicAdd(&H_pEqn[num_cells * 1 + cellIndex], (-internal_y + ave_internal) * psi[num_cells * 1 + cellIndex]);
+    atomicAdd(&H_pEqn[num_cells * 2 + cellIndex], (-internal_z + ave_internal) * psi[num_cells * 2 + cellIndex]);
+}
+
+__global__ void ueqn_lduMatrix_H(int num_cells, int num_surfaces,
+        const int *lower_index, const int *upper_index, const double *lower, const double *upper,
+        const double *psi, double *H_pEqn)
+{
+    /*
+    for (label face=0; face<nFaces; face++)
+    {
+        HpsiPtr[uPtr[face]] -= lowerPtr[face]*psiPtr[lPtr[face]];
+        HpsiPtr[lPtr[face]] -= upperPtr[face]*psiPtr[uPtr[face]];
+    }*/
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_surfaces)
+        return;
+    
+    int l = lower_index[index];
+    int u = upper_index[index];
+
+    atomicAdd(&H_pEqn[num_cells * 0 + u], -lower[index] * psi[num_cells * 0 + l]);
+    atomicAdd(&H_pEqn[num_cells * 1 + u], -lower[index] * psi[num_cells * 1 + l]);
+    atomicAdd(&H_pEqn[num_cells * 2 + u], -lower[index] * psi[num_cells * 2 + l]);
+    atomicAdd(&H_pEqn[num_cells * 0 + l], -upper[index] * psi[num_cells * 0 + u]);
+    atomicAdd(&H_pEqn[num_cells * 1 + l], -upper[index] * psi[num_cells * 1 + u]);
+    atomicAdd(&H_pEqn[num_cells * 2 + l], -upper[index] * psi[num_cells * 2 + u]);
+
+}
+
+__global__ void ueqn_addBoundarySrc_unCoupled(int num_cells, int num, int offset, 
+        int num_boundary_surfaces, const int *face2Cells, const double *boundary_coeffs, double *H_pEqn)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
+        return;
+
+    int start_index = offset + index;
+
+    // addBoundaryDiag(boundaryDiagCmpt, cmpt); // add internal coeffs
+    // boundaryDiagCmpt.negate();
+    double boundary_x = boundary_coeffs[num_boundary_surfaces * 0 + start_index];
+    double boundary_y = boundary_coeffs[num_boundary_surfaces * 1 + start_index];
+    double boundary_z = boundary_coeffs[num_boundary_surfaces * 2 + start_index];
+
+    int cellIndex = face2Cells[start_index];
+
+    // do not permute H anymore
+    atomicAdd(&H_pEqn[num_cells * 0 + cellIndex], boundary_x);
+    atomicAdd(&H_pEqn[num_cells * 1 + cellIndex], boundary_y);
+    atomicAdd(&H_pEqn[num_cells * 2 + cellIndex], boundary_z);
+
+}
+
+__global__ void divide_vol_multi_rAU(int num_cells, const double *rAU, const double *volume, double *output)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_cells)
+        return;
+
+    // divide volume
+    double vol = volume[index];
+    double rAU_scalar = rAU[index];
+
+    // multi rAU
+    output[num_cells * 0 + index] = output[num_cells * 0 + index] / vol * rAU_scalar;
+    output[num_cells * 1 + index] = output[num_cells * 1 + index] / vol * rAU_scalar;
+    output[num_cells * 2 + index] = output[num_cells * 2 + index] / vol * rAU_scalar;
+}
+
+__global__ void correctBoundary_HbyA(int num_cells, int num_boundary_surfaces, int num, int offset, 
+        const int* face2Cells, const double *output, double *boundary_output)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
+        return;
+
+    int start_index = offset + index;
+    int cell_index = face2Cells[start_index];
+
+    boundary_output[num_boundary_surfaces * 0 + start_index] = output[num_cells * 0 + cell_index];
+    boundary_output[num_boundary_surfaces * 1 + start_index] = output[num_cells * 1 + cell_index];
+    boundary_output[num_boundary_surfaces * 2 + start_index] = output[num_cells * 2 + cell_index];
+}
+
+__global__ void correctBoundary_HbyA_fixedValueU(int num_boundary_surfaces, int num, int offset, 
+        const double *boundary_vf, double *boundary_output)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
+        return;
+
+    int start_index = offset + index;
+
+    boundary_output[num_boundary_surfaces * 0 + start_index] = boundary_vf[num_boundary_surfaces * 0 + start_index];
+    boundary_output[num_boundary_surfaces * 1 + start_index] = boundary_vf[num_boundary_surfaces * 1 + start_index];
+    boundary_output[num_boundary_surfaces * 2 + start_index] = boundary_vf[num_boundary_surfaces * 2 + start_index];
+}
+
+__global__ void ueqn_ldu_to_csr_kernel(int nNz, const int *ldu_to_csr_index, 
+        const double *ldu, double *A_csr)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= nNz)
+        return;
+    
+    int lduIndex = ldu_to_csr_index[index];
+    double csrVal = ldu[lduIndex];
+    A_csr[nNz * 0 + index] = csrVal;
+    A_csr[nNz * 1 + index] = csrVal;
+    A_csr[nNz * 2 + index] = csrVal;
+}
+
+__global__ void ueqn_add_boundary_diag_src(int num_cells, int num_surfaces, int num_boundary_surfaces, const int *face2Cells, 
+        const double *internal_coeffs, const double *boundary_coeffs, const int *diagCSRIndex, 
+        double *A_csr, double *b)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_boundary_surfaces)
+        return;
+    
+    int cellIndex = face2Cells[index];
+    int diagIndex = diagCSRIndex[cellIndex];
+    int nNz = num_cells + 2 * num_surfaces;
+
+    double internalCoeffx = internal_coeffs[num_boundary_surfaces * 0 + index];
+    double internalCoeffy = internal_coeffs[num_boundary_surfaces * 1 + index];
+    double internalCoeffz = internal_coeffs[num_boundary_surfaces * 2 + index];
+
+    double boundaryCoeffx = boundary_coeffs[num_boundary_surfaces * 0 + index];
+    double boundaryCoeffy = boundary_coeffs[num_boundary_surfaces * 1 + index];
+    double boundaryCoeffz = boundary_coeffs[num_boundary_surfaces * 2 + index];
+
+    atomicAdd(&A_csr[nNz * 0 + diagIndex], internalCoeffx);
+    atomicAdd(&A_csr[nNz * 1 + diagIndex], internalCoeffy);
+    atomicAdd(&A_csr[nNz * 2 + diagIndex], internalCoeffz);
+
+    atomicAdd(&b[num_cells * 0 + cellIndex], boundaryCoeffx);
+    atomicAdd(&b[num_cells * 1 + cellIndex], boundaryCoeffy);
+    atomicAdd(&b[num_cells * 2 + cellIndex], boundaryCoeffz);
+}
+
 void dfUEqn::setConstantValues(const std::string &mode_string, const std::string &setting_path) {
   this->mode_string = mode_string;
   this->setting_path = setting_path;
@@ -23,7 +231,7 @@ void dfUEqn::createNonConstantFieldsInternal() {
   checkCudaErrors(cudaMalloc((void**)&d_grad_u, dataBase_.cell_value_tsr_bytes));
   checkCudaErrors(cudaMalloc((void**)&d_rho_nueff, dataBase_.cell_value_bytes));
   checkCudaErrors(cudaMalloc((void**)&d_fvc_output, dataBase_.cell_value_vec_bytes));
-  checkCudaErrors(cudaMalloc((void**)&d_permute, dataBase_.cell_value_vec_bytes));
+  checkCudaErrors(cudaMalloc((void**)&d_u_host_order, dataBase_.cell_value_vec_bytes));
 
   // getter for h_nu_eff
   fieldPointerMap["h_nu_eff"] = h_nu_eff;
@@ -42,6 +250,8 @@ void dfUEqn::createNonConstantFieldsBoundary() {
   checkCudaErrors(cudaMalloc((void**)&d_value_boundary_coeffs, dataBase_.boundary_surface_value_vec_bytes));
   checkCudaErrors(cudaMalloc((void**)&d_gradient_internal_coeffs, dataBase_.boundary_surface_value_vec_bytes));
   checkCudaErrors(cudaMalloc((void**)&d_gradient_boundary_coeffs, dataBase_.boundary_surface_value_vec_bytes));
+  // intermediate boundary
+  checkCudaErrors(cudaMalloc((void**)&d_boundary_u_host_order, dataBase_.boundary_surface_value_vec_bytes));
 
   // getter for h_boundary_nu_eff
   fieldPointerMap["h_boundary_nu_eff"] = h_boundary_nu_eff;
@@ -77,8 +287,8 @@ void dfUEqn::preProcessForRhoEqn(const double *h_rho, const double *h_phi, const
 
 void dfUEqn::preProcess(const double *h_u, const double *h_boundary_u, const double *h_p, const double *h_boundary_p, 
         const double *h_nu_eff, const double *h_boundary_nu_eff, const double *h_boundary_rho) {
-  checkCudaErrors(cudaMemcpyAsync(dataBase_.d_u, h_u, dataBase_.cell_value_vec_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
-  checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_u, h_boundary_u, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+  checkCudaErrors(cudaMemcpyAsync(d_u_host_order, h_u, dataBase_.cell_value_vec_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+  checkCudaErrors(cudaMemcpyAsync(d_boundary_u_host_order, h_boundary_u, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
   checkCudaErrors(cudaMemcpyAsync(dataBase_.d_p, h_p, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
   checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_p, h_boundary_p, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
   checkCudaErrors(cudaMemcpyAsync(d_nu_eff, h_nu_eff, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
@@ -112,13 +322,14 @@ void dfUEqn::process() {
         checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
 #endif
 
-        permute_vector_h2d(dataBase_.stream, dataBase_.num_cells, dataBase_.d_u, d_permute);
+        permute_vector_h2d(dataBase_.stream, dataBase_.num_cells, d_u_host_order, dataBase_.d_u);
+        permute_vector_h2d(dataBase_.stream, dataBase_.num_boundary_surfaces, d_boundary_u_host_order, dataBase_.d_boundary_u);
         update_boundary_coeffs_vector(dataBase_.stream, dataBase_.num_boundary_surfaces, dataBase_.num_patches,
             dataBase_.patch_size.data(), patch_type.data(), dataBase_.d_boundary_u, dataBase_.d_boundary_delta_coeffs,
             d_value_internal_coeffs, d_value_boundary_coeffs,
             d_gradient_internal_coeffs, d_gradient_boundary_coeffs);
         fvm_ddt_vector(dataBase_.stream, dataBase_.num_cells, dataBase_.rdelta_t,
-                dataBase_.d_rho, dataBase_.d_rho_old, d_permute, dataBase_.d_volume,
+                dataBase_.d_rho, dataBase_.d_rho_old, dataBase_.d_u, dataBase_.d_volume,
                 d_diag, d_source, 1.);
         fvm_div_vector(dataBase_.stream, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, 
                 dataBase_.d_owner, dataBase_.d_neighbor,
@@ -140,7 +351,7 @@ void dfUEqn::process() {
                d_internal_coeffs, d_boundary_coeffs, -1);
         fvc_grad_vector(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
                dataBase_.d_owner, dataBase_.d_neighbor,
-               dataBase_.d_weight, dataBase_.d_sf, d_permute, d_grad_u,
+               dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_u, d_grad_u,
                dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
                dataBase_.d_boundary_face_cell, dataBase_.d_boundary_u, dataBase_.d_boundary_sf,
                dataBase_.d_volume, dataBase_.d_boundary_mag_sf, d_boundary_grad_u, dataBase_.d_boundary_delta_coeffs);
@@ -156,10 +367,12 @@ void dfUEqn::process() {
                 dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_p, d_source,
                 dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
                 dataBase_.d_boundary_face_cell, dataBase_.d_boundary_p, dataBase_.d_boundary_sf, dataBase_.d_volume, -1.);
+        getrAU(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, dataBase_.d_boundary_face_cell, 
+                d_internal_coeffs, dataBase_.d_volume, d_diag, dataBase_.d_rAU, dataBase_.d_boundary_rAU);       
 #ifndef DEBUG_CHECK_LDU   
-        ldu_to_csr(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
+        ueqn_ldu_to_csr(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
             dataBase_.d_boundary_face_cell, dataBase_.d_ldu_to_csr_index, dataBase_.d_diag_to_csr_index, 
-            d_ldu, d_internal_coeffs, d_boundary_coeffs, d_source, d_A);
+            d_ldu, d_source, d_internal_coeffs, d_boundary_coeffs, d_A, d_b);
 #endif
 #ifndef TIME_GPU
         checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph));
@@ -214,15 +427,15 @@ void dfUEqn::solve() {
         UySolver->updateOperator(dataBase_.num_cells, nNz, d_A + nNz);
         UzSolver->updateOperator(dataBase_.num_cells, nNz, d_A + 2 * nNz);
     }
-    UxSolver->solve(dataBase_.num_cells, d_permute, d_source);
-    UySolver->solve(dataBase_.num_cells, d_permute + dataBase_.num_cells, d_source + dataBase_.num_cells);
-    UzSolver->solve(dataBase_.num_cells, d_permute + 2 * dataBase_.num_cells, d_source + 2 * dataBase_.num_cells);
+    UxSolver->solve(dataBase_.num_cells, dataBase_.d_u, d_b);
+    UySolver->solve(dataBase_.num_cells, dataBase_.d_u + dataBase_.num_cells, d_b + dataBase_.num_cells);
+    UzSolver->solve(dataBase_.num_cells, dataBase_.d_u + 2 * dataBase_.num_cells, d_b + 2 * dataBase_.num_cells);
     num_iteration++;
 }
 
 void dfUEqn::postProcess(double *h_u) {
-    permute_vector_d2h(dataBase_.stream, dataBase_.num_cells, d_permute, dataBase_.d_u);
-    checkCudaErrors(cudaMemcpyAsync(h_u, dataBase_.d_u, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
+    permute_vector_d2h(dataBase_.stream, dataBase_.num_cells, dataBase_.d_u, d_u_host_order);
+    checkCudaErrors(cudaMemcpyAsync(h_u, d_u_host_order, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
     checkCudaErrors(cudaStreamSynchronize(dataBase_.stream));
 }
 
@@ -235,12 +448,113 @@ void dfUEqn::A(double *Psi) {
     memcpy(Psi, h_A_pEqn, dataBase_.cell_value_bytes);
 }
 
+void dfUEqn::getrAU(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces, 
+        const int *boundary_cell_face, const double *internal_coeffs, const double *volume, const double *diag, 
+        double *rAU, double *boundary_rAU)
+{
+    checkCudaErrors(cudaMemcpyAsync(rAU, diag, num_cells * sizeof(double), cudaMemcpyDeviceToDevice, stream));
+
+    size_t threads_per_block = 1024;
+    size_t blocks_per_grid = (num_boundary_surfaces + threads_per_block - 1) / threads_per_block;
+    addAveInternaltoDiagUeqn<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_boundary_surfaces, boundary_cell_face, 
+            internal_coeffs, rAU);
+    
+    blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
+    divide_cell_volume_scalar_reverse<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, volume, rAU);
+
+    blocks_per_grid = (num_boundary_surfaces + threads_per_block - 1) / threads_per_block;
+    get_calculated_field_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, rAU, boundary_cell_face, boundary_rAU);
+}
+
+void dfUEqn::UEqnGetHbyA(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces, 
+        const int *lowerAddr, const int *upperAddr, const double *volume,
+        int num_patches, const int *patch_size, const int *patch_type,
+        const int *boundary_cell_face, const double *internal_coffs, const double *boundary_coeffs, 
+        const double *lower, const double *upper, const double *source, const double *psi, 
+        const double *rAU, const double *boundary_rAU, const double *boundary_u,
+        double *HbyA, double *boundary_HbyA)
+{
+    size_t threads_per_block = 1024;
+    size_t blocks_per_grid = (num_boundary_surfaces + threads_per_block - 1) / threads_per_block;
+    checkCudaErrors(cudaMemcpyAsync(HbyA, source, num_cells * 3 * sizeof(double), cudaMemcpyDeviceToDevice, stream));
+
+    ueqn_addBoundaryDiag<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_boundary_surfaces, boundary_cell_face, 
+            internal_coffs, psi, HbyA);
+
+    blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
+    ueqn_lduMatrix_H<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_surfaces, lowerAddr, upperAddr, 
+            lower, upper, psi, HbyA);
+    
+    int offset = 0;
+    for (int i = 0; i < num_patches; i++) {
+        threads_per_block = 64;
+        blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
+        // TODO: just non-coupled patch type now
+        if (patch_type[i] == boundaryConditions::zeroGradient
+                || patch_type[i] == boundaryConditions::fixedValue) {
+            ueqn_addBoundarySrc_unCoupled<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, patch_size[i], offset, 
+                    num_boundary_surfaces, boundary_cell_face, boundary_coeffs, HbyA);
+        } else {
+            // xxx
+            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+        }
+        offset += patch_size[i];
+    }
+
+    // divide volume and multi rAU 
+    blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
+    divide_vol_multi_rAU<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, rAU, volume, HbyA);
+
+    // correct boundary and multi rAU
+    offset = 0;
+    for (int i = 0; i < num_patches; i++) {
+        threads_per_block = 64;
+        blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
+        // TODO: just non-coupled patch type now
+        if (patch_type[i] != boundaryConditions::fixedValue) {
+            correctBoundary_HbyA<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_boundary_surfaces, patch_size[i], offset, 
+                    boundary_cell_face, HbyA, boundary_HbyA);
+        } else {
+            correctBoundary_HbyA_fixedValueU<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset, 
+                    boundary_u, boundary_HbyA);
+        }
+        offset += patch_size[i];
+    }
+}
+
+void dfUEqn::getHbyA()
+{
+    UEqnGetHbyA(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, 
+            dataBase_.d_owner, dataBase_.d_neighbor, dataBase_.d_volume, 
+            dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(), dataBase_.d_boundary_face_cell, 
+            d_internal_coeffs, d_boundary_coeffs, d_lower, d_upper, d_source, dataBase_.d_u, dataBase_.d_rAU, dataBase_.d_boundary_rAU,
+            dataBase_.d_boundary_u, dataBase_.d_HbyA, dataBase_.d_boundary_HbyA);
+}
+
+void dfUEqn::ueqn_ldu_to_csr(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surface,
+        const int* boundary_cell_face, const int *ldu_to_csr_index, const int *diag_to_csr_index,
+        const double *ldu, const double *source, const double *internal_coeffs, const double *boundary_coeffs,
+        double *A, double *b)
+{
+    // construct diag
+    int nNz = num_cells + 2 * num_surfaces;
+    size_t threads_per_block = 1024;
+    size_t blocks_per_grid = (nNz + threads_per_block - 1) / threads_per_block;
+    checkCudaErrors(cudaMemcpyAsync(b, source, num_cells * 3 * sizeof(double), cudaMemcpyDeviceToDevice, stream));
+    ueqn_ldu_to_csr_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(nNz, ldu_to_csr_index, ldu, A);
+
+    // add coeff to source and diagnal
+    blocks_per_grid = (num_boundary_surface + threads_per_block - 1) / threads_per_block;
+    ueqn_add_boundary_diag_src<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_surfaces, num_boundary_surface, 
+            boundary_cell_face, internal_coeffs, boundary_coeffs, diag_to_csr_index, A, b);
+}
+
 void dfUEqn::H(double *Psi) {
     fvMtx_H(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, 
             dataBase_.d_owner, dataBase_.d_neighbor, dataBase_.d_volume,
             dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
             dataBase_.d_boundary_face_cell, d_internal_coeffs, d_boundary_coeffs,
-            d_lower, d_upper, d_source, d_permute, d_H_pEqn, d_H_pEqn_perm);
+            d_lower, d_upper, d_source, dataBase_.d_u, d_H_pEqn, d_H_pEqn_perm);
     checkCudaErrors(cudaMemcpyAsync(h_H_pEqn, d_H_pEqn_perm, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
     sync();
     // TODO: correct Boundary conditions
@@ -248,10 +562,9 @@ void dfUEqn::H(double *Psi) {
 }
 
 void dfUEqn::correctPsi(double *Psi) {
-    checkCudaErrors(cudaMemcpy(dataBase_.d_u, Psi, dataBase_.cell_value_vec_bytes, cudaMemcpyHostToDevice));
-    permute_vector_h2d(dataBase_.stream, dataBase_.num_cells, dataBase_.d_u, d_permute);
+    checkCudaErrors(cudaMemcpy(d_u_host_order, Psi, dataBase_.cell_value_vec_bytes, cudaMemcpyHostToDevice));
+    permute_vector_h2d(dataBase_.stream, dataBase_.num_cells, d_u_host_order, dataBase_.d_u);
 }
-
 
 double* dfUEqn::getFieldPointer(const char* fieldAlias, location loc, position pos) {
     char mergedName[256];
@@ -268,7 +581,6 @@ double* dfUEqn::getFieldPointer(const char* fieldAlias, location loc, position p
     if (pointer == nullptr) {
         fprintf(stderr, "Warning! getFieldPointer of %s returns nullptr!\n", mergedName);
     }
-    //fprintf(stderr, "fieldAlias: %s, mergedName: %s, pointer: %p\n", fieldAlias, mergedName, pointer);
 
     return pointer;
 }
@@ -360,3 +672,46 @@ void dfUEqn::compareResult(const double *lower, const double *upper, const doubl
     // DEBUG_TRACE;
 }
 #endif
+void dfUEqn::compareHbyA(const double *HbyA, const double *boundary_HbyA, bool printFlag)
+{
+    double *h_HbyA = new double[dataBase_.num_cells * 3];
+    double *h_HbyA_ref = new double[dataBase_.num_cells * 3];
+    double *h_boundary_HbyA = new double[dataBase_.num_boundary_surfaces * 3];
+    double *h_boundary_HbyA_ref = new double[dataBase_.num_boundary_surfaces * 3];
+
+    // permute
+    for (int i = 0; i < dataBase_.num_cells; i++)
+    {
+        h_HbyA_ref[dataBase_.num_cells * 0 + i] = HbyA[i * 3 + 0];
+        h_HbyA_ref[dataBase_.num_cells * 1 + i] = HbyA[i * 3 + 1];
+        h_HbyA_ref[dataBase_.num_cells * 2 + i] = HbyA[i * 3 + 2];
+    }
+    for (int i = 0; i < dataBase_.num_boundary_surfaces; i++)
+    {
+        h_boundary_HbyA_ref[dataBase_.num_boundary_surfaces * 0 + i] = boundary_HbyA[i * 3 + 0];
+        h_boundary_HbyA_ref[dataBase_.num_boundary_surfaces * 1 + i] = boundary_HbyA[i * 3 + 1];
+        h_boundary_HbyA_ref[dataBase_.num_boundary_surfaces * 2 + i] = boundary_HbyA[i * 3 + 2];
+    }
+    checkCudaErrors(cudaMemcpy(h_HbyA, dataBase_.d_HbyA, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToHost));
+    checkCudaErrors(cudaMemcpy(h_boundary_HbyA, dataBase_.d_boundary_HbyA, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyDeviceToHost));
+    
+    // check result
+    fprintf(stderr, "check h_HbyA\n");
+    checkVectorEqual(dataBase_.num_cells * 3, h_HbyA_ref, h_HbyA, 1e-10, printFlag);
+    fprintf(stderr, "check h_boundary_HbyA\n");
+    checkVectorEqual(dataBase_.num_boundary_surfaces * 3, h_boundary_HbyA_ref, h_boundary_HbyA, 1e-10, printFlag);
+}
+
+void dfUEqn::comparerAU(const double *rAU, const double *boundary_rAU, bool printFlag)
+{
+    double *h_rAU = new double[dataBase_.num_cells];
+    double *h_boundary_rAU = new double[dataBase_.num_boundary_surfaces];
+
+    checkCudaErrors(cudaMemcpy(h_rAU, dataBase_.d_rAU, dataBase_.cell_value_bytes, cudaMemcpyDeviceToHost));
+    checkCudaErrors(cudaMemcpy(h_boundary_rAU, dataBase_.d_boundary_rAU, dataBase_.boundary_surface_value_bytes, cudaMemcpyDeviceToHost));
+
+    fprintf(stderr, "check h_rAU\n");
+    checkVectorEqual(dataBase_.num_cells, rAU, h_rAU, 1e-10, printFlag);
+    fprintf(stderr, "check h_boundary_rAU\n");
+    checkVectorEqual(dataBase_.num_boundary_surfaces, boundary_rAU, h_boundary_rAU, 1e-10, printFlag);
+}
