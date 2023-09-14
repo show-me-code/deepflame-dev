@@ -4,6 +4,8 @@
 #include <unistd.h>
 #include "cuda_profiler_api.h"
 #include <cuda_runtime.h>
+#include "nccl.h"
+#include "mpi.h"
 #include "nvtx3/nvToolsExt.h"
 #include <vector>
 #include <numeric>
@@ -77,6 +79,14 @@ struct dfMatrixDataBase
 {
     // cuda resource
     cudaStream_t stream;
+
+    // communication info
+    MPI_Comm mpi_comm;
+    ncclComm_t nccl_comm;
+    ncclUniqueId nccl_id;
+    int nRanks;
+    int myRank;
+    int localRank;
 
     // constant values -- basic
     int num_cells = 0;
@@ -217,6 +227,8 @@ struct dfMatrixDataBase
     ~dfMatrixDataBase();
 
     // member function
+    void setCommInfo(MPI_Comm mpi_comm, ncclComm_t nccl_comm, ncclUniqueId nccl_id,
+            int nRanks, int myRank, int localRank);
     void setConstantValues(int num_cells, int num_surfaces, int num_boundary_surfaces,
                    int num_patches, std::vector<int> patch_size,
                    int num_species, double rdelta_t);             

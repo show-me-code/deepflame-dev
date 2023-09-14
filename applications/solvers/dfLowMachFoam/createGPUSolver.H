@@ -1,5 +1,9 @@
 #include <queue>
 
+ncclUniqueId nccl_id;
+ncclComm_t nccl_comm;
+int myRank, nRanks, localRank = 0;
+
 dfMatrixDataBase dfDataBase;
 dfRhoEqn rhoEqn_GPU(dfDataBase);
 dfUEqn UEqn_GPU(dfDataBase);
@@ -87,7 +91,17 @@ void randomInitField(T& field) {
 }
 #endif
 
+void initNccl() {
+    ncclInit(PstreamGlobals::MPI_COMM_FOAM, nccl_comm, nccl_id, &myRank, &nRanks, &localRank);
+}
+
 void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
+    // prepare mpi and nccl info
+    dfDataBase.setCommInfo(PstreamGlobals::MPI_COMM_FOAM, nccl_comm, nccl_id, myRank, nRanks, localRank);
+    // TODO: test for temp
+    ncclTest(nccl_comm);
+    ncclDestroy(nccl_comm);
+
     // prepare constant values: num_cells, num_surfaces, num_boundary_surfaces, num_patches, patch_size, num_species, rdelta_t
     const labelUList& owner = mesh.owner();
     const labelUList& neighbour = mesh.neighbour();
@@ -109,7 +123,7 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
     
     // prepare constant indexes: owner, neighbor
     dfDataBase.setConstantIndexes(&owner[0], &neighbour[0]);
-    
+
     // prepare internal and boundary of sf, mag_sf, weights, delta_coeffs, volume
     double *boundary_sf = new double[3 * num_boundary_surfaces];
     double *boundary_mag_sf = new double[num_boundary_surfaces];

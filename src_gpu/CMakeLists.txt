@@ -25,6 +25,7 @@ add_library(${PROJECT_NAME}
         AmgXSolver.cu
         dfMatrixDataBase.cu
         dfMatrixOpBase.cu
+        dfNcclBase.cu
         dfUEqn.cu
         dfYEqn.cu
         dfEEqn.cu
