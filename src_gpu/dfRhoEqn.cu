@@ -96,3 +96,9 @@ void dfRhoEqn::compareResult(const double *diag, const double *source, bool prin
     DEBUG_TRACE;
 }
 
+void dfRhoEqn::correctPsi(const double *rho, const double *boundary_rho)
+{
+    checkCudaErrors(cudaMemcpy(dataBase_.d_rho, rho, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(dataBase_.d_boundary_rho, boundary_rho, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice));
+}
+

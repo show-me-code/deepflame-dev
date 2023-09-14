@@ -5,6 +5,7 @@ dfRhoEqn rhoEqn_GPU(dfDataBase);
 dfUEqn UEqn_GPU(dfDataBase);
 dfYEqn YEqn_GPU(dfDataBase);
 dfEEqn EEqn_GPU(dfDataBase);
+dfpEqn pEqn_GPU(dfDataBase);
 
 #if defined(DEBUG_)
 template <typename T>
@@ -168,9 +169,6 @@ void createGPUUEqn(const IOdictionary& CanteraTorchProperties, const volVectorFi
     {
         constructBoundarySelectorPerPatch(&(patch_type[patchi]), U.boundaryField()[patchi].type());
     }
-    forAll(patch_type, patchi){
-        Info << "patch_type_U " << patchi << " = " << patch_type[patchi] << endl;
-    }
     UEqn_GPU.setConstantFields(patch_type);
 
     // prepare internal and boundary of xxx
@@ -218,7 +216,6 @@ void createGPUEEqn(const IOdictionary& CanteraTorchProperties, volScalarField& h
 
     // prepare patch_type
     std::vector<int> patch_type_he(dfDataBase.num_patches), patch_type_k(dfDataBase.num_patches);
-    fprintf(stderr, "num_species: %d\n", dfDataBase.num_species);
     forAll(he.boundaryField(), patchi)
     {
         constructBoundarySelectorPerPatch(&(patch_type_he[patchi]), he.boundaryField()[patchi].type());
@@ -230,4 +227,28 @@ void createGPUEEqn(const IOdictionary& CanteraTorchProperties, volScalarField& h
     EEqn_GPU.createNonConstantFieldsInternal();
     EEqn_GPU.createNonConstantFieldsBoundary();
     EEqn_GPU.createNonConstantLduAndCsrFields();
+}
+
+void createGPUpEqn(const IOdictionary& CanteraTorchProperties, volScalarField& p, const volVectorField& U) {
+    DEBUG_TRACE;
+    // prepare mode_string and setting_path
+    string mode_string = "dDDI";
+    string settingPath;
+    settingPath = CanteraTorchProperties.subDict("AmgxSettings").lookupOrDefault("pEqnSettingPath", string(""));
+    pEqn_GPU.setConstantValues(mode_string, settingPath);
+    
+    // prepare patch_type
+    std::vector<int> patch_type_p(dfDataBase.num_patches);
+    std::vector<int> patch_type_U(dfDataBase.num_patches);
+    forAll(p.boundaryField(), patchi)
+    {
+        constructBoundarySelectorPerPatch(&(patch_type_p[patchi]), p.boundaryField()[patchi].type());
+        constructBoundarySelectorPerPatch(&(patch_type_U[patchi]), U.boundaryField()[patchi].type());
+    }
+    pEqn_GPU.setConstantFields(patch_type_U, patch_type_p);
+
+    // prepare internal and boundary of xxx
+    pEqn_GPU.createNonConstantFieldsInternal();
+    pEqn_GPU.createNonConstantFieldsBoundary();
+    pEqn_GPU.createNonConstantLduAndCsrFields();
 }

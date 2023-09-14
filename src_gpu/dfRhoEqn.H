@@ -49,4 +49,5 @@ public:
     // other functions
     void compareResult(const double *diag, const double *source, bool printFlag);
     void sync();
+    void correctPsi(const double *rho, const double *boundary_rho);
 };

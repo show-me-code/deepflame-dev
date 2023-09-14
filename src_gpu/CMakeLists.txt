@@ -28,7 +28,8 @@ add_library(${PROJECT_NAME}
         dfUEqn.cu
         dfYEqn.cu
         dfEEqn.cu
-        dfRhoEqn.cu)
+        dfRhoEqn.cu
+        dfpEqn.cu)
 
 target_link_libraries(${PROJECT_NAME}
     ${MPI_LIBRARIES}
@@ -41,5 +42,5 @@ if (DFMATRIX_ENABLE_DETAILED_DEBUG)
     target_compile_definitions(${PROJECT_NAME} PRIVATE DEBUG_)
 endif()
 
-target_compile_definitions(${PROJECT_NAME} PRIVATE STREAM_ALLOCATOR)
+# target_compile_definitions(${PROJECT_NAME} PRIVATE STREAM_ALLOCATOR)
 
