@@ -16,14 +16,15 @@
 #include <cmath>
 #include <unordered_map>
 
-// #define DEBUG_
+#define DEBUG_
 
-//#ifdef DEBUG_
-//    #define DEBUG_TRACE fprintf(stderr, "%s %d\n", __FILE__, __LINE__);
-//#else
-//    #define DEBUG_TRACE
-//#endif
-#define DEBUG_TRACE fprintf(stderr, "%s %d\n", __FILE__, __LINE__);
+#ifdef DEBUG_
+   #define DEBUG_TRACE fprintf(stderr, "%s %d\n", __FILE__, __LINE__);
+#else
+   #define DEBUG_TRACE
+#endif
+
+const double SMALL = std::numeric_limits<double>::epsilon();
 
 static const char *_cudaGetErrorEnum(cudaError_t error) {
   return cudaGetErrorName(error);
@@ -70,7 +71,8 @@ enum boundaryConditions{
     coupled,
     empty,
     gradientEnergy,
-    calculated
+    calculated,
+    cyclic
 };
 
 void constructBoundarySelectorPerPatch(int *patchTypeSelector, const std::string& patchTypeStr);
@@ -158,26 +160,33 @@ struct dfMatrixDataBase
     // TODO: not all fields need to store oldTime
     double *d_rho_old = nullptr;
     double *d_k_old = nullptr;
-    //double *d_u_old = nullptr;
+    double *d_u_old = nullptr;
+    double *d_p_old = nullptr;
+    double *d_u_old_host_order = nullptr; // tmp
     //double *d_y_old = nullptr;
     //double *d_he_old = nullptr;
     //double *d_p_old = nullptr;
     // other shared fields between eqns
     double *d_phi = nullptr;
+    double *d_phi_old = nullptr;
     // other shared fields between eqns - thermophysical
+    double *d_thermo_psi = nullptr;
     double *d_thermo_alpha = nullptr;
     double *d_hDiff_corr_flux = nullptr;
     double *d_diff_alphaD = nullptr;
+    double *d_dpdt = nullptr;
     // computed on GPU, used on CPU, need memcpyd2h - host
     double *h_rho = nullptr;
     double *h_rho_old = nullptr;
     double *h_u= nullptr;
+    double *h_u_old= nullptr;
     double *h_y= nullptr;
     double *h_he= nullptr;
     double *h_k= nullptr;
     double *h_k_old = nullptr;
     // computed on CPU, used on GPU, need memcpyh2d - host
     double *h_p= nullptr;
+    double *h_p_old = nullptr;
     double *h_phi= nullptr;
     // internal fields used between eqns
     double *d_rAU = nullptr;
@@ -191,16 +200,20 @@ struct dfMatrixDataBase
     double *d_boundary_y = nullptr;
     double *d_boundary_he = nullptr;
     double *d_boundary_p = nullptr;
+    double *d_boundary_p_old = nullptr;
     double *d_boundary_k = nullptr;
     // fields solved by eqns - old
     double *d_boundary_rho_old = nullptr;
-    //double *d_boundary_u_old = nullptr;
+    double *d_boundary_u_old = nullptr;
+    double *d_boundary_u_old_host_order = nullptr; // tmp
     //double *d_boundary_y_old = nullptr;
     //double *d_boundary_he_old = nullptr;
     //double *d_boundary_p_old = nullptr;
     // other shared fields between eqns
     double *d_boundary_phi = nullptr;
+    double *d_boundary_phi_old = nullptr;
     // other shared fields between eqns - thermophysical
+    double *d_boundary_thermo_psi = nullptr;
     double *d_boundary_thermo_alpha = nullptr;
     double *d_boundary_hDiff_corr_flux = nullptr;
     double *d_boundary_diff_alphaD = nullptr;
@@ -211,12 +224,15 @@ struct dfMatrixDataBase
     double *h_boundary_rho = nullptr;
     double *h_boundary_rho_old = nullptr;
     double *h_boundary_u= nullptr;
+    double *h_boundary_u_old= nullptr;
     double *h_boundary_y= nullptr;
     double *h_boundary_he= nullptr;
     double *h_boundary_k = nullptr;
     // computed on CPU, used on GPU, need memcpyh2d - host
     double *h_boundary_p= nullptr;
+    double *h_boundary_p_old= nullptr;
     double *h_boundary_phi= nullptr;
+    double *h_boundary_phi_old= nullptr;
 
     std::unordered_map<std::string, double*> fieldPointerMap;
 
@@ -246,7 +262,8 @@ struct dfMatrixDataBase
     void initNonConstantFieldsInternal(const double *y);
     void initNonConstantFieldsBoundary(const double *boundary_y);
 
-    void preTimeStep(const double *rho_old);
+    void preTimeStep(const double *rho_old, const double *phi_old, const double *boundary_phi_old, 
+            const double *u_old, const double *boundary_u_old, const double *p_old, const double *boundary_p_old);
     void postTimeStep();
 
     // getter

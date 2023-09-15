@@ -62,13 +62,14 @@ Description
 
 #define GPUSolverNew_
 // #define TIME
-// #define DEBUG_ // if application open DEBUG_, srg_gpu should also open DEBUG_
+#define DEBUG_ // if application open DEBUG_, srg_gpu should also open DEBUG_
 
 #ifdef GPUSolverNew_
 #include "dfUEqn.H"
 #include "dfYEqn.H"
 #include "dfRhoEqn.H"
 #include "dfEEqn.H"
+#include "dfpEqn.H"
 #include "dfMatrixDataBase.H"
 #include "dfMatrixOpBase.H"
 #include "dfNcclBase.H"
@@ -193,6 +194,7 @@ int main(int argc, char *argv[])
     createGPUUEqn(CanteraTorchProperties, U);
     createGPUYEqn(CanteraTorchProperties, Y, inertIndex);
     createGPUEEqn(CanteraTorchProperties, thermo.he(), K);
+    createGPUpEqn(CanteraTorchProperties, p, U);
     rhoEqn_GPU.createNonConstantLduAndCsrFields();
 #endif
 
@@ -222,8 +224,26 @@ int main(int argc, char *argv[])
         runTime++;
 
         Info<< "Time = " << runTime.timeName() << nl << endl;
+        
+        // store old time fields
 #ifdef GPUSolverNew_
-        dfDataBase.preTimeStep(&rho.oldTime()[0]);
+        double *h_boundary_phi_old = dfDataBase.getFieldPointer("phi_old", location::cpu, position::boundary);
+        double *h_boundary_u_old = dfDataBase.getFieldPointer("u_old", location::cpu, position::boundary);
+        double *h_boundary_p_old = dfDataBase.getFieldPointer("p_old", location::cpu, position::boundary);
+        int offset = 0;
+        forAll(phi.oldTime().boundaryField(), patchi)
+        {
+            const fvsPatchScalarField& patchPhi = phi.oldTime().boundaryField()[patchi];
+            const fvPatchScalarField& patchP = p.oldTime().boundaryField()[patchi];
+            const fvPatchVectorField& patchU = U.oldTime().boundaryField()[patchi];
+            int patchsize = patchPhi.size();
+            memcpy(h_boundary_phi_old + offset, &patchPhi[0], patchsize * sizeof(double));
+            memcpy(h_boundary_p_old + offset, &patchP[0], patchsize * sizeof(double));
+            memcpy(h_boundary_u_old + offset * 3, &patchU[0][0], patchsize * 3 * sizeof(double));
+            offset += patchsize;
+        }
+        dfDataBase.preTimeStep(&rho.oldTime()[0], &phi.oldTime()[0], h_boundary_phi_old, &U.oldTime()[0][0], h_boundary_u_old, 
+            &p.oldTime()[0], h_boundary_p_old);
 #endif
         clock_t loop_start = std::clock();
         // --- Pressure-velocity PIMPLE corrector loop
@@ -274,6 +294,23 @@ int main(int argc, char *argv[])
                 start = std::clock();
                 chemistry->correctThermo();
                 end = std::clock();
+
+                #ifdef GPUSolverNew_
+                double *h_boundary_thermo_psi = new double[dfDataBase.num_boundary_surfaces];
+                
+                offset = 0;
+                forAll(psi.oldTime().boundaryField(), patchi)
+                {
+                    const fvPatchScalarField& patchPsi = psi.boundaryField()[patchi];
+
+                    int patchsize = patchPsi.size();
+                    memcpy(h_boundary_thermo_psi + offset, &patchPsi[0], patchsize * sizeof(double));
+                    offset += patchsize;
+                }
+
+                pEqn_GPU.correctPsi(&psi[0], h_boundary_thermo_psi);
+                #endif
+
                 time_monitor_chemistry_correctThermo += double(end - start) / double(CLOCKS_PER_SEC);
             }
             else

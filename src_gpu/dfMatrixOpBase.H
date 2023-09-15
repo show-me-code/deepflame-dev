@@ -1,19 +1,27 @@
 #pragma once
 #include <cuda_runtime.h>
 // #define TIME_GPU
-// #define DEBUG_CHECK_LDU
+#define DEBUG_CHECK_LDU
 
 // tools
 void permute_vector_d2h(cudaStream_t stream, int num_cells, const double *input, double *output);
 void permute_vector_h2d(cudaStream_t stream, int num_cells, const double *input, double *output);
 
 void field_add_scalar(cudaStream_t stream,
-        int num_cells, const double *input1, const double *input2, double *output,
+        int num, const double *input1, const double *input2, double *output,
         int num_boundary_surfaces, const double *boundary_input1, const double *boundary_input2, double *boundary_output);
+
+void field_add_vector(cudaStream_t stream,
+        int num_cells, const double *input1, const double *input2, double *output,
+        int num_boundary_surfaces, const double *boundary_input1, const double *boundary_input2, double *boundary_output, double sign = 1.);
 
 void field_multiply_scalar(cudaStream_t stream,
         int num_cells, const double *input1, const double *input2, double *output,
         int num_boundary_surfaces, const double *boundary_input1, const double *boundary_input2, double *boundary_output);
+
+void scalar_field_multiply_vector_field(cudaStream_t stream,
+        int num_cells, const double *input1, const double *input2, double *output,
+        int num_boundary_surfaces, const double *boundary_input1, const double *boundary_input2, double *boundary_output, double sign = 1.);
 
 void fvc_to_source_vector(cudaStream_t stream, int num_cells, const double *volume, const double *fvc_output, double *source);
 
@@ -39,6 +47,10 @@ void update_boundary_coeffs_vector(cudaStream_t stream, int num_boundary_surface
         const int *patch_size, const int *patch_type, const double *boundary_vf, const double *boundary_deltaCoeffs, 
         double *value_internal_coeffs, double *value_boundary_coeffs,
         double *gradient_internal_coeffs, double *gradient_boundary_coeffs);
+
+void correct_boundary_conditions_scalar(cudaStream_t stream, int num_boundary_surfaces, int num_patches,
+        const int *patch_size, const int *patch_type,
+        const int *boundary_cell_face, const double *vf, double *boundary_vf);
 
 void compute_upwind_weight(cudaStream_t stream, int num_surfaces, const double *phi, double *weight);
 
@@ -89,11 +101,25 @@ void fvm_laplacian_vector(cudaStream_t stream, int num_surfaces, int num_boundar
         const double *gradient_internal_coeffs, const double *gradient_boundary_coeffs,
         double *internal_coeffs, double *boundary_coeffs, double sign = 1.);
 
+void fvm_laplacian_surface_scalar_vol_scalar(cudaStream_t stream, int num_surfaces, int num_boundary_surfaces, 
+        const int *lowerAddr, const int *upperAddr,
+        const double *mag_sf, const double *delta_coeffs, const double *gamma,
+        double *lower, double *upper, double *diag, // end for internal
+        const double *boundary_mag_sf, const double *boundary_gamma,
+        const double *gradient_internal_coeffs, const double *gradient_boundary_coeffs,
+        double *internal_coeffs, double *boundary_coeffs, double sign = 1.);
+
 // fvc ops
 // fvc_ddt doesn't consider to add fvc_output to source yet, which needs (fvc_output * volume * sign).
 void fvc_ddt_vol_scalar_vol_scalar(cudaStream_t stream, int num_cells, double rDeltaT,
         const double *rho, const double *rho_old, const double *vf, const double *vf_old, const double *volume, 
         double *output, double sign = 1.);
+
+void fvc_ddt_scalar(cudaStream_t stream, int num_cells, double rDeltaT,
+        const double *vf, const double *vf_old, const double *volume, double *source, double sign);
+
+void fvc_ddt_scalar_field(cudaStream_t stream, int num_cells, double rDeltaT,
+        const double *vf, const double *vf_old, const double *volume, double *source, double sign = 1.);
 
 void fvc_grad_vector(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces,
         const int *lowerAddr, const int *upperAddr, 
@@ -158,6 +184,12 @@ void fvc_flux(cudaStream_t stream, int num_cells, int num_surfaces, int num_boun
         const int *boundary_cell_face, const double *boundary_vf, const double *boundary_Sf, 
         double *boundary_output, double sign);
 
+void fvc_interpolate(cudaStream_t stream, int num_cells, int num_surfaces,
+        const int *lowerAddr, const int *upperAddr, 
+        const double *weight, const double *vf, double *output, // end for internal
+        int num_patches, const int *patch_size, const int *patch_type,
+        const double *boundary_vf, double *boundary_output, double sign);
+
 // others
 void scale_dev2T_tensor(cudaStream_t stream, int num_cells, const double *vf1, double *vf2,
         int num_boundary_surfaces, const double *boundary_vf1, double *boundary_vf2);
@@ -172,6 +204,13 @@ void fvMtx_H(cudaStream_t stream, int num_cells, int num_surfaces, int num_bound
         const int *boundary_cell_face, const double *internal_coffs, const double *boundary_coeffs, 
         const double *lower, const double *upper, const double *source, const double *psi, 
         double *H_pEqn, double *H_pEqn_perm);
+
+void fvMtx_flux(cudaStream_t stream, int num_surfaces, int num_boundary_surfaces, 
+        const int *lowerAddr, const int *upperAddr, const double *lower, const double *upper,
+        const double *psi, double *output, //end for internal
+        int num_patches, const int *patch_size, const int *patch_type,
+        const int *boundary_cell_face, const double *internal_coeffs, const double *boundary_coeffs, 
+        const double *boundary_psi, double *boundary_output);
 
 void solve_explicit_scalar(cudaStream_t stream, int num_cells, const double *diag, const double *source,
         double *psi);
