@@ -63,6 +63,16 @@ dfMatrixDataBase::~dfMatrixDataBase() {
     // TODO: free pointers
 }
 
+void dfMatrixDataBase::setCommInfo(MPI_Comm mpi_comm, ncclComm_t nccl_comm, ncclUniqueId nccl_id,
+        int nRanks, int myRank, int localRank) {
+    this->mpi_comm = mpi_comm;
+    this->nccl_comm = nccl_comm;
+    this->nccl_id = nccl_id;
+    this->nRanks = nRanks;
+    this->myRank = myRank;
+    this->localRank = localRank;
+}
+ 
 void dfMatrixDataBase::setConstantValues(int num_cells, int num_surfaces, int num_boundary_surfaces,
                    int num_patches, std::vector<int> patch_size,
                    int num_species, double rdelta_t) {

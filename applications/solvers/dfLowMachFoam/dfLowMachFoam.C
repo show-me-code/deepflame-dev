@@ -71,6 +71,7 @@ Description
 #include "dfEEqn.H"
 #include "dfMatrixDataBase.H"
 #include "dfMatrixOpBase.H"
+#include "dfNcclBase.H"
 #include <cuda_runtime.h>
 #include <thread>
 
@@ -182,7 +183,13 @@ int main(int argc, char *argv[])
 
     start1 = std::clock();
 #ifdef GPUSolverNew_
+    initNccl();
     createGPUBase(mesh, Y);
+#endif
+
+// TODO: GPU Solver can not pass parallel run for now, thus we undef GPUSolverNew_ here, and change to CPU solver
+#undef GPUSolverNew_
+#ifdef GPUSolverNew_
     createGPUUEqn(CanteraTorchProperties, U);
     createGPUYEqn(CanteraTorchProperties, Y, inertIndex);
     createGPUEEqn(CanteraTorchProperties, thermo.he(), K);
@@ -294,6 +301,8 @@ int main(int argc, char *argv[])
             }
             end = std::clock();
             time_monitor_p += double(end - start) / double(CLOCKS_PER_SEC);
+
+
 
             start = std::clock();
             if (pimple.turbCorr())
