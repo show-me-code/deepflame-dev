@@ -11,7 +11,9 @@ void constructBoundarySelectorPerPatch(int *patchTypeSelector, const std::string
         {"empty", empty},
         {"gradientEnergy", gradientEnergy},
         {"calculated", calculated},
-        {"coupled", coupled}
+        {"coupled", coupled},
+        {"cyclic", cyclic},
+        {"processor", processor}
     };
     auto iter = BCMap.find(patchTypeStr);
     if (iter != BCMap.end()) {
@@ -56,6 +58,11 @@ void constructBoundarySelectorPerPatch(int *patchTypeSelector, const std::string
             *patchTypeSelector = 6;
             break;
         }
+        case processor:
+        {
+            *patchTypeSelector = 7;
+            break;
+        }
     }
 }
 
@@ -70,13 +77,14 @@ dfMatrixDataBase::~dfMatrixDataBase() {
 }
 
 void dfMatrixDataBase::setCommInfo(MPI_Comm mpi_comm, ncclComm_t nccl_comm, ncclUniqueId nccl_id,
-        int nRanks, int myRank, int localRank) {
+        int nRanks, int myRank, int localRank, std::vector<int> &neighbProcNo) {
     this->mpi_comm = mpi_comm;
     this->nccl_comm = nccl_comm;
     this->nccl_id = nccl_id;
     this->nRanks = nRanks;
     this->myRank = myRank;
     this->localRank = localRank;
+    this->neighbProcNo = neighbProcNo;
 }
  
 void dfMatrixDataBase::setConstantValues(int num_cells, int num_surfaces, int num_boundary_surfaces,

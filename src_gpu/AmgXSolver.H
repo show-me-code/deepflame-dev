@@ -100,14 +100,15 @@ class AmgXSolver
 
         /** \brief Construct a AmgXSolver instance.
          *
-         * \param comm [in] MPI communicator.
          * \param modeStr [in] A string; target mode of AmgX (e.g., dDDI).
          * \param cfgFile [in] A string; the path to AmgX configuration file.
+         * \param devID [in] An integer; the ID of the GPU device to be used.
          */
         AmgXSolver
         (
             const std::string &modeStr,
-            const std::string &cfgFile
+            const std::string &cfgFile,
+            int devID
         );
 
         /** \brief Destructor. */
@@ -115,15 +116,16 @@ class AmgXSolver
 
         /** \brief Initialize a AmgXSolver instance.
          *
-         * \param comm [in] MPI communicator.
          * \param modeStr [in] A string; target mode of AmgX (e.g., dDDI).
          * \param cfgFile [in] A string; the path to AmgX configuration file.
+         * \param devID [in] An integer; the ID of the GPU device to be used.
          *
          */
         void initialize
         (
             const std::string &modeStr,
-            const std::string &cfgFile
+            const std::string &cfgFile,
+            const int devID
         );
 
 
@@ -302,8 +304,9 @@ class AmgXSolver
          * is in charge of initializing AmgX and the resource instance.
          *
          * \param cfgFile [in] Path to AmgX solver configuration file.
+         * \param devID [in] ID of the GPU device to be used.
          */
-        void initAmgX(const std::string &cfgFile);
+        void initAmgX(const std::string &cfgFile, int devID);
 };
 
 #endif

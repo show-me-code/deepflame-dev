@@ -81,9 +81,12 @@ Description
         memcpy(h_boundary_phi + offset, &patchPhi[0], patchsize * sizeof(double));
         offset += patchsize;
     }
+    std::cout << "location 0" << std::endl;
     rhoEqn_GPU.preProcess(h_phi, h_boundary_phi);
+    std::cout << "location 1" << std::endl;
 
     rhoEqn_GPU.process();
+    std::cout << "location 2" << std::endl;
 
     rhoEqn_GPU.solve();
 

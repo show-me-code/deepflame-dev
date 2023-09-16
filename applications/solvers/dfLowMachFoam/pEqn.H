@@ -1,5 +1,5 @@
-//#undef GPUSolverNew_
-//#define CPUSolver_
+#undef GPUSolverNew_
+#define CPUSolver_
 if (!pimple.simpleRho())
 {
     rho = thermo.rho();
@@ -177,9 +177,9 @@ surfaceScalarField phiHbyA
   + rhorAUf*fvc::ddtCorr(rho, U, phi, rhoUf)
 );
 
-#if defined DEBUG_
+#if defined DEBUG_ && defined GPUSolverNew_
     double *h_boundary_phiHbyA = new double[dfDataBase.num_boundary_surfaces];
-    offset = 0;
+    int offset = 0;
     forAll(phiHbyA.boundaryField(), patchi)
     {
         const scalarField& patchphiHbyA = phiHbyA.boundaryField()[patchi];
@@ -246,7 +246,7 @@ else
         start1 = std::clock();
         pEqn.solve();
 
-        #if defined DEBUG_
+        #if defined DEBUG_ && defined GPUSolverNew_
         double *h_p = dfDataBase.getFieldPointer("p", location::cpu, position::internal);
         double *h_boundary_p = dfDataBase.getFieldPointer("p", location::cpu, position::boundary);
         offset = 0;
@@ -275,7 +275,7 @@ else
             phi = phiHbyA + pEqn.flux();
         }
 
-        #if defined DEBUG_
+        #if defined DEBUG_ && defined GPUSolverNew_
         std::vector<double> h_internal_coeffs(dfDataBase.num_boundary_surfaces);
         std::vector<double> h_boundary_coeffs(dfDataBase.num_boundary_surfaces);
 
@@ -344,7 +344,7 @@ U = HbyA - rAU*fvc::grad(p);
 U.correctBoundaryConditions();
 K = 0.5*magSqr(U);
 
-#if defined DEBUG_
+#if defined DEBUG_ && defined GPUSolverNew_
 // check U
 double *h_boundary_u_tmp = new double[dfDataBase.num_boundary_surfaces * 3];
 offset = 0;
@@ -386,7 +386,7 @@ if (thermo.dpdt())
     }
 }
 
-#if defined DEBUG_
+#if defined DEBUG_ && defined GPUSolverNew_
 pEqn_GPU.comparedpdt(&dpdt[0], false);
 #endif
 
@@ -394,5 +394,5 @@ pEqn_GPU.comparedpdt(&dpdt[0], false);
 end2 = std::clock();
 time_monitor_pEqn += double(end2 - start2) / double(CLOCKS_PER_SEC);
 
-//#undef CPUSolver_
-//#define GPUSolverNew_
+#undef CPUSolver_
+#define GPUSolverNew_
