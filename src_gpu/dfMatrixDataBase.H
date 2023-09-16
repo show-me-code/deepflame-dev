@@ -72,7 +72,8 @@ enum boundaryConditions{
     empty,
     gradientEnergy,
     calculated,
-    cyclic
+    cyclic,
+    processor
 };
 
 void constructBoundarySelectorPerPatch(int *patchTypeSelector, const std::string& patchTypeStr);
@@ -89,6 +90,7 @@ struct dfMatrixDataBase
     int nRanks;
     int myRank;
     int localRank;
+    std::vector<int> neighbProcNo;
 
     // constant values -- basic
     int num_cells = 0;

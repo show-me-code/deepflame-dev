@@ -97,12 +97,6 @@ void initNccl() {
 }
 
 void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
-    // prepare mpi and nccl info
-    dfDataBase.setCommInfo(PstreamGlobals::MPI_COMM_FOAM, nccl_comm, nccl_id, myRank, nRanks, localRank);
-    // TODO: test for temp
-    ncclTest(nccl_comm);
-    ncclDestroy(nccl_comm);
-
     // prepare constant values: num_cells, num_surfaces, num_boundary_surfaces, num_patches, patch_size, num_species, rdelta_t
     const labelUList& owner = mesh.owner();
     const labelUList& neighbour = mesh.neighbour();
@@ -122,6 +116,24 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
     double rDeltaT = 1 / 1e-6;
     dfDataBase.setConstantValues(num_cells, num_surfaces, num_boundary_surfaces, num_patches, patch_size, Y.size(), rDeltaT);
     
+    // if mpi is initialized, prepare mpi and nccl info
+    label flag_mpi_init;
+    MPI_Initialized(&flag_mpi_init);
+    if(flag_mpi_init) {
+        std::vector<int> GPUNeighbProcNo(dfDataBase.num_patches, -1);
+        // get basic communication info from of
+        forAll(Y[0].boundaryField(), patchi) {
+            if (Y[0].boundaryField()[patchi].type() == "processor") {
+                GPUNeighbProcNo[patchi] = Y[0].boundaryField()[patchi].neighbProcNo();
+            }
+        }
+        // prepare mpi and nccl info
+        dfDataBase.setCommInfo(PstreamGlobals::MPI_COMM_FOAM, nccl_comm, nccl_id, myRank, nRanks, localRank, GPUNeighbProcNo);
+        // TODO: test for temp
+        ncclTest(nccl_comm);
+        ncclDestroy(nccl_comm);
+    }
+
     // prepare constant indexes: owner, neighbor
     dfDataBase.setConstantIndexes(&owner[0], &neighbour[0]);
 
