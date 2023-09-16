@@ -44,7 +44,8 @@ void update_boundary_coeffs_scalar(cudaStream_t stream,
         double *gradient_internal_coeffs, double *gradient_boundary_coeffs, const double *energy_gradient = nullptr);
 
 void update_boundary_coeffs_vector(cudaStream_t stream, int num_boundary_surfaces, int num_patches,
-        const int *patch_size, const int *patch_type, const double *boundary_vf, const double *boundary_deltaCoeffs, 
+        const int *patch_size, const int *patch_type, const double *boundary_vf, 
+        const double *boundary_deltaCoeffs, const double *boundary_weight,
         double *value_internal_coeffs, double *value_boundary_coeffs,
         double *gradient_internal_coeffs, double *gradient_boundary_coeffs);
 

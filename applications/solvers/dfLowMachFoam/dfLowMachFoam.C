@@ -76,6 +76,7 @@ Description
 #include <cuda_runtime.h>
 #include <thread>
 
+#include "processorFvPatchField.H"
 #include "createGPUSolver.H"
 
 #include "upwind.H"
@@ -184,12 +185,15 @@ int main(int argc, char *argv[])
 
     start1 = std::clock();
 #ifdef GPUSolverNew_
-    initNccl();
+    int mpi_init_flag;
+    checkMpiErrors(MPI_Initialized(&mpi_init_flag));
+    if(mpi_init_flag)
+        initNccl();
     createGPUBase(mesh, Y);
+    DEBUG_TRACE;
 #endif
 
 // TODO: GPU Solver can not pass parallel run for now, thus we undef GPUSolverNew_ here, and change to CPU solver
-#undef GPUSolverNew_
 #ifdef GPUSolverNew_
     createGPUUEqn(CanteraTorchProperties, U);
     createGPUYEqn(CanteraTorchProperties, Y, inertIndex);
@@ -298,7 +302,7 @@ int main(int argc, char *argv[])
                 #ifdef GPUSolverNew_
                 double *h_boundary_thermo_psi = new double[dfDataBase.num_boundary_surfaces];
                 
-                offset = 0;
+                int offset = 0;
                 forAll(psi.oldTime().boundaryField(), patchi)
                 {
                     const fvPatchScalarField& patchPsi = psi.boundaryField()[patchi];

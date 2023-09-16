@@ -208,7 +208,7 @@ double* dfpEqn::getFieldPointer(const char* fieldAlias, location loc, position p
 void dfpEqn::setConstantValues(const std::string &mode_string, const std::string &setting_path) {
     this->mode_string = mode_string;
     this->setting_path = setting_path;
-    pSolver = new AmgXSolver(mode_string, setting_path);
+    pSolver = new AmgXSolver(mode_string, setting_path, dataBase_.localRank);
 }
 
 void dfpEqn::setConstantFields(const std::vector<int> patch_type_U, const std::vector<int> patch_type_p) {

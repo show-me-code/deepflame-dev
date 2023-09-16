@@ -269,6 +269,33 @@ __global__ void update_boundary_coeffs_fixedValue_vector(int num_boundary_surfac
     gradient_boundary_coeffs[num_boundary_surfaces * 2 + start_index] = bouDeltaCoeffs * boundary_vf[num_boundary_surfaces * 2 + start_index];
 }
 
+__global__ void update_boundary_coeffs_processor_vector(int num_boundary_surfaces, int num, int offset,
+        const double *boundary_weight, const double *boundary_deltaCoeffs, 
+        double *value_internal_coeffs, double *value_boundary_coeffs,
+        double *gradient_internal_coeffs, double *gradient_boundary_coeffs)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
+        return;
+
+    int start_index = offset + index;
+    double bouWeight = boundary_weight[start_index];
+    double bouDeltaCoeffs = boundary_deltaCoeffs[start_index];
+
+    value_internal_coeffs[num_boundary_surfaces * 0 + start_index] = bouWeight; // valueInternalCoeffs = Type(pTraits<Type>::one)*w
+    value_internal_coeffs[num_boundary_surfaces * 1 + start_index] = bouWeight;
+    value_internal_coeffs[num_boundary_surfaces * 2 + start_index] = bouWeight;
+    value_boundary_coeffs[num_boundary_surfaces * 0 + start_index] = 1 - bouWeight; // valueBoundaryCoeffs = Type(pTraits<Type>::one)*(1.0 - w)
+    value_boundary_coeffs[num_boundary_surfaces * 1 + start_index] = 1 - bouWeight;
+    value_boundary_coeffs[num_boundary_surfaces * 2 + start_index] = 1 - bouWeight;
+    gradient_internal_coeffs[num_boundary_surfaces * 0 + start_index] = -1 * bouDeltaCoeffs; // gradientInternalCoeffs = -Type(pTraits<Type>::one)*deltaCoeffs
+    gradient_internal_coeffs[num_boundary_surfaces * 1 + start_index] = -1 * bouDeltaCoeffs;
+    gradient_internal_coeffs[num_boundary_surfaces * 2 + start_index] = -1 * bouDeltaCoeffs;
+    gradient_boundary_coeffs[num_boundary_surfaces * 0 + start_index] = bouDeltaCoeffs; // gradientBoundaryCoeffs = -this->gradientInternalCoeffs(deltaCoeffs)
+    gradient_boundary_coeffs[num_boundary_surfaces * 1 + start_index] = bouDeltaCoeffs;
+    gradient_boundary_coeffs[num_boundary_surfaces * 2 + start_index] = bouDeltaCoeffs;
+}
+
 __global__ void scale_dev2t_tensor_kernel(int num, const double *vf1, double *vf2)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
@@ -1673,7 +1700,8 @@ void correct_boundary_conditions_scalar(cudaStream_t stream, int num_boundary_su
 }
 
 void update_boundary_coeffs_vector(cudaStream_t stream, int num_boundary_surfaces, int num_patches,
-        const int *patch_size, const int *patch_type, const double *boundary_vf, const double *boundary_deltaCoeffs, 
+        const int *patch_size, const int *patch_type, const double *boundary_vf, 
+        const double *boundary_deltaCoeffs, const double *boundary_weight,
         double *value_internal_coeffs, double *value_boundary_coeffs,
         double *gradient_internal_coeffs, double *gradient_boundary_coeffs)
 {
@@ -1692,6 +1720,10 @@ void update_boundary_coeffs_vector(cudaStream_t stream, int num_boundary_surface
         } else if (patch_type[i] == boundaryConditions::fixedValue) {
             update_boundary_coeffs_fixedValue_vector<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset,
                     boundary_vf, boundary_deltaCoeffs, value_internal_coeffs, value_boundary_coeffs, gradient_internal_coeffs, gradient_boundary_coeffs);
+        } else if (patch_type[i] == boundaryConditions::processor) {
+            update_boundary_coeffs_processor_vector<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset, 
+                    boundary_weight, boundary_deltaCoeffs, 
+                    value_internal_coeffs, value_boundary_coeffs, gradient_internal_coeffs, gradient_boundary_coeffs);
         } else {
             // xxx
             fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");

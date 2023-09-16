@@ -100,9 +100,9 @@
         fvm::ddt(rho, U) 
         + 
         fvm::div(phi, U)
-        +  
-        turbulence->divDevRhoReff(U)
-        == -fvc::grad(p)
+        // +  
+        // turbulence->divDevRhoReff(U)
+        // == -fvc::grad(p)
     );
     fvVectorMatrix& UEqn = tUEqn.ref();
 #endif
@@ -173,7 +173,7 @@
 #if defined DEBUG_
     // UEqn.relax();
     // UEqn.solve();
-    K = 0.5*magSqr(U);
+    // K = 0.5*magSqr(U);
     // checkResult
     // TODO: for temp, now we compare ldu, finally we compare csr
     std::vector<double> h_internal_coeffs(dfDataBase.num_boundary_surfaces * 3);
@@ -190,10 +190,18 @@
         offset += patchsize;
     }
     bool printFlag = false;
-    UEqn_GPU.compareResult(&UEqn.lower()[0], &UEqn.upper()[0], &UEqn.diag()[0], &UEqn.source()[0][0],
+
+    int rank = -1;
+    if (mpi_init_flag) {
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    }
+    
+    if (!mpi_init_flag || rank == 0) {
+        UEqn_GPU.compareResult(&UEqn.lower()[0], &UEqn.upper()[0], &UEqn.diag()[0], &UEqn.source()[0][0],
             h_internal_coeffs.data(), h_boundary_coeffs.data(), 
             // &gradU[0][0], 
             printFlag);
+    }
     DEBUG_TRACE;
 #endif
 

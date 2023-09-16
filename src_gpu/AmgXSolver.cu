@@ -13,6 +13,7 @@
 #include "AmgXSolver.H"
 #include <numeric>
 #include <limits>
+#include <mpi.h>
 
 // initialize AmgXSolver::count to 0
 int AmgXSolver::count = 0;
@@ -22,9 +23,9 @@ AMGX_resources_handle AmgXSolver::rsrc = nullptr;
 
 
 /* \implements AmgXSolver::AmgXSolver */
-AmgXSolver::AmgXSolver(const std::string &modeStr, const std::string &cfgFile)
+AmgXSolver::AmgXSolver(const std::string &modeStr, const std::string &cfgFile, const int devID)
 {
-    initialize(modeStr, cfgFile);
+    initialize(modeStr, cfgFile, devID);
 }
 
 
@@ -36,7 +37,7 @@ AmgXSolver::~AmgXSolver()
 
 
 /* \implements AmgXSolver::initialize */
-void AmgXSolver::initialize(const std::string &modeStr, const std::string &cfgFile)
+void AmgXSolver::initialize(const std::string &modeStr, const std::string &cfgFile, int devID)
 {
     
     // if this instance has already been initialized, skip
@@ -53,7 +54,7 @@ void AmgXSolver::initialize(const std::string &modeStr, const std::string &cfgFi
     setMode(modeStr);  
 
     // initialize AmgX
-    initAmgX(cfgFile);  
+    initAmgX(cfgFile, devID);  
 
     // a bool indicating if this instance is initialized
     isInitialised = true;
@@ -84,8 +85,9 @@ void AmgXSolver::setMode(const std::string &modeStr)
 
 
 /* \implements AmgXSolver::initAmgX */
- void AmgXSolver::initAmgX(const std::string &cfgFile)
+ void AmgXSolver::initAmgX(const std::string &cfgFile, int devID)
 {
+    int device;
     // only the first instance (AmgX solver) is in charge of initializing AmgX
     if (count == 1)
     {
@@ -106,7 +108,7 @@ void AmgXSolver::setMode(const std::string &modeStr)
     AMGX_SAFE_CALL(AMGX_config_add_parameters(&cfg, "exception_handling=1"));
 
     // create an AmgX resource object, only the first instance is in charge
-    if (count == 1) AMGX_resources_create_simple(&rsrc, cfg);
+    if (count == 1) AMGX_resources_create(&rsrc, cfg, MPI_COMM_WORLD, 1, &devID);
 
     // create AmgX vector object for unknowns and RHS
     AMGX_vector_create(&AmgXP, rsrc, mode);

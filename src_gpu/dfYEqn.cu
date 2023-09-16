@@ -253,7 +253,7 @@ void dfYEqn::setConstantValues(const std::string &mode_string, const std::string
     this->inertIndex = inertIndex;
     YSolverSet.resize(dataBase_.num_species - 1); // consider inert species
     for (auto &solver : YSolverSet)
-        solver = new AmgXSolver(mode_string, setting_path);
+        solver = new AmgXSolver(mode_string, setting_path, dataBase_.localRank);
 }
 
 void dfYEqn::setConstantFields(const std::vector<int> patch_type) {

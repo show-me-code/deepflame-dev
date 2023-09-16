@@ -93,7 +93,7 @@ void randomInitField(T& field) {
 #endif
 
 void initNccl() {
-    ncclInit(PstreamGlobals::MPI_COMM_FOAM, nccl_comm, nccl_id, &myRank, &nRanks, &localRank);
+    ncclInit(PstreamGlobals::MPI_COMM_FOAM, nccl_comm, nccl_id, &nRanks, &myRank, &localRank);
 }
 
 void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
@@ -124,7 +124,7 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
         // get basic communication info from of
         forAll(Y[0].boundaryField(), patchi) {
             if (Y[0].boundaryField()[patchi].type() == "processor") {
-                GPUNeighbProcNo[patchi] = Y[0].boundaryField()[patchi].neighbProcNo();
+                GPUNeighbProcNo[patchi] = dynamic_cast<const processorFvPatchField<scalar>&>(Y[0].boundaryField()[patchi]).neighbProcNo();
             }
         }
         // prepare mpi and nccl info
