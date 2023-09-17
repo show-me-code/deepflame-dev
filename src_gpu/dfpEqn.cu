@@ -396,8 +396,7 @@ void dfpEqn::getphiHbyA(cudaStream_t stream, int num_cells, int num_surfaces, in
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: maybe do not need loop boundarys
         if (patch_type_U[i] == boundaryConditions::zeroGradient
-                || patch_type_U[i] == boundaryConditions::fixedValue
-                || patch_type_U[i] == boundaryConditions::gradientEnergy) {
+                || patch_type_U[i] == boundaryConditions::fixedValue) {
             get_phiCorr_boundary_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset,
                     boundary_Sf, boundary_velocity_old, boundary_rho_old, boundary_phi_old, boundary_output);
         } else {
@@ -411,18 +410,24 @@ void dfpEqn::getphiHbyA(cudaStream_t stream, int num_cells, int num_surfaces, in
     get_ddtCorr_internal_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_surfaces, output, phi_old, rDeltaT, output);
 
     offset = 0;
-    for (int i = 0; i < num_patches; i++) {
-        threads_per_block = 256;
-        blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
-        if (patch_type_U[i] == boundaryConditions::fixedValue
-                || patch_type_U[i] == boundaryConditions::cyclic) {
-            get_ddtCorr_boundary_nonZero_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset, 
-                    boundary_output, boundary_phi_old, rDeltaT, boundary_output);
-        } else {
-            checkCudaErrors(cudaMemsetAsync(boundary_output + offset, 0, patch_size[i] * sizeof(double), dataBase_.stream));
-        }
-        offset += patch_size[i];
-    }
+    // the boundary is calculated, so seems no more need to calculate the boundary
+    // keep the code for future use
+    // note that the boundary here is not rhoU0's boundary
+
+    // for (int i = 0; i < num_patches; i++) {
+    //     threads_per_block = 256;
+    //     blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
+    //     if (patch_type_U[i] == boundaryConditions::fixedValue
+    //             || patch_type_U[i] == boundaryConditions::cyclic
+    //             || patch_type_U[i] == boundaryConditions::calculated) {
+    //         checkCudaErrors(cudaMemsetAsync(boundary_output + offset, 0, patch_size[i] * sizeof(double), dataBase_.stream));
+    //     } else {
+    //         get_ddtCorr_boundary_nonZero_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset, 
+    //                 boundary_output, boundary_phi_old, rDeltaT, boundary_output);
+    //     }
+    //     offset += patch_size[i];
+    // }
+    checkCudaErrors(cudaMemsetAsync(boundary_output, 0, dataBase_.num_boundary_surfaces * sizeof(double), dataBase_.stream));
 
     field_multiply_scalar(stream, num_surfaces, output, rhorAUf, output, num_boundary_surfaces, boundary_output, boundary_rhorAUf, boundary_output);
 

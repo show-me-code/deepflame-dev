@@ -128,7 +128,7 @@ public:
         const double *rAU, const double *boundary_rAU, const double *boundary_u,
         double *HbyA, double *boundary_HbyA);
     void getHbyA();
-    void correctPsi(double *Psi);
+    void correctPsi(double *Psi, double *boundary_psi);
     void ueqn_ldu_to_csr(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surface,
         const int* boundary_cell_face, const int *ldu_to_csr_index, const int *diag_to_csr_index,
         const double *ldu, const double *source, const double *internal_coeffs, const double *boundary_coeffs,
