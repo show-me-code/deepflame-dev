@@ -160,7 +160,7 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
 
     dfDataBase.createConstantFieldsInternal();
     dfDataBase.createConstantFieldsBoundary();
-    dfDataBase.initConstantFieldsInternal(&mesh.Sf()[0][0], &mesh.magSf()[0], &mesh.surfaceInterpolation::weights()[0], &mesh.nonOrthDeltaCoeffs()[0], &mesh.V()[0]);
+    dfDataBase.initConstantFieldsInternal(&mesh.Sf()[0][0], &mesh.magSf()[0], &mesh.surfaceInterpolation::weights()[0], &mesh.deltaCoeffs()[0], &mesh.V()[0]);
     dfDataBase.initConstantFieldsBoundary(boundary_sf, boundary_mag_sf, boundary_delta_coeffs, boundary_face_cell);
     
     // prepare internal and boundary of Y

@@ -100,9 +100,9 @@
         fvm::ddt(rho, U) 
         + 
         fvm::div(phi, U)
-        // +  
-        // turbulence->divDevRhoReff(U)
-        // == -fvc::grad(p)
+        +  
+        turbulence->divDevRhoReff(U)
+        == -fvc::grad(p)
     );
     fvVectorMatrix& UEqn = tUEqn.ref();
 #endif

@@ -1,5 +1,5 @@
-#undef GPUSolverNew_
-#define CPUSolver_
+// #undef GPUSolverNew_
+// #define CPUSolver_
 if (!pimple.simpleRho())
 {
     rho = thermo.rho();
@@ -179,7 +179,7 @@ surfaceScalarField phiHbyA
 
 #if defined DEBUG_ && defined GPUSolverNew_
     double *h_boundary_phiHbyA = new double[dfDataBase.num_boundary_surfaces];
-    int offset = 0;
+    offset = 0;
     forAll(phiHbyA.boundaryField(), patchi)
     {
         const scalarField& patchphiHbyA = phiHbyA.boundaryField()[patchi];
@@ -259,7 +259,7 @@ else
             offset += patchsize;
         }
         memcpy(h_p, &p[0], dfDataBase.cell_value_bytes);
-        // pEqn_GPU.correctP(h_p, h_boundary_p);
+        pEqn_GPU.correctP(h_p, h_boundary_p);
         // pEqn_GPU.comparep(h_p, h_boundary_p, false);
         #endif
         
@@ -365,7 +365,7 @@ forAll(U.boundaryField(), patchi)
     time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_UEqn_correctBC += double(end1 - start1) / double(CLOCKS_PER_SEC);
 #elif defined GPUSolverNew_
-    UEqn_GPU.correctPsi(&U[0][0]);
+    UEqn_GPU.correctPsi(&U[0][0], h_boundary_u_tmp);
 #endif
 
 if (pimple.simpleRho())
@@ -394,5 +394,5 @@ pEqn_GPU.comparedpdt(&dpdt[0], false);
 end2 = std::clock();
 time_monitor_pEqn += double(end2 - start2) / double(CLOCKS_PER_SEC);
 
-#undef CPUSolver_
-#define GPUSolverNew_
+// #undef CPUSolver_
+// #define GPUSolverNew_

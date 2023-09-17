@@ -374,35 +374,35 @@ void dfUEqn::process() {
                 dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
                 dataBase_.d_boundary_phi, d_value_internal_coeffs, d_value_boundary_coeffs,
                 d_internal_coeffs, d_boundary_coeffs, 1.);
-        // field_multiply_scalar(dataBase_.stream,
-        //        dataBase_.num_cells, dataBase_.d_rho, d_nu_eff, d_rho_nueff, // end for internal
-        //        dataBase_.num_boundary_surfaces, dataBase_.d_boundary_rho, d_boundary_nu_eff, d_boundary_rho_nueff);
-        // fvm_laplacian_vector(dataBase_.stream, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, 
-        //        dataBase_.d_owner, dataBase_.d_neighbor,
-        //        dataBase_.d_weight, dataBase_.d_mag_sf, dataBase_.d_delta_coeffs, d_rho_nueff,
-        //        d_lower, d_upper, d_diag, // end for internal
-        //        dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
-        //        dataBase_.d_boundary_mag_sf, d_boundary_rho_nueff,
-        //        d_gradient_internal_coeffs, d_gradient_boundary_coeffs,
-        //        d_internal_coeffs, d_boundary_coeffs, -1);
-        // fvc_grad_vector(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
-        //        dataBase_.d_owner, dataBase_.d_neighbor,
-        //        dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_u, d_grad_u,
-        //        dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
-        //        dataBase_.d_boundary_face_cell, dataBase_.d_boundary_u, dataBase_.d_boundary_sf,
-        //        dataBase_.d_volume, dataBase_.d_boundary_mag_sf, d_boundary_grad_u, dataBase_.d_boundary_delta_coeffs);
-        // scale_dev2T_tensor(dataBase_.stream, dataBase_.num_cells, d_rho_nueff, d_grad_u, // end for internal
-        //        dataBase_.num_boundary_surfaces, d_boundary_rho_nueff, d_boundary_grad_u);
-        // fvc_div_cell_tensor(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
-        //        dataBase_.d_owner, dataBase_.d_neighbor,
-        //        dataBase_.d_weight, dataBase_.d_sf, d_grad_u, d_source, // end for internal
-        //        dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
-        //        dataBase_.d_boundary_face_cell, d_boundary_grad_u, dataBase_.d_boundary_sf, dataBase_.d_volume);
-        // fvc_grad_cell_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
-        //         dataBase_.d_owner, dataBase_.d_neighbor,
-        //         dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_p, d_source,
-        //         dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
-        //         dataBase_.d_boundary_face_cell, dataBase_.d_boundary_p, dataBase_.d_boundary_sf, dataBase_.d_volume, -1.);
+        field_multiply_scalar(dataBase_.stream,
+               dataBase_.num_cells, dataBase_.d_rho, d_nu_eff, d_rho_nueff, // end for internal
+               dataBase_.num_boundary_surfaces, dataBase_.d_boundary_rho, d_boundary_nu_eff, d_boundary_rho_nueff);
+        fvm_laplacian_vector(dataBase_.stream, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, 
+               dataBase_.d_owner, dataBase_.d_neighbor,
+               dataBase_.d_weight, dataBase_.d_mag_sf, dataBase_.d_delta_coeffs, d_rho_nueff,
+               d_lower, d_upper, d_diag, // end for internal
+               dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
+               dataBase_.d_boundary_mag_sf, d_boundary_rho_nueff,
+               d_gradient_internal_coeffs, d_gradient_boundary_coeffs,
+               d_internal_coeffs, d_boundary_coeffs, -1);
+        fvc_grad_vector(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
+               dataBase_.d_owner, dataBase_.d_neighbor,
+               dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_u, d_grad_u,
+               dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
+               dataBase_.d_boundary_face_cell, dataBase_.d_boundary_u, dataBase_.d_boundary_sf,
+               dataBase_.d_volume, dataBase_.d_boundary_mag_sf, d_boundary_grad_u, dataBase_.d_boundary_delta_coeffs);
+        scale_dev2T_tensor(dataBase_.stream, dataBase_.num_cells, d_rho_nueff, d_grad_u, // end for internal
+               dataBase_.num_boundary_surfaces, d_boundary_rho_nueff, d_boundary_grad_u);
+        fvc_div_cell_tensor(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
+               dataBase_.d_owner, dataBase_.d_neighbor,
+               dataBase_.d_weight, dataBase_.d_sf, d_grad_u, d_source, // end for internal
+               dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
+               dataBase_.d_boundary_face_cell, d_boundary_grad_u, dataBase_.d_boundary_sf, dataBase_.d_volume);
+        fvc_grad_cell_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
+                dataBase_.d_owner, dataBase_.d_neighbor,
+                dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_p, d_source,
+                dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
+                dataBase_.d_boundary_face_cell, dataBase_.d_boundary_p, dataBase_.d_boundary_sf, dataBase_.d_volume, -1.);
         getrAU(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, dataBase_.d_boundary_face_cell, 
                 d_internal_coeffs, dataBase_.d_volume, d_diag, dataBase_.d_rAU, dataBase_.d_boundary_rAU);       
 #ifndef DEBUG_CHECK_LDU   
@@ -621,9 +621,11 @@ void dfUEqn::H(double *Psi) {
     memcpy(Psi, h_H_pEqn, dataBase_.cell_value_vec_bytes);
 }
 
-void dfUEqn::correctPsi(double *Psi) {
+void dfUEqn::correctPsi(double *Psi, double *boundary_psi) {
     checkCudaErrors(cudaMemcpy(d_u_host_order, Psi, dataBase_.cell_value_vec_bytes, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(d_boundary_u_host_order, boundary_psi, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyHostToDevice));
     permute_vector_h2d(dataBase_.stream, dataBase_.num_cells, d_u_host_order, dataBase_.d_u);
+    permute_vector_h2d(dataBase_.stream, dataBase_.num_boundary_surfaces, d_boundary_u_host_order, dataBase_.d_boundary_u);
 }
 
 double* dfUEqn::getFieldPointer(const char* fieldAlias, location loc, position pos) {

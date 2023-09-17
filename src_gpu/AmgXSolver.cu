@@ -87,7 +87,6 @@ void AmgXSolver::setMode(const std::string &modeStr)
 /* \implements AmgXSolver::initAmgX */
  void AmgXSolver::initAmgX(const std::string &cfgFile, int devID)
 {
-    int device;
     // only the first instance (AmgX solver) is in charge of initializing AmgX
     if (count == 1)
     {
