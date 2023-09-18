@@ -187,8 +187,13 @@ int main(int argc, char *argv[])
 #ifdef GPUSolverNew_
     int mpi_init_flag;
     checkMpiErrors(MPI_Initialized(&mpi_init_flag));
-    if(mpi_init_flag)
+    if(mpi_init_flag) {
         initNccl();
+    } else {
+        // wyr: now there is no other place to prepare nccl info, thus mpi must be initialized at beginning.
+        fprintf(stderr, "MPI is not initialized yet!\n");
+        exit(EXIT_FAILURE);
+    }
     createGPUBase(mesh, Y);
     DEBUG_TRACE;
 #endif

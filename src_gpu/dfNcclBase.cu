@@ -28,7 +28,7 @@ void ncclInit(MPI_Comm mpi_comm, ncclComm_t& nccl_comm, ncclUniqueId& nccl_id,
     checkMpiErrors(MPI_Initialized(&mpi_init_flag));
     if(mpi_init_flag) MPI_Barrier(mpi_comm);
     else {
-        fprintf(stderr, "MPI is not yet initilized!\n");
+        fprintf(stderr, "MPI is not yet initialized!\n");
         exit(EXIT_FAILURE);
     }
 

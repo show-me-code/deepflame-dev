@@ -245,6 +245,7 @@ struct dfMatrixDataBase
     ~dfMatrixDataBase();
 
     // member function
+    void prepareCudaResources();
     void setCommInfo(MPI_Comm mpi_comm, ncclComm_t nccl_comm, ncclUniqueId nccl_id,
             int nRanks, int myRank, int localRank, std::vector<int> &neighbProcNo);
     void setConstantValues(int num_cells, int num_surfaces, int num_boundary_surfaces,

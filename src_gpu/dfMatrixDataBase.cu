@@ -1,5 +1,6 @@
 #include "dfMatrixDataBase.H"
 #include "dfMatrixOpBase.H"
+#include "dfNcclBase.H"
 
 void constructBoundarySelectorPerPatch(int *patchTypeSelector, const std::string& patchTypeStr)
 {
@@ -66,13 +67,12 @@ void constructBoundarySelectorPerPatch(int *patchTypeSelector, const std::string
     }
 }
 
-dfMatrixDataBase::dfMatrixDataBase() {
-    checkCudaErrors(cudaStreamCreate(&stream));
-}
+dfMatrixDataBase::dfMatrixDataBase() {}
 
 dfMatrixDataBase::~dfMatrixDataBase() {
     // destroy cuda resources
     checkCudaErrors(cudaStreamDestroy(stream));
+    ncclDestroy(nccl_comm);
     // TODO: free pointers
 }
 
@@ -85,8 +85,13 @@ void dfMatrixDataBase::setCommInfo(MPI_Comm mpi_comm, ncclComm_t nccl_comm, nccl
     this->myRank = myRank;
     this->localRank = localRank;
     this->neighbProcNo = neighbProcNo;
+    //fprintf(stderr, "myRank: %d, nRanks: %d, localRank: %d, neighbProcNo: %d\n", myRank, nRanks, localRank, neighbProcNo);
 }
  
+void dfMatrixDataBase::prepareCudaResources() {
+    checkCudaErrors(cudaStreamCreate(&stream));
+}
+
 void dfMatrixDataBase::setConstantValues(int num_cells, int num_surfaces, int num_boundary_surfaces,
                    int num_patches, std::vector<int> patch_size,
                    int num_species, double rdelta_t) {
