@@ -69,12 +69,7 @@ void constructBoundarySelectorPerPatch(int *patchTypeSelector, const std::string
 
 dfMatrixDataBase::dfMatrixDataBase() {}
 
-dfMatrixDataBase::~dfMatrixDataBase() {
-    // destroy cuda resources
-    checkCudaErrors(cudaStreamDestroy(stream));
-    ncclDestroy(nccl_comm);
-    // TODO: free pointers
-}
+dfMatrixDataBase::~dfMatrixDataBase() {}
 
 void dfMatrixDataBase::setCommInfo(MPI_Comm mpi_comm, ncclComm_t nccl_comm, ncclUniqueId nccl_id,
         int nRanks, int myRank, int localRank, std::vector<int> &neighbProcNo) {
@@ -90,6 +85,13 @@ void dfMatrixDataBase::setCommInfo(MPI_Comm mpi_comm, ncclComm_t nccl_comm, nccl
  
 void dfMatrixDataBase::prepareCudaResources() {
     checkCudaErrors(cudaStreamCreate(&stream));
+}
+
+void dfMatrixDataBase::cleanCudaResources() {
+    // destroy cuda resources
+    checkCudaErrors(cudaStreamDestroy(stream));
+    //ncclDestroy(nccl_comm);
+    // TODO: free pointers
 }
 
 void dfMatrixDataBase::setConstantValues(int num_cells, int num_surfaces, int num_boundary_surfaces,

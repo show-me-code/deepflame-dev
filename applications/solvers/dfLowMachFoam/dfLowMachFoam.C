@@ -505,6 +505,11 @@ int main(int argc, char *argv[])
 #endif
     }
 
+#ifdef GPUSolverNew_
+    // clean cuda resources before main() exit.
+    dfDataBase.cleanCudaResources();
+#endif
+
     Info<< "End\n" << endl;
 
     return 0;
