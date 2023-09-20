@@ -2,7 +2,7 @@
 
 ncclUniqueId nccl_id;
 ncclComm_t nccl_comm;
-int myRank, nRanks, localRank = 0;
+int nRanks, myRank, localRank = 0;
 
 dfMatrixDataBase dfDataBase;
 dfRhoEqn rhoEqn_GPU(dfDataBase);
@@ -116,10 +116,10 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
     double rDeltaT = 1 / 1e-6;
     dfDataBase.setConstantValues(num_cells, num_surfaces, num_boundary_surfaces, num_patches, patch_size, Y.size(), rDeltaT);
     
-    // if mpi is initialized, prepare mpi and nccl info
-    label flag_mpi_init;
-    MPI_Initialized(&flag_mpi_init);
-    if(flag_mpi_init) {
+    // wyr: now there is no other place to prepare nccl info, thus mpi must be initialized at beginning.
+    //label flag_mpi_init;
+    //MPI_Initialized(&flag_mpi_init);
+    //if(flag_mpi_init) {
         std::vector<int> GPUNeighbProcNo(dfDataBase.num_patches, -1);
         // get basic communication info from of
         forAll(Y[0].boundaryField(), patchi) {
@@ -128,11 +128,14 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
             }
         }
         // prepare mpi and nccl info
-        dfDataBase.setCommInfo(PstreamGlobals::MPI_COMM_FOAM, nccl_comm, nccl_id, myRank, nRanks, localRank, GPUNeighbProcNo);
+        dfDataBase.setCommInfo(PstreamGlobals::MPI_COMM_FOAM, nccl_comm, nccl_id, nRanks, myRank, localRank, GPUNeighbProcNo);
         // TODO: test for temp
-        ncclTest(nccl_comm);
-        ncclDestroy(nccl_comm);
-    }
+        //ncclTest(nccl_comm);
+        //ncclDestroy(nccl_comm);
+    //}
+
+    // prepare cuda resources
+    dfDataBase.prepareCudaResources();
 
     // prepare constant indexes: owner, neighbor
     dfDataBase.setConstantIndexes(&owner[0], &neighbour[0]);
