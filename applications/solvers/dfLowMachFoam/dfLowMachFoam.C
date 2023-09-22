@@ -189,10 +189,6 @@ int main(int argc, char *argv[])
     checkMpiErrors(MPI_Initialized(&mpi_init_flag));
     if(mpi_init_flag) {
         initNccl();
-    } else {
-        // wyr: now there is no other place to prepare nccl info, thus mpi must be initialized at beginning.
-        fprintf(stderr, "MPI is not initialized yet!\n");
-        exit(EXIT_FAILURE);
     }
     createGPUBase(mesh, Y);
     DEBUG_TRACE;
@@ -204,7 +200,7 @@ int main(int argc, char *argv[])
     createGPUYEqn(CanteraTorchProperties, Y, inertIndex);
     createGPUEEqn(CanteraTorchProperties, thermo.he(), K);
     createGPUpEqn(CanteraTorchProperties, p, U);
-    rhoEqn_GPU.createNonConstantLduAndCsrFields();
+    createGPURhoEqn(rho);
 #endif
 
     end1 = std::clock();

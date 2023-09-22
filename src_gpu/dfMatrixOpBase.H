@@ -1,5 +1,6 @@
 #pragma once
 #include <cuda_runtime.h>
+#include <nccl.h>
 // #define TIME_GPU
 #define DEBUG_CHECK_LDU
 
@@ -49,7 +50,8 @@ void update_boundary_coeffs_vector(cudaStream_t stream, int num_boundary_surface
         double *value_internal_coeffs, double *value_boundary_coeffs,
         double *gradient_internal_coeffs, double *gradient_boundary_coeffs);
 
-void correct_boundary_conditions_scalar(cudaStream_t stream, int num_boundary_surfaces, int num_patches,
+void correct_boundary_conditions_scalar(cudaStream_t stream, ncclComm_t comm,
+        const int *peer, int num_boundary_surfaces, int num_patches,
         const int *patch_size, const int *patch_type,
         const int *boundary_cell_face, const double *vf, double *boundary_vf);
 

@@ -1,5 +1,5 @@
-// #undef GPUSolverNew_
-// #define CPUSolver_
+#undef GPUSolverNew_
+#define CPUSolver_
 hDiffCorrFlux = Zero;
 diffAlphaD = Zero;
 sumYDiffError = Zero;
@@ -398,5 +398,5 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
     time_monitor_YEqn += double(end2 - start2) / double(CLOCKS_PER_SEC);
 #endif
 }
-// #undef CPUSolver_
-// #define GPUSolverNew_
+#undef CPUSolver_
+#define GPUSolverNew_

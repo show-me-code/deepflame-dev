@@ -1,5 +1,6 @@
 #include "dfMatrixOpBase.H"
 #include "dfMatrixDataBase.H"
+#include "dfNcclBase.H"
 
 #include <cuda_runtime.h>
 #include "cuda_profiler_api.h"
@@ -179,6 +180,39 @@ __global__ void correct_boundary_conditions_zeroGradient_scalar(int num, int off
 
     int cellIndex = face2Cells[start_index];
     vf_boundary[start_index] = vf_internal[cellIndex];
+}
+
+__global__ void correct_internal_boundary_field(int num, int offset,
+        const double *vf_internal, const int *face2Cells, double *vf_boundary)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
+        return;
+
+    int neighbor_start_index = offset + index;
+    int internal_start_index = offset + num + index;
+
+    int cellIndex = face2Cells[neighbor_start_index];
+    vf_boundary[internal_start_index] = vf_internal[cellIndex];
+}
+
+void correct_boundary_conditions_processor_scalar(cudaStream_t stream, ncclComm_t comm,
+        int peer, int num, int offset, 
+        const double *vf, const int *boundary_cell_face, double *vf_boundary)
+{
+    int neighbor_start_index = offset;
+    int internal_start_index = offset + num;
+
+    size_t threads_per_block = 32;
+    size_t blocks_per_grid = (num + threads_per_block - 1) / threads_per_block;
+    correct_internal_boundary_field<<<blocks_per_grid, threads_per_block, 0, stream>>>(num, offset, 
+            vf, boundary_cell_face, vf_boundary);
+
+    checkNcclErrors(ncclGroupStart());
+    checkNcclErrors(ncclSend(vf_boundary + internal_start_index, num, ncclDouble, peer, comm, stream));
+    checkNcclErrors(ncclRecv(vf_boundary + neighbor_start_index, num, ncclDouble, peer, comm, stream));
+    checkNcclErrors(ncclGroupEnd());
+    checkCudaErrors(cudaStreamSynchronize(stream));
 }
 
 __global__ void update_boundary_coeffs_fixedValue_scalar(int num, int offset,
@@ -1678,7 +1712,8 @@ void update_boundary_coeffs_scalar(cudaStream_t stream,
     }
 }
 
-void correct_boundary_conditions_scalar(cudaStream_t stream, int num_boundary_surfaces, int num_patches,
+void correct_boundary_conditions_scalar(cudaStream_t stream, ncclComm_t comm,
+        const int *neighbor_peer, int num_boundary_surfaces, int num_patches,
         const int *patch_size, const int *patch_type,
         const int *boundary_cell_face, const double *vf, double *boundary_vf)
 {
@@ -1692,6 +1727,14 @@ void correct_boundary_conditions_scalar(cudaStream_t stream, int num_boundary_su
         if (patch_type[i] == boundaryConditions::zeroGradient) {
             correct_boundary_conditions_zeroGradient_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
                     vf, boundary_cell_face, boundary_vf);
+        } else if (patch_type[i] == boundaryConditions::fixedValue
+                    || patch_type[i] == boundaryConditions::calculated) {
+            // No operation needed in this condition
+        } else if (patch_type[i] == boundaryConditions::processor) {
+            correct_boundary_conditions_processor_scalar(stream, comm, neighbor_peer[i], patch_size[i], offset, 
+                    vf, boundary_cell_face, boundary_vf);
+            offset += 2 * patch_size[i]; // patchNeighbourFields and patchInternalFields
+            continue;
         } else {
             fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
         }

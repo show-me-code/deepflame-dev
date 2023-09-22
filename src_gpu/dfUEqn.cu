@@ -297,7 +297,7 @@ void dfUEqn::preProcessForRhoEqn(const double *h_rho, const double *h_phi, const
 }
 
 void dfUEqn::preProcess(const double *h_u, const double *h_boundary_u, const double *h_p, const double *h_boundary_p, 
-        const double *h_nu_eff, const double *h_boundary_nu_eff, const double *h_boundary_rho) {
+        const double *h_nu_eff, const double *h_boundary_nu_eff) {
 
 }
 
@@ -344,7 +344,6 @@ void dfUEqn::process() {
         checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_p, dataBase_.h_boundary_p, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
         checkCudaErrors(cudaMemcpyAsync(d_nu_eff, h_nu_eff, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
         checkCudaErrors(cudaMemcpyAsync(d_boundary_nu_eff, h_boundary_nu_eff, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
-        checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_rho, dataBase_.h_boundary_rho, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
 
         checkCudaErrors(cudaMemsetAsync(d_ldu, 0, dataBase_.csr_value_bytes, dataBase_.stream)); // d_ldu contains d_lower, d_diag, and d_upper
         checkCudaErrors(cudaMemsetAsync(d_source, 0, dataBase_.cell_value_vec_bytes, dataBase_.stream));

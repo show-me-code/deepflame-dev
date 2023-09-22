@@ -250,8 +250,8 @@ struct dfMatrixDataBase
     void setCommInfo(MPI_Comm mpi_comm, ncclComm_t nccl_comm, ncclUniqueId nccl_id,
             int nRanks, int myRank, int localRank, std::vector<int> &neighbProcNo);
     void setConstantValues(int num_cells, int num_surfaces, int num_boundary_surfaces,
-                   int num_patches, std::vector<int> patch_size,
-                   int num_species, double rdelta_t);             
+            int num_patches, std::vector<int> patch_size,
+            int num_species, double rdelta_t);             
     void setConstantIndexes(const int *owner, const int *neighbor);
 
     void createConstantFieldsInternal();
