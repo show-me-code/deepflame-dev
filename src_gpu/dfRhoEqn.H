@@ -14,6 +14,9 @@ private:
     cudaGraphExec_t graph_instance;
     bool graph_created=false;
 
+    // constant fields - boundary
+	std::vector<int> patch_type;
+
     // non-constant fields - ldu
     double *d_diag = nullptr;
     double *d_source = nullptr;
@@ -34,13 +37,14 @@ public:
     // member function
 
     // initialization
+    void setConstantFields(const std::vector<int> patch_type);
     void createNonConstantLduAndCsrFields();
 
     // getter function
     double* getFieldPointer(const char* fieldAlias, location loc, position pos);
 
     // run equations
-    void preProcess(const double *h_phi, const double *h_boundary_phi);
+    void preProcess(const double *h_phi, const double *h_boundary_phi, const double *h_boundary_rho);
     void process();
     void postProcess(double *h_rho);
 
@@ -48,6 +52,7 @@ public:
 
     // other functions
     void compareResult(const double *diag, const double *source, bool printFlag);
+    void compareRho(const double *rho, const double *boundary_rho, bool printFlag);
     void sync();
     void correctPsi(const double *rho, const double *boundary_rho);
 };

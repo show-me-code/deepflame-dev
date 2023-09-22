@@ -9,18 +9,22 @@ void dfRhoEqn::createNonConstantLduAndCsrFields()
 #endif
 }
 
-void dfRhoEqn::preProcess(const double *h_phi, const double *h_boundary_phi)
+void dfRhoEqn::setConstantFields(const std::vector<int> patch_type) {
+  this->patch_type = patch_type;
+}
+
+void dfRhoEqn::preProcess(const double *h_phi, const double *h_boundary_phi, const double *h_boundary_rho)
 {
 }
 
 void dfRhoEqn::process()
 {
-    //使用event计算时间
-    // float time_elapsed=0;
-    // cudaEvent_t start,stop;
-    // checkCudaErrors(cudaEventCreate(&start));
-    // checkCudaErrors(cudaEventCreate(&stop));
-    // checkCudaErrors(cudaEventRecord(start,0));
+    // 使用event计算时间
+    float time_elapsed=0;
+    cudaEvent_t start,stop;
+    checkCudaErrors(cudaEventCreate(&start));
+    checkCudaErrors(cudaEventCreate(&stop));
+    checkCudaErrors(cudaEventRecord(start,0));
 
 // #ifndef TIME_GPU
 //     if(!graph_created) {
@@ -35,20 +39,19 @@ void dfRhoEqn::process()
 
     checkCudaErrors(cudaMemcpyAsync(dataBase_.d_phi, dataBase_.h_phi, dataBase_.surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
     checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_phi, dataBase_.h_boundary_phi, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
-    sync();DEBUG_TRACE;
+    checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_rho, dataBase_.h_boundary_rho, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
 
     checkCudaErrors(cudaMemsetAsync(d_diag, 0, dataBase_.cell_value_bytes, dataBase_.stream));
     checkCudaErrors(cudaMemsetAsync(d_source, 0, dataBase_.cell_value_bytes, dataBase_.stream));
-    sync();DEBUG_TRACE;
 
     fvm_ddt_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.rdelta_t, dataBase_.d_rho_old, dataBase_.d_volume, 
             d_diag, d_source);
-    sync();DEBUG_TRACE;
     fvc_div_surface_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, dataBase_.d_owner,
             dataBase_.d_neighbor, dataBase_.d_phi, dataBase_.d_boundary_face_cell, dataBase_.d_boundary_phi, dataBase_.d_volume, d_source, -1);
-    sync();DEBUG_TRACE;
     solve();
-    sync();DEBUG_TRACE;
+    correct_boundary_conditions_scalar(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
+            dataBase_.num_boundary_surfaces, dataBase_.num_patches, dataBase_.patch_size.data(),
+            patch_type.data(), dataBase_.d_boundary_face_cell, dataBase_.d_rho, dataBase_.d_boundary_rho);
 // #ifndef TIME_GPU
 //         checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph));
 //         checkCudaErrors(cudaGraphInstantiate(&graph_instance, graph, NULL, NULL, 0));
@@ -57,11 +60,11 @@ void dfRhoEqn::process()
 //     checkCudaErrors(cudaGraphLaunch(graph_instance, dataBase_.stream));
 // #endif
 
-    // checkCudaErrors(cudaEventRecord(stop,0));
-    // checkCudaErrors(cudaEventSynchronize(start));
-    // checkCudaErrors(cudaEventSynchronize(stop));
-    // checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
-    // fprintf(stderr, "rhoEqn process time:%f(ms)\n",time_elapsed);
+    checkCudaErrors(cudaEventRecord(stop,0));
+    checkCudaErrors(cudaEventSynchronize(start));
+    checkCudaErrors(cudaEventSynchronize(stop));
+    checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
+    fprintf(stderr, "rhoEqn process time:%f(ms)\n",time_elapsed);
 }
 
 void dfRhoEqn::sync()
@@ -99,6 +102,23 @@ void dfRhoEqn::compareResult(const double *diag, const double *source, bool prin
     checkCudaErrors(cudaMemcpy(h_source.data(), d_source, dataBase_.cell_value_bytes, cudaMemcpyDeviceToHost));
     fprintf(stderr, "check h_source");
     checkVectorEqual(dataBase_.num_cells, source, h_source.data(), 1e-14, printFlag);
+    DEBUG_TRACE;
+}
+
+void dfRhoEqn::compareRho(const double *rho, const double *boundary_rho, bool printFlag)
+{
+    std::vector<double> h_rho;
+    h_rho.resize(dataBase_.num_cells);
+    checkCudaErrors(cudaMemcpy(h_rho.data(), dataBase_.d_rho, dataBase_.cell_value_bytes, cudaMemcpyDeviceToHost));
+    fprintf(stderr, "check h_rho\n");
+    checkVectorEqual(dataBase_.num_cells, rho, h_rho.data(), 1e-14, printFlag);
+    DEBUG_TRACE;
+
+    std::vector<double> h_boundary_rho;
+    h_boundary_rho.resize(dataBase_.num_boundary_surfaces);
+    checkCudaErrors(cudaMemcpy(h_boundary_rho.data(), dataBase_.d_boundary_rho, dataBase_.boundary_surface_value_bytes, cudaMemcpyDeviceToHost));
+    fprintf(stderr, "check h_boundary_rho\n");
+    checkVectorEqual(dataBase_.num_boundary_surfaces, boundary_rho, h_boundary_rho.data(), 1e-14, printFlag);
     DEBUG_TRACE;
 }
 

@@ -97,7 +97,8 @@ void initNccl() {
 }
 
 void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
-    // prepare constant values: num_cells, num_surfaces, num_boundary_surfaces, num_patches, patch_size, num_species, rdelta_t
+    // prepare constant values: num_cells, num_surfaces, num_boundary_surfaces,
+    // num_patches, patch_size, num_species, rdelta_t
     const labelUList& owner = mesh.owner();
     const labelUList& neighbour = mesh.neighbour();
     int num_cells = mesh.nCells();
@@ -106,20 +107,25 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
     int num_patches = 0;
     std::vector<int> patch_size;
     forAll(mesh.boundary(), patchi) {
-        labelUList sub_boundary = mesh.boundary()[patchi].faceCells();
-        int patchsize = sub_boundary.size();
+        const fvPatchScalarField& patchY = Y[0].boundaryField()[patchi];
+        int patchsize = patchY.size();
         patch_size.push_back(patchsize);
-        num_boundary_surfaces += patchsize;
+        if (patchY.type() == "processor") {
+            num_boundary_surfaces += patchsize * 2; // patchNeighbourfield and patchInternalfield
+        } else {
+            num_boundary_surfaces += patchsize;
+        }
         num_patches++;
     }
     // TODO: get deltaT fomr time API
     double rDeltaT = 1 / 1e-6;
-    dfDataBase.setConstantValues(num_cells, num_surfaces, num_boundary_surfaces, num_patches, patch_size, Y.size(), rDeltaT);
+    dfDataBase.setConstantValues(num_cells, num_surfaces, num_boundary_surfaces, 
+            num_patches, patch_size, Y.size(), rDeltaT);
     
     // wyr: now there is no other place to prepare nccl info, thus mpi must be initialized at beginning.
-    //label flag_mpi_init;
-    //MPI_Initialized(&flag_mpi_init);
-    //if(flag_mpi_init) {
+    label flag_mpi_init;
+    MPI_Initialized(&flag_mpi_init);
+    if(flag_mpi_init) {
         std::vector<int> GPUNeighbProcNo(dfDataBase.num_patches, -1);
         // get basic communication info from of
         forAll(Y[0].boundaryField(), patchi) {
@@ -132,7 +138,7 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
         // TODO: test for temp
         //ncclTest(nccl_comm);
         //ncclDestroy(nccl_comm);
-    //}
+    }
 
     // prepare cuda resources
     dfDataBase.prepareCudaResources();
@@ -147,6 +153,7 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
     int *boundary_face_cell = new int[num_boundary_surfaces];
     int offset = 0;
     forAll(mesh.boundary(), patchi) {
+        const fvPatchScalarField& patchY = Y[0].boundaryField()[patchi];
         const vectorField& pSf = mesh.Sf().boundaryField()[patchi];
         const scalarField& pMagSf = mesh.magSf().boundaryField()[patchi];
         const scalarField& pDeltaCoeffs = mesh.nonOrthDeltaCoeffs().boundaryField()[patchi];
@@ -154,11 +161,28 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
 
         int patchsize = pMagSf.size();
 
-        memcpy(boundary_sf + 3*offset, &pSf[0][0], 3*patchsize*sizeof(double));
-        memcpy(boundary_mag_sf + offset, &pMagSf[0], patchsize*sizeof(double));
-        memcpy(boundary_delta_coeffs + offset, &pDeltaCoeffs[0], patchsize*sizeof(double));
-        memcpy(boundary_face_cell + offset, &pFaceCells[0], patchsize * sizeof(int));
-        offset += patchsize;
+        if (patchY.type() == "processor") {
+            memcpy(boundary_sf + 3*offset, &pSf[0][0], 3*patchsize*sizeof(double));
+            memcpy(boundary_sf + 3*offset + 3*patchsize, &pSf[0][0], 3*patchsize*sizeof(double));
+
+            memcpy(boundary_mag_sf + offset, &pMagSf[0], patchsize*sizeof(double));
+            memcpy(boundary_mag_sf + offset + patchsize, &pMagSf[0], patchsize*sizeof(double));
+
+            memcpy(boundary_delta_coeffs + offset, &pDeltaCoeffs[0], patchsize*sizeof(double));
+            memcpy(boundary_delta_coeffs + offset + patchsize, &pDeltaCoeffs[0], patchsize*sizeof(double));
+
+            memcpy(boundary_face_cell + offset, &pFaceCells[0], patchsize * sizeof(int));
+            memcpy(boundary_face_cell + offset + patchsize, &pFaceCells[0], patchsize * sizeof(int));
+
+            offset += patchsize * 2;
+        } else {
+            memcpy(boundary_sf + 3*offset, &pSf[0][0], 3*patchsize*sizeof(double));
+            memcpy(boundary_mag_sf + offset, &pMagSf[0], patchsize*sizeof(double));
+            memcpy(boundary_delta_coeffs + offset, &pDeltaCoeffs[0], patchsize*sizeof(double));
+            memcpy(boundary_face_cell + offset, &pFaceCells[0], patchsize * sizeof(int));
+
+            offset += patchsize;
+        }
     }
 
     dfDataBase.createConstantFieldsInternal();
@@ -182,6 +206,17 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
     }
     dfDataBase.initNonConstantFieldsInternal(dfDataBase.h_y);
     dfDataBase.initNonConstantFieldsBoundary(dfDataBase.h_boundary_y);
+}
+
+void createGPURhoEqn(const volScalarField& rho) {
+    std::vector<int> patch_type;
+    patch_type.resize(dfDataBase.num_patches);
+    forAll(rho.boundaryField(), patchi)
+    {
+        constructBoundarySelectorPerPatch(&(patch_type[patchi]), rho.boundaryField()[patchi].type());
+    }
+    rhoEqn_GPU.setConstantFields(patch_type);
+    rhoEqn_GPU.createNonConstantLduAndCsrFields();
 }
 
 void createGPUUEqn(const IOdictionary& CanteraTorchProperties, const volVectorField& U) {

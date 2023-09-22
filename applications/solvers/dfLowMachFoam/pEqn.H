@@ -1,5 +1,5 @@
-// #undef GPUSolverNew_
-// #define CPUSolver_
+#undef GPUSolverNew_
+#define CPUSolver_
 if (!pimple.simpleRho())
 {
     rho = thermo.rho();
@@ -394,5 +394,5 @@ pEqn_GPU.comparedpdt(&dpdt[0], false);
 end2 = std::clock();
 time_monitor_pEqn += double(end2 - start2) / double(CLOCKS_PER_SEC);
 
-// #undef CPUSolver_
-// #define GPUSolverNew_
+#undef CPUSolver_
+#define GPUSolverNew_

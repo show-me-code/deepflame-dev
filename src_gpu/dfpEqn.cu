@@ -309,7 +309,8 @@ void dfpEqn::process() {
             dataBase_.d_boundary_face_cell, dataBase_.d_ldu_to_csr_index, dataBase_.d_diag_to_csr_index,
             d_ldu, d_source, d_internal_coeffs, d_boundary_coeffs, d_A);
     solve();
-    correct_boundary_conditions_scalar(dataBase_.stream, dataBase_.num_boundary_surfaces, dataBase_.num_patches, dataBase_.patch_size.data(), 
+    correct_boundary_conditions_scalar(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
+            dataBase_.num_boundary_surfaces, dataBase_.num_patches, dataBase_.patch_size.data(), 
             patch_type_p.data(), dataBase_.d_boundary_face_cell, dataBase_.d_p, dataBase_.d_boundary_p);
 }
 void dfpEqn::postProcess() {

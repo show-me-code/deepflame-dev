@@ -95,8 +95,8 @@ void dfMatrixDataBase::cleanCudaResources() {
 }
 
 void dfMatrixDataBase::setConstantValues(int num_cells, int num_surfaces, int num_boundary_surfaces,
-                   int num_patches, std::vector<int> patch_size,
-                   int num_species, double rdelta_t) {
+        int num_patches, std::vector<int> patch_size,
+        int num_species, double rdelta_t) {
     // constant values -- basic
     this->num_cells = num_cells;
     this->num_surfaces = num_surfaces;

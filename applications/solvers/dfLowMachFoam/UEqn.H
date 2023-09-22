@@ -1,5 +1,5 @@
-//#undef GPUSolverNew_
-//#define CPUSolver_
+#undef GPUSolverNew_
+#define CPUSolver_
 
 // Solve the Momentum equation
 #ifdef GPUSolver_
@@ -120,7 +120,6 @@
     double *h_boundary_p = dfDataBase.getFieldPointer("p", location::cpu, position::boundary);
     double *h_nu_eff = UEqn_GPU.getFieldPointer("nu_eff", location::cpu, position::internal);
     double *h_boundary_nu_eff = UEqn_GPU.getFieldPointer("nu_eff", location::cpu, position::boundary);
-    double *h_boundary_rho = dfDataBase.getFieldPointer("rho", location::cpu, position::boundary);
     TICK_STOP(get pointer);
 
     TICK_START;
@@ -137,18 +136,16 @@
         const fvPatchVectorField& patchU = U.boundaryField()[patchi];
         const fvPatchScalarField& patchP = p.boundaryField()[patchi];
         const fvPatchScalarField& patchNuEff = nuEff.boundaryField()[patchi];
-        const fvPatchScalarField& patchRho = rho.boundaryField()[patchi];
         int patchsize = patchU.size();
         memcpy(h_boundary_u + offset * 3, &patchU[0][0], patchsize * 3 * sizeof(double));
         memcpy(h_boundary_p + offset, &patchP[0], patchsize * sizeof(double));
         memcpy(h_boundary_nu_eff + offset, &patchNuEff[0], patchsize * sizeof(double));
-        memcpy(h_boundary_rho + offset, &patchRho[0], patchsize * sizeof(double));
         offset += patchsize;
     }
     TICK_STOP(CPU prepare boundary time);
 
     TICK_START;
-    UEqn_GPU.preProcess(h_u, h_boundary_u, h_p, h_boundary_p, h_nu_eff, h_boundary_nu_eff, h_boundary_rho);
+    UEqn_GPU.preProcess(h_u, h_boundary_u, h_p, h_boundary_p, h_nu_eff, h_boundary_nu_eff);
     DEBUG_TRACE;
     UEqn_GPU.sync();
     TICK_STOP(GPU preProcess time);
@@ -248,5 +245,5 @@
 // time_monitor_CPU += double(end1 - start1) / double(CLOCKS_PER_SEC);
 // // Info << "U_amgx = " << U << endl;
 
-//#undef CPUSolver_
-//#define GPUSolverNew_
+#undef CPUSolver_
+#define GPUSolverNew_
