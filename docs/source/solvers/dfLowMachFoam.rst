@@ -137,7 +137,7 @@ The developed 2D HIT are displayed in the figures below.
 Vuorinen, Ville, and K. Keskinen. "DNSLab: A gateway to turbulent flow simulation in Matlab." Computer Physics Communications 203 (2016): 278-289.
 
 
-Two-Dimensional planar temporally evolving jet flame
+Two-Dimensional temporally evolving jet flame
 ----------------------------------------------------------
 
 **Problem Description**
@@ -155,15 +155,23 @@ The domain is initially filled with unburnt CH4/air mixture at the region where 
    * - Initial Gas Temperature
      - 900 K (unburnt gas), 2500 K  (burnt gas)
 
+The figure below shows the computation domain and initial conditions.
+
+.. figure:: Computational_domain.png
+   :width: 500
+   :align: center
+   
+   Computational domain and initial conditions
+
 **Output**
 
 The temporally evolving jet flame are displayed in the figures below.
 
-.. figure:: 2D_evolving_jet_0.08ms.png
+.. figure:: 2D_evolving_jet_0.1ms.png
    :width: 500
    :align: center
 
-   Contours of temperature and CH4 at t = 0.08 ms
+   Contours of temperature and Qdot at t = 0.1 ms
 
 **Reference**
 
