@@ -69,69 +69,42 @@ Description
     rho.oldTime();
 
     double *h_rho = dfDataBase.getFieldPointer("rho", location::cpu, position::internal);
-    double *h_phi = dfDataBase.getFieldPointer("phi", location::cpu, position::internal);
-    double *h_boundary_phi = dfDataBase.getFieldPointer("phi", location::cpu, position::boundary);
     double *h_boundary_rho = dfDataBase.getFieldPointer("rho", location::cpu, position::boundary);
-    memcpy(h_phi, &phi[0], dfDataBase.surface_value_bytes);
 
-    int offset = 0;
-    forAll(rho.boundaryField(), patchi)
-    {
-        const fvPatchScalarField& patchRho = rho.boundaryField()[patchi];
-        int patchsize = patchRho.size();
-        if (patchRho.type() == "processor") {
-            memcpy(h_boundary_rho + offset, &patchRho[0], patchsize * sizeof(double));
-            scalarField patchRhoInternal = 
-                    dynamic_cast<const processorFvPatchField<scalar>&>(patchRho).patchInternalField()();
-            memcpy(h_boundary_rho + offset + patchsize, &patchRhoInternal[0], patchsize * sizeof(double));
-            offset += patchsize * 2;
-        } else {
-            memcpy(h_boundary_rho + offset, &patchRho[0], patchsize * sizeof(double));
-            offset += patchsize;
-        }
-    }
-    offset = 0;
-    forAll(phi.boundaryField(), patchi) 
-    {
-        const fvsPatchScalarField& patchPhi = phi.boundaryField()[patchi];
-        int patchsize = patchPhi.size();
-        memcpy(h_boundary_phi + offset, &patchPhi[0], patchsize * sizeof(double));
-        offset += patchsize;
-    }
-
-    rhoEqn_GPU.preProcess(h_phi, h_boundary_phi, h_boundary_rho);
+    rhoEqn_GPU.preProcess();
 
     rhoEqn_GPU.process();
 
     rhoEqn_GPU.postProcess(h_rho);
-    memcpy(&rho[0], h_rho, dfDataBase.cell_value_bytes);
+    rho.oldTime();
+    // memcpy(&rho[0], h_rho, dfDataBase.cell_value_bytes);
 
-    rho.correctBoundaryConditions();
+    // rho.correctBoundaryConditions();
 
     // check boundary rho
-    offset = 0;
-    forAll(rho.boundaryField(), patchi)
-    {
-        const fvPatchScalarField& patchRho = rho.boundaryField()[patchi];
-        int patchsize = patchRho.size();
-        if (patchRho.type() == "processor") {
-            memcpy(h_boundary_rho + offset, &patchRho[0], patchsize * sizeof(double));
-            scalarField patchRhoInternal = 
-                    dynamic_cast<const processorFvPatchField<scalar>&>(patchRho).patchInternalField()();
-            memcpy(h_boundary_rho + offset + patchsize, &patchRhoInternal[0], patchsize * sizeof(double));
-            offset += patchsize * 2;
-        } else {
-            memcpy(h_boundary_rho + offset, &patchRho[0], patchsize * sizeof(double));
-            offset += patchsize;
-        }
-    }
-    int rank = -1;
-    if (mpi_init_flag) {
-        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    }
-    if (!mpi_init_flag || rank == 0) {
-        rhoEqn_GPU.compareRho(&rho[0], h_boundary_rho, false);
-    }
+    // offset = 0;
+    // forAll(rho.boundaryField(), patchi)
+    // {
+    //     const fvPatchScalarField& patchRho = rho.boundaryField()[patchi];
+    //     int patchsize = patchRho.size();
+    //     if (patchRho.type() == "processor") {
+    //         memcpy(h_boundary_rho + offset, &patchRho[0], patchsize * sizeof(double));
+    //         scalarField patchRhoInternal = 
+    //                 dynamic_cast<const processorFvPatchField<scalar>&>(patchRho).patchInternalField()();
+    //         memcpy(h_boundary_rho + offset + patchsize, &patchRhoInternal[0], patchsize * sizeof(double));
+    //         offset += patchsize * 2;
+    //     } else {
+    //         memcpy(h_boundary_rho + offset, &patchRho[0], patchsize * sizeof(double));
+    //         offset += patchsize;
+    //     }
+    // }
+    // int rank = -1;
+    // if (mpi_init_flag) {
+    //     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    // }
+    // if (!mpi_init_flag || rank == 0) {
+    //     rhoEqn_GPU.compareRho(&rho[0], h_boundary_rho, false);
+    // }
 
 #ifdef DEBUG_
     // checkValue
@@ -142,8 +115,33 @@ Description
     );
     rhoEqn.solve();
 
+    int rank = -1;
+    if (mpi_init_flag) {
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    }
+
     if (!mpi_init_flag || rank == 0) {
         rhoEqn_GPU.compareResult(&rhoEqn.diag()[0], &rhoEqn.source()[0], false);
+    }
+
+    offset = 0;
+    forAll(rho.boundaryField(), patchi)
+    {
+        const fvPatchScalarField& patchRho = rho.boundaryField()[patchi];
+        int patchsize = patchRho.size();
+        if (patchRho.type() == "processor") {
+            memcpy(h_boundary_rho + offset, &patchRho[0], patchsize * sizeof(double));
+            scalarField patchRhoInternal = 
+                    dynamic_cast<const processorFvPatchField<scalar>&>(patchRho).patchInternalField()();
+            memcpy(h_boundary_rho + offset + patchsize, &patchRhoInternal[0], patchsize * sizeof(double));
+            offset += patchsize * 2;
+        } else {
+            memcpy(h_boundary_rho + offset, &patchRho[0], patchsize * sizeof(double));
+            offset += patchsize;
+        }
+    }
+    if (!mpi_init_flag || rank == 0) {
+        rhoEqn_GPU.compareRho(&rho[0], h_boundary_rho, false);
     }
 #endif
 #else

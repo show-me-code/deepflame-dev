@@ -83,6 +83,7 @@ public:
 	// initialization
 	void setConstantValues(const std::string &mode_string, const std::string &setting_path); 
 	void setConstantFields(const std::vector<int> patch_type_U, const std::vector<int> patch_type_p);
+    void initNonConstantFields(const double *p, const double *boundary_p);
     void createNonConstantFieldsInternal();
 	void createNonConstantFieldsBoundary();
 	void createNonConstantLduAndCsrFields();

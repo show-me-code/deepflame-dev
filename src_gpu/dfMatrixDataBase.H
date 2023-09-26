@@ -99,6 +99,7 @@ struct dfMatrixDataBase
     int num_patches = 0;
     int num_species = 0;
     std::vector<int> patch_size;
+    std::vector<int> patch_type_calculated;
     double rdelta_t = 0;
 
     // constant values -- ldu bytesize
@@ -259,15 +260,14 @@ struct dfMatrixDataBase
     void initConstantFieldsInternal(const double *sf, const double *mag_sf, 
         const double *weight, const double *delta_coeffs, const double *volume);
     void initConstantFieldsBoundary(const double *boundary_sf, const double *boundary_mag_sf, 
-        const double *boundary_delta_coeffs, const int *boundary_face_cell);
+        const double *boundary_delta_coeffs, const double *boundary_weight, const int *boundary_face_cell, std::vector<int> &patch_type_calculated);
 
     void createNonConstantFieldsInternal();
     void createNonConstantFieldsBoundary();
     void initNonConstantFieldsInternal(const double *y);
     void initNonConstantFieldsBoundary(const double *boundary_y);
 
-    void preTimeStep(const double *rho_old, const double *phi_old, const double *boundary_phi_old, 
-            const double *u_old, const double *boundary_u_old, const double *p_old, const double *boundary_p_old);
+    void preTimeStep(const double *u_old, const double *boundary_u_old, const double *p_old, const double *boundary_p_old);
     void postTimeStep();
 
     // getter

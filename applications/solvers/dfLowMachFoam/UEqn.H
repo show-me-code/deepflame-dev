@@ -1,5 +1,5 @@
-#undef GPUSolverNew_
-#define CPUSolver_
+// #undef GPUSolverNew_
+// #define CPUSolver_
 
 // Solve the Momentum equation
 #ifdef GPUSolver_
@@ -92,6 +92,9 @@
 #elif defined GPUSolverNew_
     const tmp<volScalarField> nuEff_tmp(turbulence->nuEff());
     const volScalarField& nuEff = nuEff_tmp();
+    int offset;
+    // Info << "nuEff\n" << nuEff << endl;
+    // Info << "mu/rho\n" << thermo.mu()/rho << endl;
 
 #if defined DEBUG_
     // run CPU, for temp
@@ -105,6 +108,34 @@
         == -fvc::grad(p)
     );
     fvVectorMatrix& UEqn = tUEqn.ref();
+
+    volTensorField gradU = fvc::grad(U);
+
+    double *h_boundary_gradU = new double[dfDataBase.num_boundary_surfaces * 9];
+    offset = 0;
+    forAll(U.boundaryField(), patchi)
+    {
+        const fvPatchTensorField& patchGradU = gradU.boundaryField()[patchi];
+        int patchsize = patchGradU.size();
+        if (patchGradU.type() == "processor") {
+            // print info
+            if (dynamic_cast<const processorFvPatchField<tensor>&>(patchGradU).doTransform()) {
+                Info << "gradU transform = true" << endl;
+            } else {
+                Info << "gradU transform = false" << endl;
+            }
+            Info << "rank = " << dynamic_cast<const processorFvPatchField<tensor>&>(patchGradU).rank() << endl;
+
+            memcpy(h_boundary_gradU + 9*offset, &patchGradU[0][0], patchsize * 9 * sizeof(double));
+            tensorField patchGradUInternal = 
+                    dynamic_cast<const processorFvPatchField<tensor>&>(patchGradU).patchInternalField()();
+            memcpy(h_boundary_gradU + 9*offset + patchsize * 9, &patchGradUInternal[0][0], patchsize * 9 * sizeof(double));
+            offset += patchsize * 2;
+        } else {
+            memcpy(h_boundary_gradU + 9*offset, &patchGradU[0][0], patchsize * 9 * sizeof(double));
+            offset += patchsize;
+        }
+    }
 #endif
 
     // run GPU
@@ -124,23 +155,23 @@
 
     TICK_START;
     U.oldTime();
-    memcpy(h_u, &U.oldTime()[0][0], dfDataBase.cell_value_vec_bytes); 
-    memcpy(h_p, &p[0], dfDataBase.cell_value_bytes);
     memcpy(h_nu_eff, &nuEff[0], dfDataBase.cell_value_bytes);
     TICK_STOP(copy to pinned memory);
 
     TICK_START;
-    int offset = 0;
+    offset = 0;
     forAll(U.boundaryField(), patchi)
     {
-        const fvPatchVectorField& patchU = U.boundaryField()[patchi];
-        const fvPatchScalarField& patchP = p.boundaryField()[patchi];
         const fvPatchScalarField& patchNuEff = nuEff.boundaryField()[patchi];
-        int patchsize = patchU.size();
-        memcpy(h_boundary_u + offset * 3, &patchU[0][0], patchsize * 3 * sizeof(double));
-        memcpy(h_boundary_p + offset, &patchP[0], patchsize * sizeof(double));
-        memcpy(h_boundary_nu_eff + offset, &patchNuEff[0], patchsize * sizeof(double));
-        offset += patchsize;
+        int patchsize = patchNuEff.size();
+        if (patchNuEff.type() == "processor") {
+            memcpy(h_boundary_nu_eff + offset, &patchNuEff[0], patchsize*sizeof(double));
+            memcpy(h_boundary_nu_eff + offset + patchsize, &patchNuEff[0], patchsize*sizeof(double));
+            offset += patchsize * 2;
+        } else {
+            memcpy(h_boundary_nu_eff + offset, &patchNuEff[0], patchsize*sizeof(double));
+            offset += patchsize;
+        }
     }
     TICK_STOP(CPU prepare boundary time);
 
@@ -196,7 +227,7 @@
     if (!mpi_init_flag || rank == 0) {
         UEqn_GPU.compareResult(&UEqn.lower()[0], &UEqn.upper()[0], &UEqn.diag()[0], &UEqn.source()[0][0],
             h_internal_coeffs.data(), h_boundary_coeffs.data(), 
-            // &gradU[0][0], 
+            // &gradU[0][0], h_boundary_gradU,
             printFlag);
     }
     DEBUG_TRACE;
@@ -245,5 +276,5 @@
 // time_monitor_CPU += double(end1 - start1) / double(CLOCKS_PER_SEC);
 // // Info << "U_amgx = " << U << endl;
 
-#undef CPUSolver_
-#define GPUSolverNew_
+// #undef CPUSolver_
+// #define GPUSolverNew_

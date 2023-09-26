@@ -200,7 +200,7 @@ int main(int argc, char *argv[])
     createGPUYEqn(CanteraTorchProperties, Y, inertIndex);
     createGPUEEqn(CanteraTorchProperties, thermo.he(), K);
     createGPUpEqn(CanteraTorchProperties, p, U);
-    createGPURhoEqn(rho);
+    createGPURhoEqn(rho, phi);
 #endif
 
     end1 = std::clock();
@@ -232,22 +232,19 @@ int main(int argc, char *argv[])
         
         // store old time fields
 #ifdef GPUSolverNew_
-        double *h_boundary_phi_old = dfDataBase.getFieldPointer("phi_old", location::cpu, position::boundary);
         double *h_boundary_u_old = dfDataBase.getFieldPointer("u_old", location::cpu, position::boundary);
         double *h_boundary_p_old = dfDataBase.getFieldPointer("p_old", location::cpu, position::boundary);
         int offset = 0;
         forAll(phi.oldTime().boundaryField(), patchi)
         {
-            const fvsPatchScalarField& patchPhi = phi.oldTime().boundaryField()[patchi];
             const fvPatchScalarField& patchP = p.oldTime().boundaryField()[patchi];
             const fvPatchVectorField& patchU = U.oldTime().boundaryField()[patchi];
-            int patchsize = patchPhi.size();
-            memcpy(h_boundary_phi_old + offset, &patchPhi[0], patchsize * sizeof(double));
+            int patchsize = patchP.size();
             memcpy(h_boundary_p_old + offset, &patchP[0], patchsize * sizeof(double));
             memcpy(h_boundary_u_old + offset * 3, &patchU[0][0], patchsize * 3 * sizeof(double));
             offset += patchsize;
         }
-        dfDataBase.preTimeStep(&rho.oldTime()[0], &phi.oldTime()[0], h_boundary_phi_old, &U.oldTime()[0][0], h_boundary_u_old, 
+        dfDataBase.preTimeStep(&U.oldTime()[0][0], h_boundary_u_old, 
             &p.oldTime()[0], h_boundary_p_old);
 #endif
         clock_t loop_start = std::clock();

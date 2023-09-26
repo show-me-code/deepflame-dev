@@ -38,13 +38,15 @@ public:
 
     // initialization
     void setConstantFields(const std::vector<int> patch_type);
+    void initNonConstantFields(const double *rho, const double *phi, 
+            const double *boundary_rho, const double *boudnary_phi);
     void createNonConstantLduAndCsrFields();
 
     // getter function
     double* getFieldPointer(const char* fieldAlias, location loc, position pos);
 
     // run equations
-    void preProcess(const double *h_phi, const double *h_boundary_phi, const double *h_boundary_rho);
+    void preProcess();
     void process();
     void postProcess(double *h_rho);
 

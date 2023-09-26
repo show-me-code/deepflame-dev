@@ -106,7 +106,7 @@ public:
 	void createNonConstantFieldsBoundary();
 	void createNonConstantLduAndCsrFields();
 	// dfUEqn has no internal non-constant fields to be init
-	//void initNonConstantFieldsInternal(xxx);
+	void initNonConstantFieldsInternal(const double *u, const double *boundary_u);
 	void initNonConstantFieldsBoundary();
 
 	// run equation
@@ -139,7 +139,7 @@ public:
 
 #if defined DEBUG_
     void compareResult(const double *lower, const double *upper, const double *diag, const double *source, const double *internal_coeffs, const double *boundary_coeffs, 
-    // const double *tmpVal, 
+    // const double *tmpVal, const double *boundary_val,
     bool printFlag);
 #endif 
     void compareHbyA(const double *HbyA, const double *boundary_HbyA, bool printFlag);

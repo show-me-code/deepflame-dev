@@ -282,6 +282,14 @@ void dfUEqn::createNonConstantLduAndCsrFields() {
   checkCudaErrors(cudaMalloc((void**)&d_boundary_u_host_order, dataBase_.boundary_surface_value_vec_bytes));
 }
 
+void dfUEqn::initNonConstantFieldsInternal(const double *u, const double *boundary_u)
+{
+    checkCudaErrors(cudaMemcpyAsync(d_u_host_order, u, dataBase_.cell_value_vec_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+    checkCudaErrors(cudaMemcpyAsync(d_boundary_u_host_order, boundary_u, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+    permute_vector_h2d(dataBase_.stream, dataBase_.num_cells, d_u_host_order, dataBase_.d_u);
+    permute_vector_h2d(dataBase_.stream, dataBase_.num_boundary_surfaces, d_boundary_u_host_order, dataBase_.d_boundary_u);
+}
+
 void dfUEqn::initNonConstantFieldsBoundary() {
     // update_boundary_coeffs_vector(dataBase_.stream, dataBase_.num_boundary_surfaces, dataBase_.num_patches,
     //        dataBase_.patch_size.data(), patch_type.data(), dataBase_.d_boundary_u, dataBase_.d_boundary_delta_coeffs,
@@ -338,10 +346,10 @@ void dfUEqn::process() {
         checkCudaErrors(cudaMallocAsync((void**)&d_b, dataBase_.cell_value_vec_bytes, dataBase_.stream));
 #endif
 
-        checkCudaErrors(cudaMemcpyAsync(d_u_host_order, dataBase_.h_u, dataBase_.cell_value_vec_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
-        checkCudaErrors(cudaMemcpyAsync(d_boundary_u_host_order, dataBase_.h_boundary_u, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
-        checkCudaErrors(cudaMemcpyAsync(dataBase_.d_p, dataBase_.h_p, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
-        checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_p, dataBase_.h_boundary_p, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+        // checkCudaErrors(cudaMemcpyAsync(d_u_host_order, dataBase_.h_u, dataBase_.cell_value_vec_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+        // checkCudaErrors(cudaMemcpyAsync(d_boundary_u_host_order, dataBase_.h_boundary_u, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+        // checkCudaErrors(cudaMemcpyAsync(dataBase_.d_p, dataBase_.h_p, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+        // checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_p, dataBase_.h_boundary_p, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
         checkCudaErrors(cudaMemcpyAsync(d_nu_eff, h_nu_eff, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
         checkCudaErrors(cudaMemcpyAsync(d_boundary_nu_eff, h_boundary_nu_eff, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
 
@@ -357,8 +365,8 @@ void dfUEqn::process() {
         checkCudaErrors(cudaMemsetAsync(d_grad_u, 0, dataBase_.cell_value_tsr_bytes, dataBase_.stream));
         checkCudaErrors(cudaMemsetAsync(d_boundary_grad_u, 0, dataBase_.boundary_surface_value_tsr_bytes, dataBase_.stream));
 
-        permute_vector_h2d(dataBase_.stream, dataBase_.num_cells, d_u_host_order, dataBase_.d_u);
-        permute_vector_h2d(dataBase_.stream, dataBase_.num_boundary_surfaces, d_boundary_u_host_order, dataBase_.d_boundary_u);
+        // permute_vector_h2d(dataBase_.stream, dataBase_.num_cells, d_u_host_order, dataBase_.d_u);
+        // permute_vector_h2d(dataBase_.stream, dataBase_.num_boundary_surfaces, d_boundary_u_host_order, dataBase_.d_boundary_u);
         update_boundary_coeffs_vector(dataBase_.stream, dataBase_.num_boundary_surfaces, dataBase_.num_patches,
             dataBase_.patch_size.data(), patch_type.data(), dataBase_.d_boundary_u, dataBase_.d_boundary_delta_coeffs, dataBase_.d_boundary_weight,
             d_value_internal_coeffs, d_value_boundary_coeffs,
@@ -384,23 +392,24 @@ void dfUEqn::process() {
                dataBase_.d_boundary_mag_sf, d_boundary_rho_nueff,
                d_gradient_internal_coeffs, d_gradient_boundary_coeffs,
                d_internal_coeffs, d_boundary_coeffs, -1);
-        fvc_grad_vector(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
-               dataBase_.d_owner, dataBase_.d_neighbor,
-               dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_u, d_grad_u,
-               dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
-               dataBase_.d_boundary_face_cell, dataBase_.d_boundary_u, dataBase_.d_boundary_sf,
-               dataBase_.d_volume, dataBase_.d_boundary_mag_sf, d_boundary_grad_u, dataBase_.d_boundary_delta_coeffs);
+        fvc_grad_vector(dataBase_.stream, dataBase_.nccl_comm,
+                dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
+                dataBase_.neighbProcNo.data(), dataBase_.d_owner, dataBase_.d_neighbor,
+                dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_u, d_grad_u,
+                dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
+                dataBase_.d_boundary_face_cell, dataBase_.d_boundary_u, dataBase_.d_boundary_sf, dataBase_.d_boundary_weight, 
+                dataBase_.d_volume, dataBase_.d_boundary_mag_sf, d_boundary_grad_u, dataBase_.d_boundary_delta_coeffs);
         scale_dev2T_tensor(dataBase_.stream, dataBase_.num_cells, d_rho_nueff, d_grad_u, // end for internal
                dataBase_.num_boundary_surfaces, d_boundary_rho_nueff, d_boundary_grad_u);
         fvc_div_cell_tensor(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
                dataBase_.d_owner, dataBase_.d_neighbor,
                dataBase_.d_weight, dataBase_.d_sf, d_grad_u, d_source, // end for internal
-               dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
+               dataBase_.num_patches, dataBase_.patch_size.data(), dataBase_.patch_type_calculated.data(), dataBase_.d_boundary_weight,
                dataBase_.d_boundary_face_cell, d_boundary_grad_u, dataBase_.d_boundary_sf, dataBase_.d_volume);
         fvc_grad_cell_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
                 dataBase_.d_owner, dataBase_.d_neighbor,
                 dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_p, d_source,
-                dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
+                dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(), dataBase_.d_boundary_weight,
                 dataBase_.d_boundary_face_cell, dataBase_.d_boundary_p, dataBase_.d_boundary_sf, dataBase_.d_volume, -1.);
         getrAU(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, dataBase_.d_boundary_face_cell, 
                 d_internal_coeffs, dataBase_.d_volume, d_diag, dataBase_.d_rAU, dataBase_.d_boundary_rAU);       
@@ -649,7 +658,7 @@ double* dfUEqn::getFieldPointer(const char* fieldAlias, location loc, position p
 #if defined DEBUG_
 void dfUEqn::compareResult(const double *lower, const double *upper, const double *diag, 
         const double *source, const double *internal_coeffs, const double *boundary_coeffs, 
-        // const double *tmpVal, 
+        // const double *tmpVal, const double *boundary_val,
         bool printFlag)
 {
     DEBUG_TRACE;
@@ -713,9 +722,11 @@ void dfUEqn::compareResult(const double *lower, const double *upper, const doubl
     checkVectorEqual(dataBase_.num_boundary_surfaces * 3, h_boundary_coeffs_ref.data(), h_boundary_coeffs.data(), 1e-14, printFlag);
     DEBUG_TRACE;
 
-    // std::vector<double> h_tmpVal, h_tmpVal_ref;
+    // std::vector<double> h_tmpVal, h_tmpVal_ref, h_boundary_val, h_boundary_val_ref;
     // h_tmpVal.resize(dataBase_.num_cells * 9);
     // h_tmpVal_ref.resize(dataBase_.num_cells * 9);
+    // h_boundary_val.resize(dataBase_.num_boundary_surfaces * 9);
+    // h_boundary_val_ref.resize(dataBase_.num_boundary_surfaces * 9);
     // for (int i = 0; i < dataBase_.num_cells; i++) {
     //     h_tmpVal_ref[0 * dataBase_.num_cells + i] = tmpVal[i * 9 + 0];
     //     h_tmpVal_ref[1 * dataBase_.num_cells + i] = tmpVal[i * 9 + 1];
@@ -727,9 +738,23 @@ void dfUEqn::compareResult(const double *lower, const double *upper, const doubl
     //     h_tmpVal_ref[7 * dataBase_.num_cells + i] = tmpVal[i * 9 + 7];
     //     h_tmpVal_ref[8 * dataBase_.num_cells + i] = tmpVal[i * 9 + 8];
     // }
+    // for (int i = 0; i < dataBase_.num_boundary_surfaces; i++){
+    //     h_boundary_val_ref[0 * dataBase_.num_boundary_surfaces + i] = boundary_val[i * 9 + 0];
+    //     h_boundary_val_ref[1 * dataBase_.num_boundary_surfaces + i] = boundary_val[i * 9 + 1];
+    //     h_boundary_val_ref[2 * dataBase_.num_boundary_surfaces + i] = boundary_val[i * 9 + 2];
+    //     h_boundary_val_ref[3 * dataBase_.num_boundary_surfaces + i] = boundary_val[i * 9 + 3];
+    //     h_boundary_val_ref[4 * dataBase_.num_boundary_surfaces + i] = boundary_val[i * 9 + 4];
+    //     h_boundary_val_ref[5 * dataBase_.num_boundary_surfaces + i] = boundary_val[i * 9 + 5];
+    //     h_boundary_val_ref[6 * dataBase_.num_boundary_surfaces + i] = boundary_val[i * 9 + 6];
+    //     h_boundary_val_ref[7 * dataBase_.num_boundary_surfaces + i] = boundary_val[i * 9 + 7];
+    //     h_boundary_val_ref[8 * dataBase_.num_boundary_surfaces + i] = boundary_val[i * 9 + 8];
+    // }
     // checkCudaErrors(cudaMemcpy(h_tmpVal.data(), d_grad_u, dataBase_.cell_value_tsr_bytes, cudaMemcpyDeviceToHost));
+    // checkCudaErrors(cudaMemcpy(h_boundary_val.data(), d_boundary_grad_u, dataBase_.boundary_surface_value_tsr_bytes, cudaMemcpyDeviceToHost));
     // fprintf(stderr, "check h_grad_U\n");
     // checkVectorEqual(dataBase_.num_cells * 9, h_tmpVal_ref.data(), h_tmpVal.data(), 1e-14, printFlag);
+    // fprintf(stderr, "check h_boundary_grad_U\n");
+    // checkVectorEqual(dataBase_.num_boundary_surfaces * 9, h_boundary_val_ref.data(), h_boundary_val.data(), 1e-14, printFlag);
     // DEBUG_TRACE;
 }
 #endif
