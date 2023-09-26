@@ -245,6 +245,11 @@ void dfpEqn::createNonConstantLduAndCsrFields() {
     checkCudaErrors(cudaMalloc((void**)&d_A, dataBase_.csr_value_bytes));
 }
 
+void dfpEqn::initNonConstantFields(const double *p, const double *boundary_p){
+    checkCudaErrors(cudaMemcpyAsync(dataBase_.d_p, dataBase_.h_p, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+    checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_p, dataBase_.h_boundary_p, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+}
+
 // tmp
 void dfpEqn::preProcess(double *h_phi, double *h_boundary_phi) {
     checkCudaErrors(cudaMemcpyAsync(dataBase_.d_phi, h_phi, dataBase_.surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
@@ -296,8 +301,9 @@ void dfpEqn::process() {
     fvc_ddt_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.rdelta_t, dataBase_.d_rho, dataBase_.d_rho_old, dataBase_.d_volume, 
             d_source, -1.);
     fvc_div_surface_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
-            dataBase_.d_owner, dataBase_.d_neighbor, d_phiHbyA, dataBase_.d_boundary_face_cell, d_boundary_phiHbyA,
-            dataBase_.d_volume, d_source, -1.);
+            dataBase_.d_owner, dataBase_.d_neighbor, d_phiHbyA, dataBase_.d_boundary_face_cell, 
+            dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_p.data(),
+            d_boundary_phiHbyA, dataBase_.d_volume, d_source, -1.);
     fvm_laplacian_surface_scalar_vol_scalar(dataBase_.stream, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
             dataBase_.d_owner, dataBase_.d_neighbor, dataBase_.d_mag_sf, dataBase_.d_delta_coeffs, d_rhorAUf, 
             d_lower, d_upper, d_diag,
@@ -327,7 +333,7 @@ void dfpEqn::postProcess() {
     // TODO: may do not need to calculate boundary fields
     fvc_grad_cell_scalar_withBC(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, 
             dataBase_.d_owner, dataBase_.d_neighbor, dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_p, dataBase_.d_u, 
-            dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_p.data(),
+            dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_p.data(), dataBase_.d_boundary_weight,
             dataBase_.d_boundary_face_cell, dataBase_.d_boundary_p, dataBase_.d_boundary_sf, dataBase_.d_volume, 
             dataBase_.d_boundary_mag_sf, dataBase_.d_boundary_u, dataBase_.d_boundary_delta_coeffs);
     scalar_field_multiply_vector_field(dataBase_.stream, dataBase_.num_cells, dataBase_.d_rAU, dataBase_.d_u, dataBase_.d_u,

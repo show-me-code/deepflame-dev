@@ -276,10 +276,12 @@ void dfMatrixDataBase::createConstantFieldsBoundary() {
     checkCudaErrors(cudaMalloc((void**)&d_boundary_sf, boundary_surface_value_vec_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_mag_sf, boundary_surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_delta_coeffs, boundary_surface_value_bytes));
+    checkCudaErrors(cudaMalloc((void**)&d_boundary_weight, boundary_surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_face_cell, boundary_surface_index_bytes));
     fieldPointerMap["d_boundary_sf"] = d_boundary_sf;
     fieldPointerMap["d_boundary_mag_sf"] = d_boundary_mag_sf;
     fieldPointerMap["d_boundary_delta_coeffs"] = d_boundary_delta_coeffs;
+    fieldPointerMap["d_boundary_weight"] = d_boundary_weight;
 
     checkCudaErrors(cudaMallocHost((void**)&h_boundary_sf, boundary_surface_value_vec_bytes));
     fieldPointerMap["h_boundary_sf"] = h_boundary_sf;
@@ -301,7 +303,8 @@ void dfMatrixDataBase::initConstantFieldsInternal(const double *sf, const double
 }
 
 void dfMatrixDataBase::initConstantFieldsBoundary(const double *boundary_sf, const double *boundary_mag_sf, 
-        const double *boundary_delta_coeffs, const int *boundary_face_cell) {
+        const double *boundary_delta_coeffs, const double *boundary_weight, const int *boundary_face_cell, std::vector<int>& patch_type_calculated) {
+    this->patch_type_calculated = patch_type_calculated;
     // permute bouSf
     for (int i = 0; i < num_boundary_surfaces; i++) {
         h_boundary_sf[num_boundary_surfaces * 0 + i] = boundary_sf[i * 3 + 0];
@@ -311,7 +314,8 @@ void dfMatrixDataBase::initConstantFieldsBoundary(const double *boundary_sf, con
     checkCudaErrors(cudaMemcpyAsync(d_boundary_sf, h_boundary_sf, boundary_surface_value_vec_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_mag_sf, boundary_mag_sf, boundary_surface_value_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_delta_coeffs, boundary_delta_coeffs, boundary_surface_value_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_boundary_face_cell, boundary_face_cell, boundary_surface_index_bytes, cudaMemcpyHostToDevice, stream));
+    checkCudaErrors(cudaMemcpyAsync(d_boundary_weight, boundary_weight, boundary_surface_value_bytes, cudaMemcpyHostToDevice, stream));
+    checkCudaErrors(cudaMemcpyAsync(d_boundary_face_cell, boundary_face_cell, boundary_surface_index_bytes, cudaMemcpyHostToDevice, stream));  
 }
 
 void dfMatrixDataBase::createNonConstantFieldsInternal() {
@@ -459,11 +463,11 @@ void dfMatrixDataBase::initNonConstantFieldsBoundary(const double *boundary_y) {
     checkCudaErrors(cudaMemcpyAsync(d_boundary_y, boundary_y, boundary_surface_value_bytes* num_species, cudaMemcpyHostToDevice, stream));
 }
 
-void dfMatrixDataBase::preTimeStep(const double *rho_old, const double *phi_old, const double *boundary_phi_old, const double *u_old, 
-        const double *boundary_u_old, const double *p_old, const double *boundary_p_old) {
-    checkCudaErrors(cudaMemcpyAsync(d_rho_old, rho_old, cell_value_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_phi_old, phi_old, surface_value_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_boundary_phi_old, boundary_phi_old, boundary_surface_value_bytes, cudaMemcpyHostToDevice, stream));
+void dfMatrixDataBase::preTimeStep(const double *u_old, const double *boundary_u_old, const double *p_old, const double *boundary_p_old) {
+    checkCudaErrors(cudaMemcpyAsync(d_rho_old, d_rho, cell_value_bytes, cudaMemcpyDeviceToDevice, stream));
+    checkCudaErrors(cudaMemcpyAsync(d_phi_old, d_phi, surface_value_bytes, cudaMemcpyDeviceToDevice, stream));
+    checkCudaErrors(cudaMemcpyAsync(d_boundary_rho_old, d_boundary_rho, boundary_surface_value_bytes, cudaMemcpyDeviceToDevice, stream));
+    checkCudaErrors(cudaMemcpyAsync(d_boundary_phi_old, d_boundary_phi, boundary_surface_value_bytes, cudaMemcpyDeviceToDevice, stream));
     
     checkCudaErrors(cudaMemcpyAsync(d_u_old_host_order, u_old, cell_value_vec_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_u_old_host_order, boundary_u_old, boundary_surface_value_vec_bytes, cudaMemcpyHostToDevice, stream));
