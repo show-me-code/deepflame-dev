@@ -18,7 +18,7 @@ __global__ void fvc_interpolate_internal_multi_scalar_kernel(int num_surfaces, c
     output[index] = (w * (vf3_owner - vf3_neighbour) + vf3_neighbour);
 }
 
-__global__ void fvc_interpolate_boundary_multi_scalar_kernel_upCouple(int num, int offset,
+__global__ void fvc_interpolate_boundary_multi_scalar_kernel_unCouple(int num, int offset,
         const double *boundary_vf1, const double *boundary_vf2, double *output, double sign)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
@@ -28,6 +28,26 @@ __global__ void fvc_interpolate_boundary_multi_scalar_kernel_upCouple(int num, i
     int start_index = offset + index;
     double boundary_vf3 = boundary_vf1[start_index] * boundary_vf2[start_index];
     output[start_index] = boundary_vf3;
+}
+
+__global__ void fvc_interpolate_boundary_multi_scalar_kernel_processor(int num, int offset,
+        const double *boundary_weight, const double *boundary_vf1, const double *boundary_vf2, double *output, double sign)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
+        return;
+    
+    int neighbor_start_index = offset + index;
+    int internal_start_index = offset + num + index;
+
+    double bouWeight = boundary_weight[neighbor_start_index];
+
+    double neighbor_boundary_vf3 = boundary_vf1[neighbor_start_index] * boundary_vf2[neighbor_start_index];
+    double internal_boundary_vf3 = boundary_vf1[internal_start_index] * boundary_vf2[internal_start_index];
+    
+    double boundary_vf3 = (1 - bouWeight) * neighbor_boundary_vf3 + bouWeight * internal_boundary_vf3;
+    
+    output[neighbor_start_index] = boundary_vf3;
 }
 
 __global__ void get_phiCorr_internal_kernel(int num_cells, int num_surfaces, 
@@ -62,10 +82,9 @@ __global__ void get_phiCorr_internal_kernel(int num_cells, int num_surfaces,
     output[index] = phi_old[index] - (Sfx * ssfx + Sfy * ssfy + Sfz * ssfz);    
 }
 
-__global__ void get_phiCorr_boundary_kernel(int num_boundary_surfaces, int num, int offset,
+__global__ void get_phiCorr_boundary_kernel_zeroGradient(int num_boundary_surfaces, int num, int offset,
         const double *boundary_face_vector, const double *boundary_field_vector, 
-        const double *boundary_field_scalar, const double *boundary_phi_old, 
-        double *output)
+        const double *boundary_field_scalar, const double *boundary_phi_old, double *output)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index >= num)
@@ -82,6 +101,45 @@ __global__ void get_phiCorr_boundary_kernel(int num_boundary_surfaces, int num, 
     double boussfz = boundary_field_vector[num_boundary_surfaces * 2 + start_index] * boundary_field_scalar[start_index];
 
     output[start_index] = boundary_phi_old[start_index] - (bouSfx * boussfx + bouSfy * boussfy + bouSfz * boussfz);
+}
+
+__global__ void get_phiCorr_boundary_kernel_processor(int num_boundary_surfaces, int num, int offset,
+        const double *boundary_face_vector, const double *boundary_field_vector, 
+        const double *boundary_field_scalar, const double *boundary_phi_old, 
+        const double *boundary_weight, double *output)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
+        return;
+    
+    int neighbor_start_index = offset + index;
+    int internal_start_index = offset + num + index;
+
+    double bouWeight = boundary_weight[neighbor_start_index];
+
+    double bouSfx = boundary_face_vector[num_boundary_surfaces * 0 + neighbor_start_index];
+    double bouSfy = boundary_face_vector[num_boundary_surfaces * 1 + neighbor_start_index];
+    double bouSfz = boundary_face_vector[num_boundary_surfaces * 2 + neighbor_start_index];
+
+    double boussfxNeighbor = boundary_field_vector[num_boundary_surfaces * 0 + neighbor_start_index] 
+            * boundary_field_scalar[neighbor_start_index];
+    double boussfyNeighbor = boundary_field_vector[num_boundary_surfaces * 1 + neighbor_start_index] 
+            * boundary_field_scalar[neighbor_start_index];
+    double boussfzNeighbor = boundary_field_vector[num_boundary_surfaces * 2 + neighbor_start_index] 
+            * boundary_field_scalar[neighbor_start_index];
+    
+    double boussfxInternal = boundary_field_vector[num_boundary_surfaces * 0 + internal_start_index] 
+            * boundary_field_scalar[internal_start_index];
+    double boussfyInternal = boundary_field_vector[num_boundary_surfaces * 1 + internal_start_index] 
+            * boundary_field_scalar[internal_start_index];
+    double boussfzInternal = boundary_field_vector[num_boundary_surfaces * 2 + internal_start_index] 
+            * boundary_field_scalar[internal_start_index];
+    
+    double boussfx = (1 - bouWeight) * boussfxNeighbor + bouWeight * boussfxInternal;
+    double boussfy = (1 - bouWeight) * boussfyNeighbor + bouWeight * boussfyInternal;
+    double boussfz = (1 - bouWeight) * boussfzNeighbor + bouWeight * boussfzInternal;
+
+    output[neighbor_start_index] = boundary_phi_old[neighbor_start_index] - (bouSfx * boussfx + bouSfy * boussfy + bouSfz * boussfz);
 }
 
 __global__ void get_ddtCorr_internal_kernel(int num_cells, int num_surfaces, 
@@ -114,7 +172,7 @@ __global__ void get_ddtCorr_boundary_nonZero_kernel(int num_boundary_surfaces, i
     double bouPhiVal = boundary_phi[start_index];
 
     double bou_tddtCouplingCoeff = 1. - min(fabs(bouPhiCorrVal)/fabs(bouPhiVal) + SMALL, 1.);
-    output[index] = bou_tddtCouplingCoeff * rDeltaT * bouPhiCorrVal;
+    output[start_index] = bou_tddtCouplingCoeff * rDeltaT * bouPhiCorrVal;
 }
 
 __global__ void multi_fvc_flux_fvc_intepolate_internal_kernel(int num_cells, int num_surfaces, 
@@ -143,10 +201,9 @@ __global__ void multi_fvc_flux_fvc_intepolate_internal_kernel(int num_cells, int
     double vf_interp = (w * (vf[owner] - vf[neighbor]) + vf[neighbor]);
 
     output[index] += (Sfx * ssfx + Sfy * ssfy + Sfz * ssfz) * vf_interp;
-
 }
 
-__global__ void multi_fvc_flux_fvc_intepolate_boundary_kernel(int num_boundary_surfaces, int num, int offset, 
+__global__ void multi_fvc_flux_fvc_intepolate_boundary_kernel_zeroGradient(int num_boundary_surfaces, int num, int offset, 
         const double *boundary_face_vector, const double *boundary_field_vector, 
         const double *boundary_vf, double *output, double sign)
 {
@@ -165,6 +222,37 @@ __global__ void multi_fvc_flux_fvc_intepolate_boundary_kernel(int num_boundary_s
     double boussfz = boundary_field_vector[num_boundary_surfaces * 2 + start_index];
 
     output[start_index] += (bouSfx * boussfx + bouSfy * boussfy + bouSfz * boussfz) * boundary_vf[start_index];
+}
+
+__global__ void multi_fvc_flux_fvc_intepolate_boundary_kernel_processor(int num_boundary_surfaces, int num, int offset, 
+        const double *boundary_face_vector, const double *boundary_field_vector, const double *boundary_weight,
+        const double *boundary_vf, double *output, double sign)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
+        return;
+    
+    int neighbor_start_index = offset + index;
+    int internal_start_index = offset + num + index;
+
+    double bouWeight = boundary_weight[neighbor_start_index];
+
+    double bouSfx = boundary_face_vector[num_boundary_surfaces * 0 + neighbor_start_index];
+    double bouSfy = boundary_face_vector[num_boundary_surfaces * 1 + neighbor_start_index];
+    double bouSfz = boundary_face_vector[num_boundary_surfaces * 2 + neighbor_start_index];
+
+    // interpolate boundary vector
+    double boussfx = (1 - bouWeight) * boundary_field_vector[num_boundary_surfaces * 0 + neighbor_start_index] + 
+            bouWeight * boundary_field_vector[num_boundary_surfaces * 0 + internal_start_index];
+    double boussfy = (1 - bouWeight) * boundary_field_vector[num_boundary_surfaces * 1 + neighbor_start_index] + 
+            bouWeight * boundary_field_vector[num_boundary_surfaces * 1 + internal_start_index];
+    double boussfz = (1 - bouWeight) * boundary_field_vector[num_boundary_surfaces * 2 + neighbor_start_index] + 
+            bouWeight * boundary_field_vector[num_boundary_surfaces * 2 + internal_start_index];
+    
+    // interpolate boundary scalar
+    double bouvf = (1 - bouWeight) * boundary_vf[neighbor_start_index] + bouWeight * boundary_vf[internal_start_index];
+    
+    output[neighbor_start_index] += (bouSfx * boussfx + bouSfy * boussfy + bouSfz * boussfz) * bouvf;
 }
 
 __global__ void correct_diag_mtx_multi_tpsi_kernel(int num_cells, const double *psi, const double *thermo_psi, 
@@ -275,27 +363,29 @@ void dfpEqn::process() {
 
     // intermediate parameters
     checkCudaErrors(cudaMemsetAsync(d_rhorAUf, 0, dataBase_.surface_value_bytes, dataBase_.stream));
+    checkCudaErrors(cudaMemsetAsync(d_boundary_rhorAUf, 0, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
     checkCudaErrors(cudaMemsetAsync(d_phiHbyA, 0, dataBase_.surface_value_bytes, dataBase_.stream));
+    checkCudaErrors(cudaMemsetAsync(d_boundary_phiHbyA, 0, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
     checkCudaErrors(cudaMemsetAsync(d_flux, 0, dataBase_.surface_value_bytes, dataBase_.stream)); // TODO: introduce of flux is not necessary
     
     update_boundary_coeffs_scalar(dataBase_.stream,
             dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_p.data(),
-            dataBase_.d_boundary_delta_coeffs, dataBase_.d_boundary_p,
+            dataBase_.d_boundary_delta_coeffs, dataBase_.d_boundary_p, dataBase_.d_boundary_weight,
             d_value_internal_coeffs, d_value_boundary_coeffs,
             d_gradient_internal_coeffs, d_gradient_boundary_coeffs);
     getrhorAUf(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, 
             dataBase_.d_owner, dataBase_.d_neighbor, dataBase_.d_weight, 
             dataBase_.d_rho, dataBase_.d_rAU, d_rhorAUf, // end for internal
-            dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_p.data(), 
+            dataBase_.num_patches, dataBase_.patch_size.data(), dataBase_.patch_type_calculated.data(), dataBase_.d_boundary_weight,
             dataBase_.d_boundary_rho, dataBase_.d_boundary_rAU, d_boundary_rhorAUf);
     getphiHbyA(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, 
             dataBase_.rdelta_t, dataBase_.d_owner, dataBase_.d_neighbor, 
             dataBase_.d_weight, dataBase_.d_u_old, dataBase_.d_rho_old,
             dataBase_.d_phi_old, dataBase_.d_rho, d_rhorAUf, dataBase_.d_HbyA, dataBase_.d_sf, d_phiHbyA, // end for internal
-            dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_U.data(), 
+            dataBase_.num_patches, dataBase_.patch_size.data(), dataBase_.patch_type_extropolated.data(),
             dataBase_.d_boundary_sf, dataBase_.d_boundary_u_old, dataBase_.d_boundary_rho, 
             dataBase_.d_boundary_rho_old, dataBase_.d_boundary_phi_old, d_boundary_rhorAUf, dataBase_.d_boundary_HbyA, 
-            d_boundary_phiHbyA, 1.0);
+            dataBase_.d_boundary_weight, d_boundary_phiHbyA, 1.0);
     fvm_ddt_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.rdelta_t, dataBase_.d_p_old, dataBase_.d_volume, d_diag, d_source);
     correctionDiagMtxMultiTPsi(dataBase_.stream, dataBase_.num_cells, dataBase_.d_p, dataBase_.d_thermo_psi, d_diag, d_source);
     fvc_ddt_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.rdelta_t, dataBase_.d_rho, dataBase_.d_rho_old, dataBase_.d_volume, 
@@ -306,18 +396,18 @@ void dfpEqn::process() {
             d_boundary_phiHbyA, dataBase_.d_volume, d_source, -1.);
     fvm_laplacian_surface_scalar_vol_scalar(dataBase_.stream, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
             dataBase_.d_owner, dataBase_.d_neighbor, dataBase_.d_mag_sf, dataBase_.d_delta_coeffs, d_rhorAUf, 
-            d_lower, d_upper, d_diag,
+            d_lower, d_upper, d_diag, dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_p.data(),
             dataBase_.d_boundary_mag_sf, d_boundary_rhorAUf, d_gradient_internal_coeffs, d_gradient_boundary_coeffs, 
             d_internal_coeffs, d_boundary_coeffs, -1.);
     
     // solve
-    ldu_to_csr_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
-            dataBase_.d_boundary_face_cell, dataBase_.d_ldu_to_csr_index, dataBase_.d_diag_to_csr_index,
-            d_ldu, d_source, d_internal_coeffs, d_boundary_coeffs, d_A);
-    solve();
-    correct_boundary_conditions_scalar(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
-            dataBase_.num_boundary_surfaces, dataBase_.num_patches, dataBase_.patch_size.data(), 
-            patch_type_p.data(), dataBase_.d_boundary_face_cell, dataBase_.d_p, dataBase_.d_boundary_p);
+    // ldu_to_csr_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
+    //         dataBase_.d_boundary_face_cell, dataBase_.d_ldu_to_csr_index, dataBase_.d_diag_to_csr_index,
+    //         d_ldu, d_source, d_internal_coeffs, d_boundary_coeffs, d_A);
+    // solve();
+    // correct_boundary_conditions_scalar(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
+    //         dataBase_.num_boundary_surfaces, dataBase_.num_patches, dataBase_.patch_size.data(), 
+    //         patch_type_p.data(), dataBase_.d_boundary_face_cell, dataBase_.d_p, dataBase_.d_boundary_p);
 }
 void dfpEqn::postProcess() {
     // update phi
@@ -357,7 +447,7 @@ void dfpEqn::getFlux()
 void dfpEqn::getrhorAUf(cudaStream_t stream, int num_cells, int num_surfaces,
         const int *lowerAddr, const int *upperAddr, 
         const double *weight, const double *vf1, const double *vf2, double *output, // end for internal
-        int num_patches, const int *patch_size, const int *patch_type_p,
+        int num_patches, const int *patch_size, const int *patch_type, const double *boundary_weight,
         const double *boundary_vf1, const double *boundary_vf2, double *boundary_output, double sign) 
 {
     size_t threads_per_block = 1024;
@@ -370,14 +460,18 @@ void dfpEqn::getrhorAUf(cudaStream_t stream, int num_cells, int num_surfaces,
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: maybe do not need loop boundarys
-        if (patch_type_p[i] == boundaryConditions::zeroGradient
-                || patch_type_p[i] == boundaryConditions::fixedValue
-                || patch_type_p[i] == boundaryConditions::gradientEnergy) {
-            fvc_interpolate_boundary_multi_scalar_kernel_upCouple<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
+        if (patch_type[i] == boundaryConditions::zeroGradient
+                || patch_type[i] == boundaryConditions::fixedValue
+                || patch_type[i] == boundaryConditions::calculated) {
+            fvc_interpolate_boundary_multi_scalar_kernel_unCouple<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
                     boundary_vf1, boundary_vf2, boundary_output, sign);
+        } else if (patch_type[i] == boundaryConditions::processor) {
+            fvc_interpolate_boundary_multi_scalar_kernel_processor<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
+                    boundary_weight, boundary_vf1, boundary_vf2, boundary_output, sign);
+            offset += 2 * patch_size[i];
+            continue;
         } else {
-            // xxx
-            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+            fprintf(stderr, "l406 boundaryConditions other than zeroGradient are not support yet!\n");
         }
         offset += patch_size[i];
     }
@@ -387,10 +481,10 @@ void dfpEqn::getphiHbyA(cudaStream_t stream, int num_cells, int num_surfaces, in
         const int *lowerAddr, const int *upperAddr, 
         const double *weight, const double *u_old, const double *rho_old, const double *phi_old, const double *rho, 
         const double *rhorAUf, const double *HbyA, const double *Sf, double *output, // end for internal
-        int num_patches, const int *patch_size, const int *patch_type_U,
+        int num_patches, const int *patch_size, const int *patch_type,
         const double *boundary_Sf, const double *boundary_velocity_old, const double *boundary_rho, 
         const double *boundary_rho_old, const double *boundary_phi_old, const double *boundary_rhorAUf, const double *boundary_HbyA,
-        double *boundary_output, double sign)
+        const double *boundary_weight, double *boundary_output, double sign)
 {
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
@@ -401,14 +495,13 @@ void dfpEqn::getphiHbyA(cudaStream_t stream, int num_cells, int num_surfaces, in
     for (int i = 0; i < num_patches; i++) {
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
-        // TODO: maybe do not need loop boundarys
-        if (patch_type_U[i] == boundaryConditions::zeroGradient
-                || patch_type_U[i] == boundaryConditions::fixedValue) {
-            get_phiCorr_boundary_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset,
-                    boundary_Sf, boundary_velocity_old, boundary_rho_old, boundary_phi_old, boundary_output);
+        if (patch_type[i] == boundaryConditions::processor) {
+            get_phiCorr_boundary_kernel_processor<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset,
+                    boundary_Sf, boundary_velocity_old, boundary_rho_old, boundary_phi_old, boundary_weight, boundary_output);
+            offset += 2 * patch_size[i];
+            continue;
         } else {
-            // xxx
-            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+            fprintf(stderr, "boundaryConditions are not support yet!\n");
         }
         offset += patch_size[i];
     }
@@ -417,24 +510,17 @@ void dfpEqn::getphiHbyA(cudaStream_t stream, int num_cells, int num_surfaces, in
     get_ddtCorr_internal_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_surfaces, output, phi_old, rDeltaT, output);
 
     offset = 0;
-    // the boundary is calculated, so seems no more need to calculate the boundary
-    // keep the code for future use
-    // note that the boundary here is not rhoU0's boundary
-
-    // for (int i = 0; i < num_patches; i++) {
-    //     threads_per_block = 256;
-    //     blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
-    //     if (patch_type_U[i] == boundaryConditions::fixedValue
-    //             || patch_type_U[i] == boundaryConditions::cyclic
-    //             || patch_type_U[i] == boundaryConditions::calculated) {
-    //         checkCudaErrors(cudaMemsetAsync(boundary_output + offset, 0, patch_size[i] * sizeof(double), dataBase_.stream));
-    //     } else {
-    //         get_ddtCorr_boundary_nonZero_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset, 
-    //                 boundary_output, boundary_phi_old, rDeltaT, boundary_output);
-    //     }
-    //     offset += patch_size[i];
-    // }
-    checkCudaErrors(cudaMemsetAsync(boundary_output, 0, dataBase_.num_boundary_surfaces * sizeof(double), dataBase_.stream));
+    for (int i = 0; i < num_patches; i++) {
+        threads_per_block = 256;
+        blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
+        if (patch_type[i] == boundaryConditions::processor) {
+            get_ddtCorr_boundary_nonZero_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset, 
+                    boundary_output, boundary_phi_old, rDeltaT, boundary_output);
+            offset += 2 * patch_size[i];
+            continue;
+        }
+        offset += patch_size[i];
+    }
 
     field_multiply_scalar(stream, num_surfaces, output, rhorAUf, output, num_boundary_surfaces, boundary_output, boundary_rhorAUf, boundary_output);
 
@@ -446,14 +532,15 @@ void dfpEqn::getphiHbyA(cudaStream_t stream, int num_cells, int num_surfaces, in
     for (int i = 0; i < num_patches; i++) {
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
-        // if uncoupled
-        if (patch_type_U[i] == boundaryConditions::zeroGradient
-                || patch_type_U[i] == boundaryConditions::fixedValue
-                || patch_type_U[i] == boundaryConditions::gradientEnergy) {
-            multi_fvc_flux_fvc_intepolate_boundary_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset, 
+        if (patch_type[i] == boundaryConditions::extrapolated) {
+            multi_fvc_flux_fvc_intepolate_boundary_kernel_zeroGradient<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset, 
                     boundary_HbyA, boundary_Sf, boundary_rho, boundary_output, sign);
+        } else if (patch_type[i] == boundaryConditions::processor) {
+            multi_fvc_flux_fvc_intepolate_boundary_kernel_processor<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset, 
+                    boundary_Sf, boundary_HbyA, boundary_weight, boundary_rho, boundary_output, sign);
+            offset += 2 * patch_size[i];
+            continue;
         } else {
-            // xxx
             fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
         }
         offset += patch_size[i];

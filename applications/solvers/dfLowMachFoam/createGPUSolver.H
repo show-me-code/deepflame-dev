@@ -153,6 +153,7 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
     double *boundary_weights = new double[num_boundary_surfaces];
     int *boundary_face_cell = new int[num_boundary_surfaces];
     std::vector<int> patch_type_calculated(num_patches, 5); // default patch type is calculated
+    std::vector<int> patch_type_extropolated(num_patches, 8); // default patch type is extrapolated
 
     int offset = 0;
     forAll(mesh.boundary(), patchi) {
@@ -167,6 +168,7 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
 
         if (patchY.type() == "processor") {
             patch_type_calculated[patchi] = 7; // patchi type is processor
+            patch_type_extropolated[patchi] = 7; // patchi type is processor
 
             memcpy(boundary_sf + 3*offset, &pSf[0][0], 3*patchsize*sizeof(double));
             memcpy(boundary_sf + 3*offset + 3*patchsize, &pSf[0][0], 3*patchsize*sizeof(double));
@@ -198,7 +200,8 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
     dfDataBase.createConstantFieldsInternal();
     dfDataBase.createConstantFieldsBoundary();
     dfDataBase.initConstantFieldsInternal(&mesh.Sf()[0][0], &mesh.magSf()[0], &mesh.surfaceInterpolation::weights()[0], &mesh.deltaCoeffs()[0], &mesh.V()[0]);
-    dfDataBase.initConstantFieldsBoundary(boundary_sf, boundary_mag_sf, boundary_delta_coeffs, boundary_weights, boundary_face_cell, patch_type_calculated);
+    dfDataBase.initConstantFieldsBoundary(boundary_sf, boundary_mag_sf, boundary_delta_coeffs, boundary_weights, boundary_face_cell, 
+            patch_type_calculated, patch_type_extropolated);
     
     // prepare internal and boundary of Y
     dfDataBase.createNonConstantFieldsInternal();

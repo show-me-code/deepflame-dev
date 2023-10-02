@@ -73,7 +73,8 @@ enum boundaryConditions{
     gradientEnergy,
     calculated,
     cyclic,
-    processor
+    processor,
+    extrapolated
 };
 
 void constructBoundarySelectorPerPatch(int *patchTypeSelector, const std::string& patchTypeStr);
@@ -100,6 +101,7 @@ struct dfMatrixDataBase
     int num_species = 0;
     std::vector<int> patch_size;
     std::vector<int> patch_type_calculated;
+    std::vector<int> patch_type_extropolated;
     double rdelta_t = 0;
 
     // constant values -- ldu bytesize
@@ -260,7 +262,8 @@ struct dfMatrixDataBase
     void initConstantFieldsInternal(const double *sf, const double *mag_sf, 
         const double *weight, const double *delta_coeffs, const double *volume);
     void initConstantFieldsBoundary(const double *boundary_sf, const double *boundary_mag_sf, 
-        const double *boundary_delta_coeffs, const double *boundary_weight, const int *boundary_face_cell, std::vector<int> &patch_type_calculated);
+        const double *boundary_delta_coeffs, const double *boundary_weight, const int *boundary_face_cell, 
+        std::vector<int> &patch_type_calculated, std::vector<int> &patch_type_extropolated);
 
     void createNonConstantFieldsInternal();
     void createNonConstantFieldsBoundary();

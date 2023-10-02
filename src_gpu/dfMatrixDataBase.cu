@@ -14,7 +14,8 @@ void constructBoundarySelectorPerPatch(int *patchTypeSelector, const std::string
         {"calculated", calculated},
         {"coupled", coupled},
         {"cyclic", cyclic},
-        {"processor", processor}
+        {"processor", processor},
+        {"extrapolated", extrapolated}
     };
     auto iter = BCMap.find(patchTypeStr);
     if (iter != BCMap.end()) {
@@ -62,6 +63,11 @@ void constructBoundarySelectorPerPatch(int *patchTypeSelector, const std::string
         case processor:
         {
             *patchTypeSelector = 7;
+            break;
+        }
+        case extrapolated:
+        {
+            *patchTypeSelector = 8;
             break;
         }
     }
@@ -303,8 +309,10 @@ void dfMatrixDataBase::initConstantFieldsInternal(const double *sf, const double
 }
 
 void dfMatrixDataBase::initConstantFieldsBoundary(const double *boundary_sf, const double *boundary_mag_sf, 
-        const double *boundary_delta_coeffs, const double *boundary_weight, const int *boundary_face_cell, std::vector<int>& patch_type_calculated) {
+        const double *boundary_delta_coeffs, const double *boundary_weight, const int *boundary_face_cell, std::vector<int>& patch_type_calculated,
+        std::vector<int>& patch_type_extropolated) {
     this->patch_type_calculated = patch_type_calculated;
+    this->patch_type_extropolated = patch_type_extropolated;
     // permute bouSf
     for (int i = 0; i < num_boundary_surfaces; i++) {
         h_boundary_sf[num_boundary_surfaces * 0 + i] = boundary_sf[i * 3 + 0];
@@ -468,12 +476,12 @@ void dfMatrixDataBase::preTimeStep(const double *u_old, const double *boundary_u
     checkCudaErrors(cudaMemcpyAsync(d_phi_old, d_phi, surface_value_bytes, cudaMemcpyDeviceToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_rho_old, d_boundary_rho, boundary_surface_value_bytes, cudaMemcpyDeviceToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_phi_old, d_boundary_phi, boundary_surface_value_bytes, cudaMemcpyDeviceToDevice, stream));
+    checkCudaErrors(cudaMemcpyAsync(d_rho_old, d_rho, cell_value_bytes, cudaMemcpyDeviceToDevice, stream));
+    checkCudaErrors(cudaMemcpyAsync(d_u_old, d_u, cell_value_vec_bytes, cudaMemcpyDeviceToDevice, stream));
+    checkCudaErrors(cudaMemcpyAsync(d_boundary_u_old, d_boundary_u, boundary_surface_value_vec_bytes, cudaMemcpyDeviceToDevice, stream));
     
-    checkCudaErrors(cudaMemcpyAsync(d_u_old_host_order, u_old, cell_value_vec_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_boundary_u_old_host_order, boundary_u_old, boundary_surface_value_vec_bytes, cudaMemcpyHostToDevice, stream));
-    
-    permute_vector_h2d(stream, num_cells, d_u_old_host_order, d_u_old);
-    permute_vector_h2d(stream, num_boundary_surfaces, d_boundary_u_old_host_order, d_boundary_u_old);
+    // permute_vector_h2d(stream, num_cells, d_u_old_host_order, d_u_old);
+    // permute_vector_h2d(stream, num_boundary_surfaces, d_boundary_u_old_host_order, d_boundary_u_old);
 
     checkCudaErrors(cudaMemcpyAsync(d_p_old, p_old, cell_value_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_p_old, boundary_p_old, boundary_surface_value_bytes, cudaMemcpyHostToDevice, stream));

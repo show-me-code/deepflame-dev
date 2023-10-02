@@ -102,16 +102,16 @@ public:
     void getrhorAUf(cudaStream_t stream, int num_cells, int num_surfaces,
         const int *lowerAddr, const int *upperAddr, 
         const double *weight, const double *vf1, const double *vf2, double *output, // end for internal
-        int num_patches, const int *patch_size, const int *patch_type_p,
+        int num_patches, const int *patch_size, const int *patch_type, const double *boundary_weight,
         const double *boundary_vf1, const double *boundary_vf2, double *boundary_output, double sign = 1.);
     void getphiHbyA(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces, double rDeltaT, 
         const int *lowerAddr, const int *upperAddr, 
         const double *weight, const double *u_old, const double *rho_old, const double *phi_old, const double *rho, 
         const double *rhorAUf, const double *HbyA, const double *Sf, double *output, // end for internal
-        int num_patches, const int *patch_size, const int *patch_type_U,
+        int num_patches, const int *patch_size, const int *patch_type,
         const double *boundary_Sf, const double *boundary_velocity_old, const double *boundary_rho, 
         const double *boundary_rho_old, const double *boundary_phi_old, const double *boundary_rhorAUf, const double *boundary_HbyA,
-        double *boundary_output, double sign = 1.);
+        const double *boundary_weight, double *boundary_output, double sign = 1.);
     void correctionDiagMtxMultiTPsi(cudaStream_t stream, int num_cells, const double *psi, const double *thermo_psi, double *diag, double *source);
 
     void solve();
