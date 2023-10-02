@@ -40,7 +40,7 @@ void ldu_to_csr(cudaStream_t stream, int num_cells, int num_surfaces, int num_bo
 
 void update_boundary_coeffs_scalar(cudaStream_t stream,
         int num_patches, const int *patch_size, const int *patch_type,
-        const double *boundary_delta_coeffs, const double *boundary_vf,
+        const double *boundary_delta_coeffs, const double *boundary_vf, const double *boundary_weight, 
         double *value_internal_coeffs, double *value_boundary_coeffs,
         double *gradient_internal_coeffs, double *gradient_boundary_coeffs, const double *energy_gradient = nullptr);
 
@@ -113,6 +113,7 @@ void fvm_laplacian_surface_scalar_vol_scalar(cudaStream_t stream, int num_surfac
         const int *lowerAddr, const int *upperAddr,
         const double *mag_sf, const double *delta_coeffs, const double *gamma,
         double *lower, double *upper, double *diag, // end for internal
+        int num_patches, const int *patch_size, const int *patch_type,
         const double *boundary_mag_sf, const double *boundary_gamma,
         const double *gradient_internal_coeffs, const double *gradient_boundary_coeffs,
         double *internal_coeffs, double *boundary_coeffs, double sign = 1.);

@@ -195,8 +195,8 @@
     DEBUG_TRACE;
     TICK_STOP(post process time);
 
-    UEqn_GPU.A(&UEqn_A[0]);
-    UEqn_A.correctBoundaryConditions();
+    // UEqn_GPU.A(&UEqn_A[0]);
+    // UEqn_A.correctBoundaryConditions();
 
 #if defined DEBUG_
     // UEqn.relax();
@@ -210,12 +210,14 @@
     offset = 0;
     for (int patchi = 0; patchi < dfDataBase.num_patches; patchi++)
     {
+        const fvPatchVectorField& patchU = U.boundaryField()[patchi];
         int patchsize = dfDataBase.patch_size[patchi];
         const double* internal_coeff_ptr = &UEqn.internalCoeffs()[patchi][0][0];
         const double* boundary_coeff_ptr = &UEqn.boundaryCoeffs()[patchi][0][0];
         memcpy(h_internal_coeffs.data() + offset * 3, internal_coeff_ptr, patchsize * 3 * sizeof(double));
         memcpy(h_boundary_coeffs.data() + offset * 3, boundary_coeff_ptr, patchsize * 3 * sizeof(double));
-        offset += patchsize;
+        if (patchU.type() == "processor") offset += 2 * patchsize;
+        else offset += patchsize;
     }
     bool printFlag = false;
 

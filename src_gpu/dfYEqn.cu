@@ -443,6 +443,7 @@ void dfYEqn::process() {
             update_boundary_coeffs_scalar(dataBase_.stream,
                 dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
                 dataBase_.d_boundary_delta_coeffs, dataBase_.d_boundary_y + dataBase_.num_boundary_surfaces * s,
+                dataBase_.d_boundary_weight, 
                 d_value_internal_coeffs + dataBase_.num_boundary_surfaces * s,
                 d_value_boundary_coeffs + dataBase_.num_boundary_surfaces * s,
                 d_gradient_internal_coeffs + dataBase_.num_boundary_surfaces * s,
