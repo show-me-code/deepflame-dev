@@ -127,7 +127,7 @@ void dfEEqn::process() {
 
     update_boundary_coeffs_scalar(dataBase_.stream,
             dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_he.data(),
-            dataBase_.d_boundary_delta_coeffs, dataBase_.d_boundary_he,
+            dataBase_.d_boundary_delta_coeffs, dataBase_.d_boundary_he, dataBase_.d_boundary_weight,
             d_value_internal_coeffs, d_value_boundary_coeffs,
             d_gradient_internal_coeffs, d_gradient_boundary_coeffs, d_boundary_heGradient);
     fvm_ddt_vol_scalar_vol_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.rdelta_t, dataBase_.d_rho, dataBase_.d_rho_old, 
@@ -153,8 +153,8 @@ void dfEEqn::process() {
     fvc_div_cell_vector(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, 
             dataBase_.d_owner, dataBase_.d_neighbor, 
             dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_hDiff_corr_flux, d_source,
-            dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_he.data(), dataBase_.d_boundary_face_cell, 
-            dataBase_.d_boundary_hDiff_corr_flux, dataBase_.d_boundary_sf, dataBase_.d_volume);
+            dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_he.data(), dataBase_.d_boundary_face_cell,
+            dataBase_.d_boundary_weight, dataBase_.d_boundary_hDiff_corr_flux, dataBase_.d_boundary_sf, dataBase_.d_volume);
     fvc_to_source_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.d_volume, d_dpdt, d_source);
     fvc_to_source_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.d_volume, dataBase_.d_diff_alphaD, d_source, -1);
 #ifndef DEBUG_CHECK_LDU

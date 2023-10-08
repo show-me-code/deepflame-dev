@@ -268,7 +268,7 @@ void correct_boundary_conditions_processor_scalar(cudaStream_t stream, ncclComm_
     checkNcclErrors(ncclSend(vf_boundary + internal_start_index, num, ncclDouble, peer, comm, stream));
     checkNcclErrors(ncclRecv(vf_boundary + neighbor_start_index, num, ncclDouble, peer, comm, stream));
     checkNcclErrors(ncclGroupEnd());
-    checkCudaErrors(cudaStreamSynchronize(stream));
+    //checkCudaErrors(cudaStreamSynchronize(stream));
 }
 
 void correct_boundary_conditions_processor_vector(cudaStream_t stream, ncclComm_t comm,
@@ -278,7 +278,7 @@ void correct_boundary_conditions_processor_vector(cudaStream_t stream, ncclComm_
     int neighbor_start_index = offset;
     int internal_start_index = offset + num;
 
-    size_t threads_per_block = 32;
+    size_t threads_per_block = 256;
     size_t blocks_per_grid = (num + threads_per_block - 1) / threads_per_block;
     correct_internal_boundary_field_vector<<<blocks_per_grid, threads_per_block, 0, stream>>>(num, offset, 
             num_boundary_surfaces, num_cells, vf, boundary_cell_face, vf_boundary);
@@ -289,7 +289,7 @@ void correct_boundary_conditions_processor_vector(cudaStream_t stream, ncclComm_
         checkNcclErrors(ncclRecv(vf_boundary + num_boundary_surfaces * i + neighbor_start_index, num, ncclDouble, peer, comm, stream));   
     }
     checkNcclErrors(ncclGroupEnd());
-    checkCudaErrors(cudaStreamSynchronize(stream));
+    //checkCudaErrors(cudaStreamSynchronize(stream));
 }
 
 __global__ void update_boundary_coeffs_fixedValue_scalar(int num, int offset,
@@ -328,7 +328,7 @@ __global__ void update_boundary_coeffs_gradientEnergy_scalar(int num, int offset
 }
 
 __global__ void update_boundary_coeffs_processor_scalar(int num, int offset,
-        const double *boundary_weight, const double *boundary_deltaCoeffs, 
+        const double *boundary_weight, const double *boundary_deltaCoeffs,
         double *value_internal_coeffs, double *value_boundary_coeffs,
         double *gradient_internal_coeffs, double *gradient_boundary_coeffs)
 {
@@ -1340,6 +1340,36 @@ __global__ void fvc_div_cell_vector_boundary(int num_boundary_surfaces, int num,
     atomicAdd(&(output[cellIndex]), bouDiv * sign);
 }
 
+__global__ void fvc_div_cell_vector_boundary_processor(int num_boundary_surfaces, int num, int offset, const int *face2Cells,
+        const double *boundary_weight, const double *boundary_face_vector, const double *boundary_vf, double *output, double sign)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
+        return;
+
+    int neighbor_start_index = offset + index;
+    int internal_start_index = offset + num + index;
+
+    double bouWeight = boundary_weight[neighbor_start_index];
+
+    double bouSfx = boundary_face_vector[num_boundary_surfaces * 0 + neighbor_start_index];
+    double bouSfy = boundary_face_vector[num_boundary_surfaces * 1 + neighbor_start_index];
+    double bouSfz = boundary_face_vector[num_boundary_surfaces * 2 + neighbor_start_index];
+
+    double boussfx = (1 - bouWeight) * boundary_vf[num_boundary_surfaces * 0 + neighbor_start_index] +
+        bouWeight * boundary_vf[num_boundary_surfaces * 0 + internal_start_index];
+    double boussfy = (1 - bouWeight) * boundary_vf[num_boundary_surfaces * 1 + neighbor_start_index] +
+        bouWeight * boundary_vf[num_boundary_surfaces * 1 + internal_start_index];
+    double boussfz = (1 - bouWeight) * boundary_vf[num_boundary_surfaces * 2 + neighbor_start_index] +
+        bouWeight * boundary_vf[num_boundary_surfaces * 2 + internal_start_index];
+
+    int cellIndex = face2Cells[neighbor_start_index];
+
+    double bouDiv = bouSfx * boussfx + bouSfy * boussfy + bouSfz * boussfz;
+    atomicAdd(&(output[cellIndex]), bouDiv * sign);
+}
+
+
 __global__ void fvc_div_cell_tensor_internal(int num_cells, int num_surfaces,
         const int *lower_index, const int *upper_index,
         const double *vf, const double *weight, const double *face_vector,
@@ -1929,7 +1959,7 @@ void ldu_to_csr(cudaStream_t stream, int num_cells, int num_surfaces, int num_bo
 
 void update_boundary_coeffs_scalar(cudaStream_t stream,
         int num_patches, const int *patch_size, const int *patch_type,
-        const double *boundary_delta_coeffs, const double *boundary_vf, const double *boundary_weight, 
+        const double *boundary_delta_coeffs, const double *boundary_vf, const double *boundary_weight,
         double *value_internal_coeffs, double *value_boundary_coeffs,
         double *gradient_internal_coeffs, double *gradient_boundary_coeffs, const double *energy_gradient)
 {
@@ -1951,13 +1981,14 @@ void update_boundary_coeffs_scalar(cudaStream_t stream,
             update_boundary_coeffs_gradientEnergy_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
                     energy_gradient, boundary_delta_coeffs, value_internal_coeffs, value_boundary_coeffs, gradient_internal_coeffs, gradient_boundary_coeffs);
         } else if (patch_type[i] == boundaryConditions::processor) {
-            update_boundary_coeffs_processor_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset, boundary_weight, 
-                    boundary_delta_coeffs, value_internal_coeffs, value_boundary_coeffs, gradient_internal_coeffs, gradient_boundary_coeffs);
+            update_boundary_coeffs_processor_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
+                    boundary_weight, boundary_delta_coeffs,
+                    value_internal_coeffs, value_boundary_coeffs, gradient_internal_coeffs, gradient_boundary_coeffs);
             offset += 2 * patch_size[i];
             continue;
         } else {
             // xxx
-            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+            fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
         }
         offset += patch_size[i];
     }
@@ -1988,7 +2019,7 @@ void correct_boundary_conditions_scalar(cudaStream_t stream, ncclComm_t comm,
             offset += 2 * patch_size[i]; // patchNeighbourFields and patchInternalFields
             continue;
         } else {
-            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+            fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
         }
         offset += patch_size[i];
     }
@@ -2018,12 +2049,12 @@ void correct_boundary_conditions_vector(cudaStream_t stream, ncclComm_t comm,
             printf("patch type is processor\n");
             checkCudaErrors(cudaStreamSynchronize(stream));
             DEBUG_TRACE;
-            correct_boundary_conditions_processor_vector(stream, comm, neighbor_peer[i], patch_size[i], offset, 
+            correct_boundary_conditions_processor_vector(stream, comm, neighbor_peer[i], patch_size[i], offset,
                     num_boundary_surfaces, num_cells, vf, boundary_cell_face, boundary_vf);
             offset += 2 * patch_size[i]; // patchNeighbourFields and patchInternalFields
             continue;
         } else {
-            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+            fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
         }
         offset += patch_size[i];
     }
@@ -2057,7 +2088,7 @@ void update_boundary_coeffs_vector(cudaStream_t stream, int num_boundary_surface
             continue;
         } else {
             // xxx
-            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+            fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
         }
         offset += patch_size[i];
     }
@@ -2150,9 +2181,15 @@ void fvm_div_scalar(cudaStream_t stream, int num_surfaces, const int *lowerAddr,
                     boundary_phi, value_internal_coeffs, value_boundary_coeffs,
                     internal_coeffs, boundary_coeffs, sign);
             TICK_END_EVENT(fvm_div_scalar_boundary);
+        } else if (patch_type[i] == boundaryConditions::processor) {
+            fvm_div_scalar_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
+                    boundary_phi, value_internal_coeffs, value_boundary_coeffs,
+                    internal_coeffs, boundary_coeffs, sign);
+            offset += 2 * patch_size[i];
+            continue;
         } else {
             // xxx
-            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+            fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
         }
         offset += patch_size[i];
     }
@@ -2197,7 +2234,7 @@ void fvm_div_vector(cudaStream_t stream, int num_surfaces, int num_boundary_surf
             continue;
         } else {
             // xxx
-            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+            fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
         }
         offset += patch_size[i];
     }
@@ -2233,9 +2270,15 @@ void fvm_laplacian_scalar(cudaStream_t stream, int num_surfaces, int num_boundar
                     boundary_mag_sf, boundary_gamma, gradient_internal_coeffs, gradient_boundary_coeffs,
                     internal_coeffs, boundary_coeffs, sign);
             TICK_END_EVENT(fvm_laplacian_scalar_boundary);
+        } else if (patch_type[i] == boundaryConditions::processor) {
+            fvm_laplacian_scalar_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
+                    boundary_mag_sf, boundary_gamma, gradient_internal_coeffs, gradient_boundary_coeffs,
+                    internal_coeffs, boundary_coeffs, sign);
+            offset += 2 * patch_size[i];
+            continue;
         } else {
             // xxx
-            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+            fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
         }
         offset += patch_size[i];
     }
@@ -2278,7 +2321,7 @@ void fvm_laplacian_vector(cudaStream_t stream, int num_surfaces, int num_boundar
             continue;
         } else {
             // xxx
-            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+            fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
         }
         offset += patch_size[i];
     }
@@ -2364,7 +2407,7 @@ void fvc_grad_vector(cudaStream_t stream, ncclComm_t comm,
             continue;
         } else {
             // xxx
-            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+            fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
         }
         offset += patch_size[i];
     }
@@ -2402,7 +2445,7 @@ void fvc_grad_vector(cudaStream_t stream, ncclComm_t comm,
             continue;
         } else {
             // xxx
-            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+            fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
         }
         offset += patch_size[i];
     }
@@ -2451,8 +2494,8 @@ void fvc_div_surface_scalar(cudaStream_t stream, int num_cells, int num_surfaces
 void fvc_div_cell_vector(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces,
         const int *lowerAddr, const int *upperAddr, 
         const double *weight, const double *Sf, const double *vf, double *output, // end for internal
-        int num_patches, const int *patch_size, const int *patch_type,
-        const int *boundary_cell_face, const double *boundary_vf, const double *boundary_Sf,
+        int num_patches, const int *patch_size, const int *patch_type, const int *boundary_cell_face,
+        const double *boundary_weight, const double *boundary_vf, const double *boundary_Sf,
         const double *volume, double sign)
 {
     TICK_INIT_EVENT;
@@ -2470,15 +2513,23 @@ void fvc_div_cell_vector(cudaStream_t stream, int num_cells, int num_surfaces, i
         // TODO: just basic patch type now
         if (patch_type[i] == boundaryConditions::zeroGradient
                 || patch_type[i] == boundaryConditions::fixedValue
-                || patch_type[i] == boundaryConditions::gradientEnergy) {
+                || patch_type[i] == boundaryConditions::gradientEnergy
+                || patch_type[i] == boundaryConditions::calculated) {
             // TODO: just vector version now
             TICK_START_EVENT;
-            fvc_div_cell_vector_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset, boundary_cell_face,
-                    boundary_Sf, boundary_vf, output, sign);
+            fvc_div_cell_vector_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(
+                    num_boundary_surfaces, patch_size[i], offset,
+                    boundary_cell_face, boundary_Sf, boundary_vf, output, sign);
             TICK_END_EVENT(fvc_div_cell_vector_boundary);
+        } else if (patch_type[i] == boundaryConditions::processor) {
+            fvc_div_cell_vector_boundary_processor<<<blocks_per_grid, threads_per_block, 0, stream>>>(
+                    num_boundary_surfaces, patch_size[i], offset,
+                    boundary_cell_face, boundary_weight, boundary_Sf, boundary_vf, output, sign);
+            offset += 2 * patch_size[i];
+            continue;
         } else {
             // xxx
-            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+            fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
         }
         offset += patch_size[i];
     }
@@ -2520,7 +2571,7 @@ void fvc_div_cell_tensor(cudaStream_t stream, int num_cells, int num_surfaces, i
             continue;
         } else {
             // xxx
-            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+            fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
         }
         offset += patch_size[i];
     }
@@ -2555,7 +2606,7 @@ void fvc_div_surface_scalar_vol_scalar(cudaStream_t stream, int num_surfaces,
             TICK_END_EVENT(fvc_div_surface_scalar_vol_scalar_boundary);
         } else {
             // xxx
-            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+            fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
         }
         offset += patch_size[i];
     }
@@ -2581,7 +2632,8 @@ void fvc_grad_cell_scalar(cudaStream_t stream, int num_cells, int num_surfaces, 
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just non-coupled patch type now
         if (patch_type[i] == boundaryConditions::zeroGradient
-                || patch_type[i] == boundaryConditions::fixedValue) {
+                || patch_type[i] == boundaryConditions::fixedValue
+                || patch_type[i] == boundaryConditions::calculated) {
             TICK_START_EVENT;
             fvc_grad_scalar_boundary_zeroGradient<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, num_cells, patch_size[i], offset, boundary_cell_face,
                     boundary_Sf, boundary_vf, output, sign);
@@ -2593,13 +2645,14 @@ void fvc_grad_cell_scalar(cudaStream_t stream, int num_cells, int num_surfaces, 
             continue;
         } else {
             // xxx
-            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+            fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
         }
         offset += patch_size[i];
     }
 }
 
-void fvc_grad_cell_scalar_withBC(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces,
+void fvc_grad_cell_scalar_withBC(cudaStream_t stream, ncclComm_t comm, const int *neighbor_peer,
+        int num_cells, int num_surfaces, int num_boundary_surfaces,
         const int *lowerAddr, const int *upperAddr,
         const double *weight, const double *Sf, const double *vf, double *output, // end for internal
         int num_patches, const int *patch_size, const int *patch_type, const double *boundary_weight,
@@ -2626,14 +2679,20 @@ void fvc_grad_cell_scalar_withBC(cudaStream_t stream, int num_cells, int num_sur
                     num_cells, num_boundary_surfaces,
                     patch_size[i], offset, boundary_cell_face,
                     output, boundary_Sf, boundary_mag_Sf, boundary_output);
-        } else if (patch_type[i] == boundaryConditions::fixedValue) {
+        } else if (patch_type[i] == boundaryConditions::fixedValue
+                || patch_type[i] == boundaryConditions::calculated) {
             fvc_grad_cell_scalar_correctBC_fixedValue<<<blocks_per_grid, threads_per_block, 0, stream>>>(
                     num_cells, num_boundary_surfaces,
                     patch_size[i], offset, boundary_cell_face,
                     output, vf, boundary_Sf, boundary_mag_Sf, boundary_output, boundary_deltaCoeffs, boundary_vf);
+        } else if (patch_type[i] == boundaryConditions::processor) {
+            correct_boundary_conditions_processor_vector(stream, comm, neighbor_peer[i], patch_size[i], offset, 
+                    num_boundary_surfaces, num_cells, output, boundary_cell_face, boundary_output);
+            offset += 2 * patch_size[i]; // patchNeighbourFields and patchInternalFields
+            continue;
         } else {
             // xxx
-            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+            fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
         }
         offset += patch_size[i];
     }
@@ -2670,7 +2729,7 @@ void fvc_laplacian_scalar(cudaStream_t stream, int num_cells, int num_surfaces, 
                     boundary_mag_sf, boundary_delta_coeffs, boundary_gamma, vf, boundary_vf, output, sign);
         } else {
             // xxx
-            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+            fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
         }
         offset += patch_size[i];
     }
@@ -2705,7 +2764,7 @@ void fvc_flux(cudaStream_t stream, int num_cells, int num_surfaces, int num_boun
             TICK_END_EVENT(fvc_flux_boundary_kernel);
         } else {
             // xxx
-            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+            fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
         }
         offset += patch_size[i];
     }
@@ -2734,7 +2793,7 @@ void fvc_interpolate(cudaStream_t stream, int num_cells, int num_surfaces,
                     boundary_vf, boundary_output, sign);
         } else {
             // xxx
-            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+            fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
         }
         offset += patch_size[i];
     }
@@ -2812,7 +2871,7 @@ void fvMtx_H(cudaStream_t stream, int num_cells, int num_surfaces, int num_bound
             TICK_END_EVENT(addBoundarySrc_unCoupled);
         } else {
             // xxx
-            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+            fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
         }
         offset += patch_size[i];
     }

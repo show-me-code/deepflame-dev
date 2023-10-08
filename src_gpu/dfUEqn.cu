@@ -592,7 +592,7 @@ void dfUEqn::UEqnGetHbyA(cudaStream_t stream, ncclComm_t comm, const int *neighb
             offset += patch_size[i] * 2;
             continue;
         } else {
-            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+            fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
         }
         offset += patch_size[i];
     }

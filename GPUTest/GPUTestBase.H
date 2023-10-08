@@ -130,6 +130,8 @@ void randomInitField(T& field) {
         }
         memcpy(field_boundary_ptr, init_field_boundary.data(), patchsize * stride * sizeof(double));
     }
+
+    field.correctBoundaryConditions();
 }
 
 template <typename T>

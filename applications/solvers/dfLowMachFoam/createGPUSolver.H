@@ -89,6 +89,8 @@ void randomInitField(T& field) {
         }
         memcpy(field_boundary_ptr, init_field_boundary.data(), patchsize * stride * sizeof(double));
     }
+
+    field.correctBoundaryConditions();
 }
 #endif
 
@@ -203,22 +205,8 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
     dfDataBase.initConstantFieldsBoundary(boundary_sf, boundary_mag_sf, boundary_delta_coeffs, boundary_weights, boundary_face_cell, 
             patch_type_calculated, patch_type_extropolated);
     
-    // prepare internal and boundary of Y
     dfDataBase.createNonConstantFieldsInternal();
     dfDataBase.createNonConstantFieldsBoundary();
-    forAll(Y, speciesI) {
-        volScalarField& Yi = Y[speciesI];
-        memcpy(dfDataBase.h_y + speciesI * num_cells, &Yi[0], num_cells * sizeof(double));
-        offset = 0;
-        forAll(Yi.boundaryField(), patchi) {
-            const scalarField& patchYi = Yi.boundaryField()[patchi];
-            int patchsize = patchYi.size();
-            memcpy(dfDataBase.h_boundary_y + speciesI * num_boundary_surfaces + offset, &patchYi[0], patchsize*sizeof(double));
-            offset += patchsize;
-        }
-    }
-    dfDataBase.initNonConstantFieldsInternal(dfDataBase.h_y);
-    dfDataBase.initNonConstantFieldsBoundary(dfDataBase.h_boundary_y);
 }
 
 void createGPURhoEqn(const volScalarField& rho, const surfaceScalarField& phi) {
@@ -340,8 +328,29 @@ void createGPUYEqn(const IOdictionary& CanteraTorchProperties, PtrList<volScalar
     YEqn_GPU.createNonConstantFieldsInternal();
     YEqn_GPU.createNonConstantFieldsBoundary();
     YEqn_GPU.createNonConstantLduAndCsrFields();
-    YEqn_GPU.initNonConstantFieldsInternal();
-    YEqn_GPU.initNonConstantFieldsBoundary();
+
+    // prepare internal and boundary of Y
+    int offset = 0;
+    forAll(Y, speciesI) {
+        volScalarField& Yi = Y[speciesI];
+        memcpy(dfDataBase.h_y + speciesI * dfDataBase.num_cells, &Yi[0], dfDataBase.num_cells * sizeof(double));
+        forAll(Yi.boundaryField(), patchi) {
+            const fvPatchScalarField& patchYi = Yi.boundaryField()[patchi];
+            int patchsize = patchYi.size();
+            if (patchYi.type() == "processor") {
+                scalarField patchYiInternal =
+                    dynamic_cast<const processorFvPatchField<scalar>&>(patchYi).patchInternalField()();
+                memcpy(dfDataBase.h_boundary_y + offset, &patchYi[0], patchsize * sizeof(double));
+                memcpy(dfDataBase.h_boundary_y + offset + patchsize, &patchYiInternal[0], patchsize * sizeof(double));
+                offset += patchsize * 2;
+            } else {
+                memcpy(dfDataBase.h_boundary_y + offset, &patchYi[0], patchsize*sizeof(double));
+                offset += patchsize;
+            }
+        }
+    }
+    YEqn_GPU.initNonConstantFieldsInternal(dfDataBase.h_y);
+    YEqn_GPU.initNonConstantFieldsBoundary(dfDataBase.h_boundary_y);
 }
 
 void createGPUEEqn(const IOdictionary& CanteraTorchProperties, volScalarField& he, volScalarField& K) {
