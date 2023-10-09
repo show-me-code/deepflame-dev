@@ -95,8 +95,11 @@ struct dfMatrixDataBase
 
     // constant values -- basic
     int num_cells = 0;
+    int num_total_cells = 0;
     int num_surfaces = 0;
     int num_boundary_surfaces = 0;
+    int num_proc_surfaces = 0;
+    int num_Nz = 0;
     int num_patches = 0;
     int num_species = 0;
     std::vector<int> patch_size;
@@ -126,9 +129,7 @@ struct dfMatrixDataBase
     // constant indexes
     int *d_owner = nullptr;
     int *d_neighbor = nullptr;
-    int *d_lower_to_csr_index = nullptr;
     int *d_diag_to_csr_index= nullptr;
-    int *d_upper_to_csr_index= nullptr;
     int *d_ldu_to_csr_index = nullptr;
     int *d_csr_row_index= nullptr;
     int *d_csr_col_index= nullptr;
@@ -252,18 +253,19 @@ struct dfMatrixDataBase
     void cleanCudaResources();
     void setCommInfo(MPI_Comm mpi_comm, ncclComm_t nccl_comm, ncclUniqueId nccl_id,
             int nRanks, int myRank, int localRank, std::vector<int> &neighbProcNo);
-    void setConstantValues(int num_cells, int num_surfaces, int num_boundary_surfaces,
-            int num_patches, std::vector<int> patch_size,
-            int num_species, double rdelta_t);             
-    void setConstantIndexes(const int *owner, const int *neighbor);
+    void setConstantValues(int num_cells, int num_total_cells, int num_surfaces, 
+        int num_boundary_surfaces, int num_patches, int num_proc_surfaces, 
+        std::vector<int> patch_size, int num_species, double rdelta_t);             
+    void setConstantIndexes(const int *owner, const int *neighbor, const int *procRows, 
+            const int *procCols, int globalOffset);
 
     void createConstantFieldsInternal();
     void createConstantFieldsBoundary();
     void initConstantFieldsInternal(const double *sf, const double *mag_sf, 
-        const double *weight, const double *delta_coeffs, const double *volume);
+            const double *weight, const double *delta_coeffs, const double *volume);
     void initConstantFieldsBoundary(const double *boundary_sf, const double *boundary_mag_sf, 
-        const double *boundary_delta_coeffs, const double *boundary_weight, const int *boundary_face_cell, 
-        std::vector<int> &patch_type_calculated, std::vector<int> &patch_type_extropolated);
+            const double *boundary_delta_coeffs, const double *boundary_weight, const int *boundary_face_cell, 
+            std::vector<int> &patch_type_calculated, std::vector<int> &patch_type_extropolated);
 
     void createNonConstantFieldsInternal();
     void createNonConstantFieldsBoundary();

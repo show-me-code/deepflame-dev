@@ -189,9 +189,9 @@
     // postProcess
     TICK_START;
     UEqn_GPU.postProcess(h_u);
-    memcpy(&U[0][0], h_u, dfDataBase.cell_value_vec_bytes);
-    U.correctBoundaryConditions();
-    K = 0.5*magSqr(U);
+    // memcpy(&U[0][0], h_u, dfDataBase.cell_value_vec_bytes);
+    // U.correctBoundaryConditions();
+    // K = 0.5*magSqr(U);
     DEBUG_TRACE;
     TICK_STOP(post process time);
 
@@ -200,7 +200,7 @@
 
 #if defined DEBUG_
     // UEqn.relax();
-    // UEqn.solve();
+    UEqn.solve();
     // K = 0.5*magSqr(U);
     // checkResult
     // TODO: for temp, now we compare ldu, finally we compare csr
@@ -219,6 +219,26 @@
         if (patchU.type() == "processor") offset += 2 * patchsize;
         else offset += patchsize;
     }
+
+    double *h_boundary_u_tmp = new double[dfDataBase.num_boundary_surfaces * 3];
+    offset = 0;
+    forAll(U.boundaryField(), patchi)
+    {
+        const fvPatchVectorField& patchU = U.boundaryField()[patchi];
+        int patchsize = dfDataBase.patch_size[patchi];
+
+        if (patchU.type() == "processor") {
+            memcpy(h_boundary_u_tmp + 3*offset, &patchU[0][0], 3*patchsize * sizeof(double));
+            vectorField patchUInternal = 
+                    dynamic_cast<const processorFvPatchField<vector>&>(patchU).patchInternalField()();
+            memcpy(h_boundary_u_tmp + 3*offset + 3*patchsize, &patchUInternal[0][0], 3*patchsize * sizeof(double));
+            offset += 2 * patchsize;
+        } else {
+            memcpy(h_boundary_u_tmp + 3*offset, &patchU[0][0], 3*patchsize * sizeof(double));
+            offset += patchsize;
+        }
+    }
+
     bool printFlag = false;
 
     int rank = -1;
@@ -231,6 +251,7 @@
             h_internal_coeffs.data(), h_boundary_coeffs.data(), 
             // &gradU[0][0], h_boundary_gradU,
             printFlag);
+        UEqn_GPU.compareU(&U[0][0], h_boundary_u_tmp, printFlag);
     }
     DEBUG_TRACE;
 #endif

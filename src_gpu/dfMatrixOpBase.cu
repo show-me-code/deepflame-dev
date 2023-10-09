@@ -1589,17 +1589,46 @@ __global__ void fvc_ddt_scalar_field_kernel(int num_cells, const double *vf, con
     source[index] = (vf[index] - vf_old[index]) * rDeltaT * sign;
 }
 
-__global__ void addBoundaryDiagSrc_scalar(int num_boundary_surfaces, const int *face2Cells,
-        const double *internal_coeffs, const double *boundary_coeffs, double *diag, double *source)
+__global__ void add_external_entry_kernal(int num, int bou_offset, 
+        int external_offset, const double *boundary_coeffs, double *external)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
-    if (index >= num_boundary_surfaces)
+    if (index >= num)
+        return;
+
+    int bou_start_index = bou_offset + index;
+    int external_start_index = external_offset + index;
+    external[external_start_index] = - boundary_coeffs[bou_start_index];
+}
+
+__global__ void addBoundaryDiagSrc_scalar_couple(int num, int offset, const int *face2Cells, 
+        const double *internal_coeffs, double *diag)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
         return;
     
-    int cellIndex = face2Cells[index];
+    int startIndex = offset + index;
+    int cellIndex = face2Cells[startIndex];
 
-    double internalCoeff = internal_coeffs[index];
-    double boundaryCoeff = boundary_coeffs[index];
+    double internalCoeff = internal_coeffs[startIndex];
+
+    atomicAdd(&diag[cellIndex], internalCoeff);
+}
+
+__global__ void addBoundaryDiagSrc_scalar_unCouple(int num, int offset, const int *face2Cells, 
+        const double *internal_coeffs, const double *boundary_coeffs,
+        double *diag, double *source)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
+        return;
+    
+    int startIndex = offset + index;
+    int cellIndex = face2Cells[startIndex];
+
+    double internalCoeff = internal_coeffs[startIndex];
+    double boundaryCoeff = boundary_coeffs[startIndex];
 
     atomicAdd(&diag[cellIndex], internalCoeff);
     atomicAdd(&source[cellIndex], boundaryCoeff);
@@ -1792,16 +1821,35 @@ __global__ void lduMatrix_faceH(int num_surfaces,
     output[index] = upper[index] * psi[u] - lower[index] * psi[l];    
 }
 
-__global__ void internal_contrib_for_flux(int num_boundary_surfaces, 
+__global__ void boundary_flux_couple(int num, int offset, const int *face2cells, 
         const double *boundary_psi, const double *internal_coeffs, 
-        const int *face2cells, double *boundary_output)
+        const double *boundary_coeffs, double *boundary_output)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
-    if (index >= num_boundary_surfaces)
+    if (index >= num)
         return;
 
-    int cellIndex = face2cells[index];
-    boundary_output[index] = boundary_psi[cellIndex] * internal_coeffs[index];
+    int neighbor_start_index = offset + index;
+    int internal_start_index = offset + num + index;
+
+    double internal_contrib = boundary_psi[internal_start_index] * internal_coeffs[neighbor_start_index];
+    double neighbor_contrib = boundary_psi[neighbor_start_index] * boundary_coeffs[neighbor_start_index];
+
+    boundary_output[neighbor_start_index] = internal_contrib - neighbor_contrib;
+}
+
+__global__ void boundary_flux_unCouple(int num, int offset, const int *face2cells, 
+        const double *psi, const double *internal_coeffs, double *boundary_output)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
+        return;
+
+    int start_index = offset + index;
+    int cellIndex = face2cells[start_index];
+
+    // internalCoeffs_ * patchInternalField
+    boundary_output[start_index] = psi[cellIndex] * internal_coeffs[start_index]; 
 }
 
 
@@ -1886,24 +1934,50 @@ void fvc_to_source_scalar(cudaStream_t stream, int num_cells, const double *volu
     TICK_END_EVENT(fvc_to_source_scalar_kernel);
 }
 
-void ldu_to_csr_scalar(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surface,
-        const int* boundary_cell_face, const int *ldu_to_csr_index, const int *diag_to_csr_index,
+void ldu_to_csr_scalar(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surface, int num_Nz, 
+        const int* boundary_cell_face, const int *ldu_to_csr_index,
+        int num_patches, const int *patch_size, const int *patch_type,
         double* ldu, double *source, // b = source
-        const double *internal_coeffs, const double *boundary_coeffs,
-        double *A)
+        const double *internal_coeffs, const double *boundary_coeffs, double *A)
 {
     double *diag = ldu + num_surfaces;
+    double *external = ldu + num_cells + 2 * num_surfaces;
+
+    // add external to ldu
+    int bou_offset = 0, ext_offset = 0;
+    size_t threads_per_block, blocks_per_grid;
+    for (int i = 0; i < num_patches; i++) {
+        if (patch_type[i] == boundaryConditions::processor) {
+            threads_per_block = 64;
+            blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
+            add_external_entry_kernal<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], bou_offset, 
+                    ext_offset, boundary_coeffs, external);
+            bou_offset += patch_size[i] * 2;
+            ext_offset += patch_size[i];
+        } else {
+            bou_offset += patch_size[i];
+        }
+    }
 
     // add coeff to source and diagnal
-    size_t threads_per_block = 256;
-    size_t blocks_per_grid = (num_boundary_surface + threads_per_block - 1) / threads_per_block;
-    addBoundaryDiagSrc_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surface,
-            boundary_cell_face, internal_coeffs, boundary_coeffs, diag, source);
+    bou_offset = 0;
+    for (int i = 0; i < num_patches; i++) {
+        threads_per_block = 64;
+        blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
+        if (patch_type[i] == boundaryConditions::processor) {
+            addBoundaryDiagSrc_scalar_couple<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], bou_offset, 
+                    boundary_cell_face, internal_coeffs, diag);
+            bou_offset += patch_size[i] * 2;
+        } else {
+            addBoundaryDiagSrc_scalar_unCouple<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], bou_offset, 
+                    boundary_cell_face, internal_coeffs, boundary_coeffs, diag, source);
+            bou_offset += patch_size[i];
+        }
+    }
 
     // construct csr
-    int nNz = num_cells + 2 * num_surfaces;
-    blocks_per_grid = (nNz + threads_per_block - 1) / threads_per_block;
-    ldu_to_csr_scalar_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(nNz, ldu_to_csr_index, ldu, A);
+    blocks_per_grid = (num_Nz + threads_per_block - 1) / threads_per_block;
+    ldu_to_csr_scalar_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_Nz, ldu_to_csr_index, ldu, A);
 }
 
 void ldu_to_csr(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surface,
@@ -2015,9 +2089,6 @@ void correct_boundary_conditions_vector(cudaStream_t stream, ncclComm_t comm,
                     || patch_type[i] == boundaryConditions::calculated) {
             // No operation needed in this condition
         } else if (patch_type[i] == boundaryConditions::processor) {
-            printf("patch type is processor\n");
-            checkCudaErrors(cudaStreamSynchronize(stream));
-            DEBUG_TRACE;
             correct_boundary_conditions_processor_vector(stream, comm, neighbor_peer[i], patch_size[i], offset, 
                     num_boundary_surfaces, num_cells, vf, boundary_cell_face, boundary_vf);
             offset += 2 * patch_size[i]; // patchNeighbourFields and patchInternalFields
@@ -2832,22 +2903,20 @@ void fvMtx_flux(cudaStream_t stream, int num_surfaces, int num_boundary_surfaces
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
     lduMatrix_faceH<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_surfaces, lowerAddr, upperAddr, lower, upper, psi, output);
-
-    blocks_per_grid = (num_boundary_surfaces + threads_per_block - 1) / threads_per_block;
-    internal_contrib_for_flux<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, boundary_psi, internal_coeffs,
-            boundary_cell_face, boundary_output);
     
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
         threads_per_block = 64;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
-        // TODO: coupled conditions
-        if (patch_type[i] == boundaryConditions::coupled) {
-            // coupled conditions
+        if (patch_type[i] == boundaryConditions::processor) {
+            boundary_flux_couple<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset, boundary_cell_face, boundary_psi,
+                    internal_coeffs, boundary_coeffs, boundary_output);
+            offset += 2 * patch_size[i];
         } else {
-            // xxx
+            boundary_flux_unCouple<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset, boundary_cell_face, psi, 
+                    internal_coeffs, boundary_output);
+            offset += patch_size[i];
         }
-        offset += patch_size[i];
     }
 }
 

@@ -100,17 +100,20 @@ void dfMatrixDataBase::cleanCudaResources() {
     // TODO: free pointers
 }
 
-void dfMatrixDataBase::setConstantValues(int num_cells, int num_surfaces, int num_boundary_surfaces,
-        int num_patches, std::vector<int> patch_size,
-        int num_species, double rdelta_t) {
+void dfMatrixDataBase::setConstantValues(int num_cells, int num_total_cells, int num_surfaces, 
+        int num_boundary_surfaces, int num_patches, int num_proc_surfaces, 
+        std::vector<int> patch_size, int num_species, double rdelta_t) {
     // constant values -- basic
     this->num_cells = num_cells;
+    this->num_total_cells = num_total_cells;
     this->num_surfaces = num_surfaces;
     this->num_boundary_surfaces = num_boundary_surfaces;
     this->num_patches = num_patches;
+    this->num_proc_surfaces = num_proc_surfaces;
     this->patch_size = patch_size;
     this->num_species = num_species;
     this->rdelta_t = rdelta_t;
+    this->num_Nz = num_cells + 2 * num_surfaces + num_proc_surfaces;
 
     // constant values -- ldu bytesize
     cell_value_bytes = num_cells * sizeof(double);
@@ -127,44 +130,46 @@ void dfMatrixDataBase::setConstantValues(int num_cells, int num_surfaces, int nu
 
     // constant values -- csr bytesize
     csr_row_index_bytes = (num_cells + 1) * sizeof(int);
-    csr_col_index_bytes = (num_cells + num_surfaces * 2) * sizeof(int);
-    csr_value_bytes = (num_cells + num_surfaces * 2) * sizeof(double);
-    csr_value_vec_bytes = (num_cells + num_surfaces * 2) * 3 * sizeof(double);
+    csr_col_index_bytes = num_Nz * sizeof(int);
+    csr_value_bytes = num_Nz * sizeof(double);
+    csr_value_vec_bytes = num_Nz * 3 * sizeof(double);
 }
 
-void dfMatrixDataBase::setConstantIndexes(const int *owner, const int *neighbor) {
+void dfMatrixDataBase::setConstantIndexes(const int *owner, const int *neighbor, const int *procRows, 
+        const int *procCols, int globalOffset) {
     // build d_owner, d_neighbor
     checkCudaErrors(cudaMalloc((void**)&d_owner, surface_index_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_neighbor, surface_index_bytes));
     checkCudaErrors(cudaMemcpyAsync(d_owner, owner, surface_index_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_neighbor, neighbor, surface_index_bytes, cudaMemcpyHostToDevice, stream));
+    DEBUG_TRACE;
 
+    // build permTmp, rowIndicesTmp, colIndicesTmp
+    std::vector<int> permTmp(num_Nz);
+    std::iota(permTmp.begin(), permTmp.end(), 0);
 
-    // build d_lower_to_csr_index, d_diag_to_csr_index, d_upper_to_csr_index
-    std::vector<int> upperNum(num_cells, 0);
-    std::vector<int> lowerNum(num_cells, 0);
-    std::vector<int> lowerPermListInit(num_surfaces);
+    // rowIndex of: low, diag, upp, proc
+    std::vector<int> rowIndicesTmp(num_Nz);
+    std::copy(neighbor, neighbor + num_surfaces, rowIndicesTmp.begin()); // row index of lower entry
+    std::iota(rowIndicesTmp.begin() + num_surfaces, rowIndicesTmp.begin() + num_cells + num_surfaces, 0); // row index of diag entry
+    std::copy(owner, owner + num_surfaces, rowIndicesTmp.begin() + num_cells + num_surfaces); // row index of upper entry
+    std::copy(procRows, procRows + num_proc_surfaces, rowIndicesTmp.begin() + num_cells + 2 * num_surfaces); // row index of proc entry
 
-    int *upperOffset = (int*)calloc(num_cells + 1, sizeof(int));
-    int *lowerOffset = (int*)calloc(num_cells + 1, sizeof(int));
+    // colIndex of: low, diag, upp, proc
+    std::vector<int> colIndicesTmp(num_Nz);
+    std::copy(owner, owner + num_surfaces, colIndicesTmp.begin()); // col index of lower entry
+    std::iota(colIndicesTmp.begin() + num_surfaces, colIndicesTmp.begin() + num_cells + num_surfaces, 0); // col index of diag entry
+    std::copy(neighbor, neighbor + num_surfaces, colIndicesTmp.begin() + num_cells + num_surfaces); // col index of upper entry
+    std::copy(procCols, procCols + num_proc_surfaces, colIndicesTmp.begin() + num_cells + 2 * num_surfaces); // col index of proc entry
 
-    for(int faceI = 0; faceI < num_surfaces; ++faceI){
-        upperNum[owner[faceI]] ++;
-        lowerNum[neighbor[faceI]] ++;
+    // premute rowIndicesTmp, get CSRRowIndex and ldu2csrPerm
+    std::multimap<int,int> rowIndicesPermutation;
+    for (int i = 0; i < num_Nz; ++i){
+        rowIndicesPermutation.insert(std::make_pair(rowIndicesTmp[i], permTmp[i]));
     }
-    std::partial_sum(upperNum.begin(), upperNum.end(), 
-        upperOffset+1);
-    std::partial_sum(lowerNum.begin(), lowerNum.end(), 
-        lowerOffset+1);
-
-    std::iota(lowerPermListInit.begin(), lowerPermListInit.end(), 0);
-
-    std::multimap<int,int> permutation;
-    for (int i = 0; i < num_surfaces; ++i){
-        permutation.insert(std::make_pair(neighbor[i], lowerPermListInit[i]));
-    }
-    std::vector<std::pair<int, int>> permPair(permutation.begin(), permutation.end());
-    std::sort(permPair.begin(), permPair.end(), []
+    std::vector<std::pair<int, int>> rowIndicesPermPair(rowIndicesPermutation.begin(), rowIndicesPermutation.end());
+    
+    std::sort(rowIndicesPermPair.begin(), rowIndicesPermPair.end(), []
     (const std::pair<int, int>& pair1, const std::pair<int, int>& pair2){
         if (pair1.first != pair2.first) {
             return pair1.first < pair2.first;
@@ -172,86 +177,52 @@ void dfMatrixDataBase::setConstantIndexes(const int *owner, const int *neighbor)
             return pair1.second < pair2.second;
         }
     });
-
-    std::vector<int> lowerPermList;
-    std::transform(permPair.begin(), permPair.end(), std::back_inserter(lowerPermList), []
-        (const std::pair<int, int>& pair) {
-        return pair.second;
-    }); 
-
-    std::vector<int> lowCSRIndex, uppCSRIndex, diagCSRIndex, CSRRowIndex, CSRColIndex;
-    int uppIndexInCSR = 0, uppIndexInLdu = 0, lowIndexInCSR = 0, lowIndexInLdu = 0, lowNumInLdu = 0;
-    CSRColIndex.resize(2 * num_surfaces + num_cells);
-    lowCSRIndex.resize(num_surfaces);
-    for (int i = 0; i < num_cells; ++i) {
-        int numUppPerRow = upperOffset[i + 1] - upperOffset[i];
-        int numLowPerRow = lowerOffset[i + 1] - lowerOffset[i];
-        int numNZBefore = upperOffset[i] + lowerOffset[i] + i; // add diag
-        // csr row index
-        CSRRowIndex.push_back(numNZBefore);
-        // upper
-        for (int j = 0; j < numUppPerRow; ++j) {
-            uppIndexInCSR = numNZBefore + numLowPerRow + 1 + j; // 1 means diag
-            uppCSRIndex.push_back(uppIndexInCSR);
-            CSRColIndex[uppIndexInCSR] = neighbor[uppIndexInLdu]; // fill upper entry in CSRColIndex
-            uppIndexInLdu ++;
-        }
-        // lower
-        for (int j = 0; j < numLowPerRow; ++j) {
-            lowIndexInCSR = numNZBefore + j;
-            lowIndexInLdu = lowerPermList[lowNumInLdu];
-            lowCSRIndex[lowIndexInLdu] = lowIndexInCSR;
-            CSRColIndex[lowIndexInCSR] = owner[lowIndexInLdu]; // fill lower entry in CSRColIndex
-            lowNumInLdu ++;
-        }
-        // diag
-        int diagIndexInCSR = numNZBefore + numLowPerRow;
-        diagCSRIndex.push_back(diagIndexInCSR);
-        CSRColIndex[diagIndexInCSR] = i; // fill diag entry in CSRColIndex
-    }
-    int nNz = 2 * num_surfaces + num_cells;
-    CSRRowIndex.push_back(nNz);
-
-    // get reverseIndex from csr to ldu (low + diag + upp)
-    std::vector<int> CSRIndex;
-    CSRIndex.insert(CSRIndex.end(), lowCSRIndex.begin(), lowCSRIndex.end());
-    CSRIndex.insert(CSRIndex.end(), diagCSRIndex.begin(), diagCSRIndex.end());
-    CSRIndex.insert(CSRIndex.end(), uppCSRIndex.begin(), uppCSRIndex.end());
-
-    std::vector<int> lduCSRIndexPermInit(nNz);
-    std::iota(lduCSRIndexPermInit.begin(), lduCSRIndexPermInit.end(), 0);
-
-    std::multimap<int,int> IndexPermutation;
-    for (int i = 0; i < nNz; ++i){
-        IndexPermutation.insert(std::make_pair(CSRIndex[i], lduCSRIndexPermInit[i]));
-    }
-    std::vector<std::pair<int, int>> IndexPermPair(IndexPermutation.begin(), IndexPermutation.end());
-    std::sort(IndexPermPair.begin(), IndexPermPair.end(), []
-    (const std::pair<int, int>& pair1, const std::pair<int, int>& pair2){
-        return pair1.first < pair2.first;});
-
-    std::vector<int> lduCSRIndex;
-    std::transform(IndexPermPair.begin(), IndexPermPair.end(), std::back_inserter(lduCSRIndex), []
-        (const std::pair<int, int>& pair) {
-        return pair.second;
-    });
-
-    std::vector<int> test;
-    std::transform(IndexPermPair.begin(), IndexPermPair.end(), std::back_inserter(test), []
+    std::vector<int> permRowIndex, lduCSRIndex;
+    std::transform(rowIndicesPermPair.begin(), rowIndicesPermPair.end(), std::back_inserter(permRowIndex), []
         (const std::pair<int, int>& pair) {
         return pair.first;
     });
+    std::vector<int> CSRRowIndex(num_cells + 1, 0);
+    for (int i = 0; i < num_Nz; i++) {
+        CSRRowIndex[permRowIndex[i] + 1]++;
+    }
+    std::partial_sum(CSRRowIndex.begin(), CSRRowIndex.end(), CSRRowIndex.begin());
+
+
+    std::transform(rowIndicesPermPair.begin(), rowIndicesPermPair.end(), std::back_inserter(lduCSRIndex), []
+        (const std::pair<int, int>& pair) {
+        return pair.second;
+    });
+
+    // get diagCSRIndex
+    std::vector<int> diagCSRIndex(num_cells);
+    int startIndex = 0;
+    for (int i = 0; i < num_cells; i++) {
+        int diagIndex = i + num_surfaces; // index of diag entry in permTmp
+        for (int j = startIndex; j < num_Nz; j++) {
+            if (lduCSRIndex[j] == diagIndex) {
+                diagCSRIndex[i] = j;
+                startIndex = j + 1;
+                break;
+            }
+        }
+    }
+
+    // get CSRColIndex
+    // localToGlobalColIndices: add globalOffset to colIndicesTmp
+    std::transform(colIndicesTmp.begin(), colIndicesTmp.begin() + num_cells + 2 * num_surfaces, colIndicesTmp.begin(), 
+        [globalOffset](int i){return i + globalOffset;});
     
+    // permute colIndicesTmp
+    std::vector<int> CSRColIndex(num_Nz);
+    for (int i = 0; i < num_Nz; ++i){
+        CSRColIndex[i] = colIndicesTmp[lduCSRIndex[i]];
+    }
 
-    checkCudaErrors(cudaMalloc((void**)&d_lower_to_csr_index, surface_index_bytes));
-    checkCudaErrors(cudaMalloc((void**)&d_diag_to_csr_index, cell_index_bytes));
-    checkCudaErrors(cudaMalloc((void**)&d_upper_to_csr_index, surface_index_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_ldu_to_csr_index, csr_col_index_bytes));
-    checkCudaErrors(cudaMemcpyAsync(d_lower_to_csr_index, lowCSRIndex.data(), surface_index_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_diag_to_csr_index, diagCSRIndex.data(), cell_index_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_upper_to_csr_index, uppCSRIndex.data(), surface_index_bytes, cudaMemcpyHostToDevice, stream));
+    checkCudaErrors(cudaMalloc((void**)&d_diag_to_csr_index, cell_value_bytes));
     checkCudaErrors(cudaMemcpyAsync(d_ldu_to_csr_index, lduCSRIndex.data(), csr_col_index_bytes, cudaMemcpyHostToDevice, stream));
-
+    checkCudaErrors(cudaMemcpyAsync(d_diag_to_csr_index, diagCSRIndex.data(), cell_value_bytes, cudaMemcpyHostToDevice, stream));
 
     // build d_csr_row_index, d_csr_col_index
     checkCudaErrors(cudaMalloc((void**)&d_csr_row_index, csr_row_index_bytes));
