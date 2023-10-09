@@ -327,6 +327,7 @@ void dfpEqn::createNonConstantLduAndCsrFields() {
     d_lower = d_ldu;
     d_diag = d_ldu + dataBase_.num_surfaces;
     d_upper = d_ldu + dataBase_.num_cells + dataBase_.num_surfaces;
+    d_extern = d_ldu + dataBase_.num_cells + 2 * dataBase_.num_surfaces;
     checkCudaErrors(cudaMalloc((void**)&d_source, dataBase_.cell_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_internal_coeffs, dataBase_.boundary_surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_coeffs, dataBase_.boundary_surface_value_bytes));
@@ -401,13 +402,14 @@ void dfpEqn::process() {
             d_internal_coeffs, d_boundary_coeffs, -1.);
     
     // solve
-    // ldu_to_csr_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
-    //         dataBase_.d_boundary_face_cell, dataBase_.d_ldu_to_csr_index, dataBase_.d_diag_to_csr_index,
-    //         d_ldu, d_source, d_internal_coeffs, d_boundary_coeffs, d_A);
-    // solve();
-    // correct_boundary_conditions_scalar(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
-    //         dataBase_.num_boundary_surfaces, dataBase_.num_patches, dataBase_.patch_size.data(), 
-    //         patch_type_p.data(), dataBase_.d_boundary_face_cell, dataBase_.d_p, dataBase_.d_boundary_p);
+    ldu_to_csr_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
+            dataBase_.num_Nz, dataBase_.d_boundary_face_cell, dataBase_.d_ldu_to_csr_index,
+            dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_p.data(),
+            d_ldu, d_source, d_internal_coeffs, d_boundary_coeffs, d_A);
+    solve();
+    correct_boundary_conditions_scalar(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
+            dataBase_.num_boundary_surfaces, dataBase_.num_patches, dataBase_.patch_size.data(), 
+            patch_type_p.data(), dataBase_.d_boundary_face_cell, dataBase_.d_p, dataBase_.d_boundary_p);
 }
 void dfpEqn::postProcess() {
     // update phi
@@ -431,6 +433,9 @@ void dfpEqn::postProcess() {
             dataBase_.num_boundary_surfaces, dataBase_.d_boundary_rAU, dataBase_.d_boundary_u, dataBase_.d_boundary_u);
     field_add_vector(dataBase_.stream, dataBase_.num_cells, dataBase_.d_HbyA, dataBase_.d_u, dataBase_.d_u,
             dataBase_.num_boundary_surfaces, dataBase_.d_boundary_HbyA, dataBase_.d_boundary_u, dataBase_.d_boundary_u, -1.);
+    correct_boundary_conditions_vector(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(), dataBase_.num_boundary_surfaces, 
+            dataBase_.num_cells, dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_U.data(), dataBase_.d_boundary_face_cell,
+            dataBase_.d_u, dataBase_.d_boundary_u);
 
     // calculate dpdt
     fvc_ddt_scalar_field(dataBase_.stream, dataBase_.num_cells, dataBase_.rdelta_t, dataBase_.d_p, dataBase_.d_p_old, dataBase_.d_volume, dataBase_.d_dpdt, 1.);
@@ -502,9 +507,8 @@ void dfpEqn::getphiHbyA(cudaStream_t stream, int num_cells, int num_surfaces, in
             offset += 2 * patch_size[i];
             continue;
         } else {
-            fprintf(stderr, "boundaryConditions are not support yet!\n");
+            offset += patch_size[i];
         }
-        offset += patch_size[i];
     }
 
     blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
@@ -562,17 +566,16 @@ void dfpEqn::sync()
 
 void dfpEqn::solve()
 {
-    int nNz = dataBase_.num_cells + dataBase_.num_surfaces * 2; // matrix entries
     sync();
 
     if (num_iteration == 0)                                     // first interation
     {
         printf("Initializing AmgX Linear Solver\n");
-        pSolver->setOperator(dataBase_.num_cells, nNz, dataBase_.d_csr_row_index, dataBase_.d_csr_col_index, d_A);
+        pSolver->setOperator(dataBase_.num_cells, dataBase_.num_total_cells, dataBase_.num_Nz, dataBase_.d_csr_row_index, dataBase_.d_csr_col_index, d_A);
     }
     else
     {
-        pSolver->updateOperator(dataBase_.num_cells, nNz, d_A);
+        pSolver->updateOperator(dataBase_.num_cells, dataBase_.num_Nz, d_A);
     }
     pSolver->solve(dataBase_.num_cells, dataBase_.d_p, d_source);
     num_iteration++;

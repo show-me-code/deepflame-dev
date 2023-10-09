@@ -174,6 +174,18 @@ __global__ void correctBoundary_HbyA_fixedValueU(int num_boundary_surfaces, int 
     boundary_output[num_boundary_surfaces * 2 + start_index] = boundary_vf[num_boundary_surfaces * 2 + start_index];
 }
 
+__global__ void ueqn_add_external_entry_kernal(int num, int bou_offset, 
+        int external_offset, const double *boundary_coeffs, double *external)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
+        return;
+
+    int bou_start_index = bou_offset + index;
+    int external_start_index = external_offset + index;
+    external[external_start_index] = - boundary_coeffs[bou_start_index];
+}
+
 __global__ void ueqn_ldu_to_csr_kernel(int nNz, const int *ldu_to_csr_index, 
         const double *ldu, double *A_csr)
 {
@@ -188,33 +200,55 @@ __global__ void ueqn_ldu_to_csr_kernel(int nNz, const int *ldu_to_csr_index,
     A_csr[nNz * 2 + index] = csrVal;
 }
 
-__global__ void ueqn_add_boundary_diag_src(int num_cells, int num_surfaces, int num_boundary_surfaces, const int *face2Cells, 
+__global__ void ueqn_add_boundary_diag_src_unCouple(int num_cells, int num_Nz, int num_boundary_surfaces, 
+        int num, int offset, const int *face2Cells, 
         const double *internal_coeffs, const double *boundary_coeffs, const int *diagCSRIndex, 
         double *A_csr, double *b)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
+        return;
+    
+    int startIndex = offset + index;
+    int cellIndex = face2Cells[startIndex];
+    int diagIndex = diagCSRIndex[cellIndex];
+
+    double internalCoeffx = internal_coeffs[num_boundary_surfaces * 0 + startIndex];
+    double internalCoeffy = internal_coeffs[num_boundary_surfaces * 1 + startIndex];
+    double internalCoeffz = internal_coeffs[num_boundary_surfaces * 2 + startIndex];
+
+    double boundaryCoeffx = boundary_coeffs[num_boundary_surfaces * 0 + startIndex];
+    double boundaryCoeffy = boundary_coeffs[num_boundary_surfaces * 1 + startIndex];
+    double boundaryCoeffz = boundary_coeffs[num_boundary_surfaces * 2 + startIndex];
+
+    atomicAdd(&A_csr[num_Nz * 0 + diagIndex], internalCoeffx);
+    atomicAdd(&A_csr[num_Nz * 1 + diagIndex], internalCoeffy);
+    atomicAdd(&A_csr[num_Nz * 2 + diagIndex], internalCoeffz);
+
+    atomicAdd(&b[num_cells * 0 + cellIndex], boundaryCoeffx);
+    atomicAdd(&b[num_cells * 1 + cellIndex], boundaryCoeffy);
+    atomicAdd(&b[num_cells * 2 + cellIndex], boundaryCoeffz);
+}
+
+__global__ void ueqn_add_boundary_diag_src_couple(int num_cells, int num_Nz, int num_boundary_surfaces, 
+        int num, int offset, const int *face2Cells, const double *internal_coeffs, 
+        const int *diagCSRIndex, double *A_csr)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index >= num_boundary_surfaces)
         return;
     
-    int cellIndex = face2Cells[index];
+    int startIndex = offset + index;
+    int cellIndex = face2Cells[startIndex];
     int diagIndex = diagCSRIndex[cellIndex];
-    int nNz = num_cells + 2 * num_surfaces;
 
-    double internalCoeffx = internal_coeffs[num_boundary_surfaces * 0 + index];
-    double internalCoeffy = internal_coeffs[num_boundary_surfaces * 1 + index];
-    double internalCoeffz = internal_coeffs[num_boundary_surfaces * 2 + index];
+    double internalCoeffx = internal_coeffs[num_boundary_surfaces * 0 + startIndex];
+    double internalCoeffy = internal_coeffs[num_boundary_surfaces * 1 + startIndex];
+    double internalCoeffz = internal_coeffs[num_boundary_surfaces * 2 + startIndex];
 
-    double boundaryCoeffx = boundary_coeffs[num_boundary_surfaces * 0 + index];
-    double boundaryCoeffy = boundary_coeffs[num_boundary_surfaces * 1 + index];
-    double boundaryCoeffz = boundary_coeffs[num_boundary_surfaces * 2 + index];
-
-    atomicAdd(&A_csr[nNz * 0 + diagIndex], internalCoeffx);
-    atomicAdd(&A_csr[nNz * 1 + diagIndex], internalCoeffy);
-    atomicAdd(&A_csr[nNz * 2 + diagIndex], internalCoeffz);
-
-    atomicAdd(&b[num_cells * 0 + cellIndex], boundaryCoeffx);
-    atomicAdd(&b[num_cells * 1 + cellIndex], boundaryCoeffy);
-    atomicAdd(&b[num_cells * 2 + cellIndex], boundaryCoeffz);
+    atomicAdd(&A_csr[num_Nz * 0 + diagIndex], internalCoeffx);
+    atomicAdd(&A_csr[num_Nz * 1 + diagIndex], internalCoeffy);
+    atomicAdd(&A_csr[num_Nz * 2 + diagIndex], internalCoeffz);
 }
 
 __global__ void ueqn_divide_cell_volume_vec(int num_cells, const double* volume, double *output)
@@ -288,6 +322,7 @@ void dfUEqn::createNonConstantLduAndCsrFields() {
   d_lower = d_ldu;
   d_diag = d_ldu + dataBase_.num_surfaces;
   d_upper = d_ldu + dataBase_.num_cells + dataBase_.num_surfaces;
+  d_extern = d_ldu + dataBase_.num_cells + 2 * dataBase_.num_surfaces;
   checkCudaErrors(cudaMalloc((void**)&d_source, dataBase_.cell_value_vec_bytes));
   checkCudaErrors(cudaMalloc((void**)&d_internal_coeffs, dataBase_.boundary_surface_value_vec_bytes));
   checkCudaErrors(cudaMalloc((void**)&d_boundary_coeffs, dataBase_.boundary_surface_value_vec_bytes));
@@ -436,11 +471,12 @@ void dfUEqn::process() {
         getrAU(dataBase_.stream, dataBase_.nccl_comm, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, 
                 dataBase_.neighbProcNo.data(), dataBase_.num_patches, dataBase_.patch_size.data(), dataBase_.patch_type_extropolated.data(),
                 dataBase_.d_boundary_face_cell, d_internal_coeffs, dataBase_.d_volume, d_diag, dataBase_.d_rAU, dataBase_.d_boundary_rAU);
-#ifndef DEBUG_CHECK_LDU   
-        ueqn_ldu_to_csr(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
+// #ifndef DEBUG_CHECK_LDU   
+        ueqn_ldu_to_csr(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, dataBase_.num_Nz,
             dataBase_.d_boundary_face_cell, dataBase_.d_ldu_to_csr_index, dataBase_.d_diag_to_csr_index, 
-            d_ldu, d_source, d_internal_coeffs, d_boundary_coeffs, d_A, d_b);
-#endif
+            dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(), 
+            d_ldu, d_extern, d_source, d_internal_coeffs, d_boundary_coeffs, d_A, d_b);
+// #endif
 // #ifndef TIME_GPU
 //         checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph));
 //         checkCudaErrors(cudaGraphInstantiate(&graph_instance, graph, NULL, NULL, 0));
@@ -456,9 +492,12 @@ void dfUEqn::process() {
     fprintf(stderr, "ueqn assembly time:%f(ms)\n",time_elapsed);
 
     checkCudaErrors(cudaEventRecord(start,0));
-#ifndef DEBUG_CHECK_LDU
+// #ifndef DEBUG_CHECK_LDU
     solve();
-#endif
+// #endif
+    correct_boundary_conditions_vector(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(), dataBase_.num_boundary_surfaces, 
+            dataBase_.num_cells, dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(), dataBase_.d_boundary_face_cell,
+            dataBase_.d_u, dataBase_.d_boundary_u);
     checkCudaErrors(cudaEventRecord(stop,0));
     checkCudaErrors(cudaEventSynchronize(start));
     checkCudaErrors(cudaEventSynchronize(stop));
@@ -472,27 +511,20 @@ void dfUEqn::sync()
 }
 
 void dfUEqn::solve() {
-
-    int nNz = dataBase_.num_cells + dataBase_.num_surfaces * 2; // matrix entries
     sync();
-
-    // double *h_A_csr = new double[nNz * 3];
-    // checkCudaErrors(cudaMemcpy(h_A_csr, d_A, dataBase_.csr_value_vec_bytes, cudaMemcpyDeviceToHost));
-    // for (int i = 0; i < nNz; i++)
-    //     fprintf(stderr, "h_A_csr[%d]: (%.10lf, %.10lf, %.10lf)\n", i, h_A_csr[i], h_A_csr[i + nNz], h_A_csr[i + 2 * nNz]);
 
     if (num_iteration == 0)                                     // first interation
     {
         printf("Initializing AmgX Linear Solver\n");
-        UxSolver->setOperator(dataBase_.num_cells, nNz, dataBase_.d_csr_row_index, dataBase_.d_csr_col_index, d_A);
-        UySolver->setOperator(dataBase_.num_cells, nNz, dataBase_.d_csr_row_index, dataBase_.d_csr_col_index, d_A + nNz);
-        UzSolver->setOperator(dataBase_.num_cells, nNz, dataBase_.d_csr_row_index, dataBase_.d_csr_col_index, d_A + 2 * nNz);
+        UxSolver->setOperator(dataBase_.num_cells, dataBase_.num_total_cells, dataBase_.num_Nz, dataBase_.d_csr_row_index, dataBase_.d_csr_col_index, d_A);
+        UySolver->setOperator(dataBase_.num_cells, dataBase_.num_total_cells, dataBase_.num_Nz, dataBase_.d_csr_row_index, dataBase_.d_csr_col_index, d_A + dataBase_.num_Nz);
+        UzSolver->setOperator(dataBase_.num_cells, dataBase_.num_total_cells, dataBase_.num_Nz, dataBase_.d_csr_row_index, dataBase_.d_csr_col_index, d_A + 2 * dataBase_.num_Nz);
     }
     else
     {
-        UxSolver->updateOperator(dataBase_.num_cells, nNz, d_A);
-        UySolver->updateOperator(dataBase_.num_cells, nNz, d_A + nNz);
-        UzSolver->updateOperator(dataBase_.num_cells, nNz, d_A + 2 * nNz);
+        UxSolver->updateOperator(dataBase_.num_cells, dataBase_.num_Nz, d_A);
+        UySolver->updateOperator(dataBase_.num_cells, dataBase_.num_Nz, d_A + dataBase_.num_Nz);
+        UzSolver->updateOperator(dataBase_.num_cells, dataBase_.num_Nz, d_A + 2 * dataBase_.num_Nz);
     }
     UxSolver->solve(dataBase_.num_cells, dataBase_.d_u, d_b);
     UySolver->solve(dataBase_.num_cells, dataBase_.d_u + dataBase_.num_cells, d_b + dataBase_.num_cells);
@@ -632,22 +664,49 @@ void dfUEqn::getHbyA()
             dataBase_.d_boundary_u, dataBase_.d_HbyA, dataBase_.d_boundary_HbyA);
 }
 
-void dfUEqn::ueqn_ldu_to_csr(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surface,
+void dfUEqn::ueqn_ldu_to_csr(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surface, int num_Nz, 
         const int* boundary_cell_face, const int *ldu_to_csr_index, const int *diag_to_csr_index,
-        const double *ldu, const double *source, const double *internal_coeffs, const double *boundary_coeffs,
+        int num_patches, const int *patch_size, const int *patch_type,
+        const double *ldu, double *external, const double *source, const double *internal_coeffs, const double *boundary_coeffs,
         double *A, double *b)
 {
-    // construct diag
-    int nNz = num_cells + 2 * num_surfaces;
-    size_t threads_per_block = 1024;
-    size_t blocks_per_grid = (nNz + threads_per_block - 1) / threads_per_block;
+    // add external to ldu
+    int bou_offset = 0, ext_offset = 0;
+    size_t threads_per_block, blocks_per_grid;
+    for (int i = 0; i < num_patches; i++) {
+        if (patch_type[i] == boundaryConditions::processor) {
+            threads_per_block = 64;
+            blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
+            ueqn_add_external_entry_kernal<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], bou_offset, 
+                    ext_offset, boundary_coeffs, external);
+            bou_offset += patch_size[i] * 2;
+            ext_offset += patch_size[i];
+        } else {
+            bou_offset += patch_size[i];
+        }
+    }
+    
+    // construct csr matrix and RHS vec
+    threads_per_block = 1024;
+    blocks_per_grid = (num_Nz + threads_per_block - 1) / threads_per_block;
     checkCudaErrors(cudaMemcpyAsync(b, source, num_cells * 3 * sizeof(double), cudaMemcpyDeviceToDevice, stream));
-    ueqn_ldu_to_csr_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(nNz, ldu_to_csr_index, ldu, A);
+    ueqn_ldu_to_csr_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_Nz, ldu_to_csr_index, ldu, A);
 
     // add coeff to source and diagnal
-    blocks_per_grid = (num_boundary_surface + threads_per_block - 1) / threads_per_block;
-    ueqn_add_boundary_diag_src<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_surfaces, num_boundary_surface, 
-            boundary_cell_face, internal_coeffs, boundary_coeffs, diag_to_csr_index, A, b);
+    bou_offset = 0;
+    for (int i = 0; i < num_patches; i++) {
+        threads_per_block = 64;
+        blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
+        if (patch_type[i] == boundaryConditions::processor) {
+            ueqn_add_boundary_diag_src_couple<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_Nz, num_boundary_surface, 
+                    patch_size[i], bou_offset, boundary_cell_face, internal_coeffs, diag_to_csr_index, A);
+            bou_offset += patch_size[i] * 2;
+        } else {
+            ueqn_add_boundary_diag_src_unCouple<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_Nz, num_boundary_surface, 
+                    patch_size[i], bou_offset, boundary_cell_face, internal_coeffs, boundary_coeffs, diag_to_csr_index, A, b);
+            bou_offset += patch_size[i];
+        }
+    }
 }
 
 void dfUEqn::H(double *Psi) {
@@ -819,6 +878,36 @@ void dfUEqn::compareHbyA(const double *HbyA, const double *boundary_HbyA, bool p
     checkVectorEqual(dataBase_.num_cells * 3, h_HbyA_ref, h_HbyA, 1e-10, printFlag);
     fprintf(stderr, "check h_boundary_HbyA\n");
     checkVectorEqual(dataBase_.num_boundary_surfaces * 3, h_boundary_HbyA_ref, h_boundary_HbyA, 1e-10, printFlag);
+}
+
+void dfUEqn::compareU(const double *U, const double *boundary_U, bool printFlag)
+{
+    double *h_u = new double[dataBase_.num_cells * 3];
+    double *h_u_ref = new double[dataBase_.num_cells * 3];
+    double *h_boundary_u = new double[dataBase_.num_boundary_surfaces * 3];
+    double *h_boundary_u_ref = new double[dataBase_.num_boundary_surfaces * 3];
+
+    // permute
+    for (int i = 0; i < dataBase_.num_cells; i++)
+    {
+        h_u_ref[dataBase_.num_cells * 0 + i] = U[i * 3 + 0];
+        h_u_ref[dataBase_.num_cells * 1 + i] = U[i * 3 + 1];
+        h_u_ref[dataBase_.num_cells * 2 + i] = U[i * 3 + 2];
+    }
+    for (int i = 0; i < dataBase_.num_boundary_surfaces; i++)
+    {
+        h_boundary_u_ref[dataBase_.num_boundary_surfaces * 0 + i] = boundary_U[i * 3 + 0];
+        h_boundary_u_ref[dataBase_.num_boundary_surfaces * 1 + i] = boundary_U[i * 3 + 1];
+        h_boundary_u_ref[dataBase_.num_boundary_surfaces * 2 + i] = boundary_U[i * 3 + 2];
+    }
+    checkCudaErrors(cudaMemcpy(h_u, dataBase_.d_u, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToHost));
+    checkCudaErrors(cudaMemcpy(h_boundary_u, dataBase_.d_boundary_u, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyDeviceToHost));
+
+    // check result
+    fprintf(stderr, "check h_u\n");
+    checkVectorEqual(dataBase_.num_cells * 3, h_u_ref, h_u, 1e-10, printFlag);
+    fprintf(stderr, "check h_boundary_u\n");
+    checkVectorEqual(dataBase_.num_boundary_surfaces * 3, h_boundary_u_ref, h_boundary_u, 1e-10, printFlag);
 }
 
 void dfUEqn::comparerAU(const double *rAU, const double *boundary_rAU, bool printFlag)

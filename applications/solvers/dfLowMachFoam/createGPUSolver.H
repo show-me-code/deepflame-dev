@@ -104,6 +104,7 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
     const labelUList& owner = mesh.owner();
     const labelUList& neighbour = mesh.neighbour();
     int num_cells = mesh.nCells();
+    int num_total_cells = Foam::returnReduce(num_cells, sumOp<label>());
     int num_surfaces = neighbour.size();
     int num_boundary_surfaces = 0;
     int num_patches = 0;
@@ -119,11 +120,36 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
         }
         num_patches++;
     }
+    // prepare interface info
+    const globalIndex globalNumbering(num_cells);
+    const lduInterfacePtrsList interfaces(mesh.interfaces());
+    const lduAddressing& lduAddr = mesh.lduAddr();
+    labelList globalCells(num_cells);
+    forAll(globalCells, celli)
+    {
+        globalCells[celli] = globalNumbering.toGlobal(Pstream::myProcNo(), celli);
+    }
+    const label nReq = Pstream::nRequests();
+    label nProcValues = 0;
+    // send global cells
+    forAll(interfaces, patchi)
+    {
+        if (interfaces.set(patchi))
+        {
+            nProcValues += lduAddr.patchAddr(patchi).size();
+
+            // send patchInternalField
+            interfaces[patchi].initInternalFieldTransfer
+            (
+                Pstream::commsTypes::nonBlocking,
+                globalCells
+            );
+        }
+    }
     // TODO: get deltaT fomr time API
     double rDeltaT = 1 / 1e-6;
-    dfDataBase.setConstantValues(num_cells, num_surfaces, num_boundary_surfaces, 
-            num_patches, patch_size, Y.size(), rDeltaT);
-    
+    dfDataBase.setConstantValues(num_cells, num_total_cells, num_surfaces, num_boundary_surfaces, 
+            num_patches, nProcValues, patch_size, Y.size(), rDeltaT);
     // wyr: now there is no other place to prepare nccl info, thus mpi must be initialized at beginning.
     label flag_mpi_init;
     MPI_Initialized(&flag_mpi_init);
@@ -137,17 +163,58 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
         }
         // prepare mpi and nccl info
         dfDataBase.setCommInfo(PstreamGlobals::MPI_COMM_FOAM, nccl_comm, nccl_id, nRanks, myRank, localRank, GPUNeighbProcNo);
-        // TODO: test for temp
-        //ncclTest(nccl_comm);
-        //ncclDestroy(nccl_comm);
     }
 
     // prepare cuda resources
     dfDataBase.prepareCudaResources();
 
-    // prepare constant indexes: owner, neighbor
-    dfDataBase.setConstantIndexes(&owner[0], &neighbour[0]);
+    // prepare constant indexes: owner, neighbor, procRows, procCols
+    if (Pstream::parRun())
+    {
+        Pstream::waitRequests(nReq);
+    }
+    labelField procRows(nProcValues, 0);
+    labelField procCols(nProcValues, 0);
+    nProcValues = 0;
 
+    forAll(interfaces, patchi)
+    {
+        if (interfaces.set(patchi))
+        {
+            // local cell index
+            const labelUList& faceCells = lduAddr.patchAddr(patchi);
+            const label len = faceCells.size();
+
+            // global col index
+            labelField nbrCells
+            (
+                interfaces[patchi].internalFieldTransfer
+                (
+                    Pstream::commsTypes::nonBlocking,
+                    globalCells
+                )
+            );
+
+            if (faceCells.size() != nbrCells.size())
+            {
+                FatalErrorInFunction
+                    << "Mismatch in interface sizes (AMI?)" << nl
+                    << "Have " << faceCells.size() << " != "
+                    << nbrCells.size() << nl
+                    << exit(FatalError);
+            }
+
+            // for AMGx: Local rows, Global columns
+            SubList<label>(procRows, len, nProcValues) = faceCells;
+            SubList<label>(procCols, len, nProcValues) = nbrCells;
+            nProcValues += len;
+        }
+    }
+    DEBUG_TRACE;
+    label globalOffset = globalNumbering.toGlobal(0);
+    DEBUG_TRACE;
+    dfDataBase.setConstantIndexes(&owner[0], &neighbour[0], &procRows[0], &procCols[0], globalOffset);
+    DEBUG_TRACE;
     // prepare internal and boundary of sf, mag_sf, weights, delta_coeffs, volume
     double *boundary_sf = new double[3 * num_boundary_surfaces];
     double *boundary_mag_sf = new double[num_boundary_surfaces];
@@ -242,7 +309,6 @@ void createGPURhoEqn(const volScalarField& rho, const surfaceScalarField& phi) {
             memcpy(h_boundary_rho + offset + patchsize, &patchRhoInternal[0], patchsize * sizeof(double));
 
             memcpy(h_boundary_phi + offset, &patchPhi[0], patchsize * sizeof(double));
-            memcpy(h_boundary_phi + offset + patchsize, &patchPhi[0], patchsize * sizeof(double));
 
             offset += patchsize * 2;
         } else {

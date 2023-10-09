@@ -28,11 +28,11 @@ void fvc_to_source_vector(cudaStream_t stream, int num_cells, const double *volu
 
 void fvc_to_source_scalar(cudaStream_t stream, int num_cells, const double *volume, const double *fvc_output, double *source, double sign = 1.);
 
-void ldu_to_csr_scalar(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surface,
-        const int* boundary_cell_face, const int *ldu_to_csr_index, const int *diag_to_csr_index,
-        double *ldu, double *source,
-        const double *internal_coeffs, const double *boundary_coeffs,
-        double *A);
+void ldu_to_csr_scalar(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surface, int num_Nz, 
+        const int* boundary_cell_face, const int *ldu_to_csr_index,
+        int num_patches, const int *patch_size, const int *patch_type,
+        double* ldu, double *source, // b = source
+        const double *internal_coeffs, const double *boundary_coeffs, double *A);
 
 void ldu_to_csr(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surface,
         const int* boundary_cell_face, const int *ldu_to_csr_index, const int *diag_to_csr_index,

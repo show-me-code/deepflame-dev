@@ -201,6 +201,7 @@ int main(int argc, char *argv[])
     createGPUEEqn(CanteraTorchProperties, thermo.he(), K);
     createGPUpEqn(CanteraTorchProperties, p, U);
     createGPURhoEqn(rho, phi);
+    DEBUG_TRACE;
 #endif
 
     end1 = std::clock();

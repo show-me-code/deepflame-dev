@@ -27,6 +27,9 @@
 // PETSc
 // # include <petscvec.h>
 
+// mpi
+#include <mpi.h>
+
 
 /** \brief A macro to check the returned CUDA error code.
  *
@@ -155,6 +158,7 @@ class AmgXSolver
         void setOperator
         (
             const int nRows,
+            const int nGlobalRows,
             const int nNz,
             const int *rowIndex,
             const int *colIndex,
@@ -260,8 +264,17 @@ class AmgXSolver
         /** \brief A flag indicating if this instance has been initialized. */
         bool                    isInitialised = false;
 
+        /** \brief A flag indicating whether MPI is enabled */
+        int                     isMPIEnabled;
+        
         /** \brief A parameter used by AmgX. */
         int                     ring;
+
+        /** \brief rank size in global communicator */
+        int                     mpiSize;
+
+        /** \brief rank size in global communicator */
+        MPI_Comm                mpiWorld;
 
         /** \brief AmgX solver mode. */
         AMGX_Mode               mode;

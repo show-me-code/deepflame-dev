@@ -594,18 +594,17 @@ void dfYEqn::process() {
 }
 
 void dfYEqn::solve(int solverIndex) {
-    int nNz = dataBase_.num_cells + dataBase_.num_surfaces * 2; // matrix entries
     if (num_iteration == 0)                                     // first interation
     {
         fprintf(stderr, "Initializing AmgX Linear Solver\n");
         DEBUG_TRACE;
-        YSolverSet[solverIndex]->setOperator(dataBase_.num_cells, nNz, dataBase_.d_csr_row_index, dataBase_.d_csr_col_index, d_A);
+        YSolverSet[solverIndex]->setOperator(dataBase_.num_cells, dataBase_.num_total_cells, dataBase_.num_Nz, dataBase_.d_csr_row_index, dataBase_.d_csr_col_index, d_A);
         DEBUG_TRACE;
     }
     else
     {
         DEBUG_TRACE;
-        YSolverSet[solverIndex]->updateOperator(dataBase_.num_cells, nNz, d_A);
+        YSolverSet[solverIndex]->updateOperator(dataBase_.num_cells, dataBase_.num_Nz, d_A);
         DEBUG_TRACE;
     }
     // use d_source as d_b
