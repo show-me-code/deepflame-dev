@@ -434,14 +434,6 @@ void dfMatrixDataBase::createNonConstantFieldsBoundary() {
     fieldPointerMap["h_boundary_phi_old"] = h_boundary_phi_old;
 }
 
-void dfMatrixDataBase::initNonConstantFieldsInternal(const double *y) {
-    checkCudaErrors(cudaMemcpyAsync(d_y, y, cell_value_bytes * num_species, cudaMemcpyHostToDevice, stream));
-}
-
-void dfMatrixDataBase::initNonConstantFieldsBoundary(const double *boundary_y) {
-    checkCudaErrors(cudaMemcpyAsync(d_boundary_y, boundary_y, boundary_surface_value_bytes* num_species, cudaMemcpyHostToDevice, stream));
-}
-
 void dfMatrixDataBase::preTimeStep(const double *u_old, const double *boundary_u_old, const double *p_old, const double *boundary_p_old) {
     checkCudaErrors(cudaMemcpyAsync(d_rho_old, d_rho, cell_value_bytes, cudaMemcpyDeviceToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_phi_old, d_phi, surface_value_bytes, cudaMemcpyDeviceToDevice, stream));

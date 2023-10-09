@@ -50,6 +50,10 @@ void update_boundary_coeffs_vector(cudaStream_t stream, int num_boundary_surface
         double *value_internal_coeffs, double *value_boundary_coeffs,
         double *gradient_internal_coeffs, double *gradient_boundary_coeffs);
 
+void correct_boundary_conditions_processor_scalar(cudaStream_t stream, ncclComm_t comm,
+        int peer, int num, int offset,
+        const double *vf, const int *boundary_cell_face, double *vf_boundary);
+
 void correct_boundary_conditions_scalar(cudaStream_t stream, ncclComm_t comm,
         const int *peer, int num_boundary_surfaces, int num_patches,
         const int *patch_size, const int *patch_type,
@@ -147,8 +151,8 @@ void fvc_div_surface_scalar(cudaStream_t stream, int num_cells, int num_surfaces
 void fvc_div_cell_vector(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces,
         const int *lowerAddr, const int *upperAddr,
         const double *weight, const double *Sf, const double *vf, double *output, // end for internal
-        int num_patches, const int *patch_size, const int *patch_type,
-        const int *boundary_cell_face, const double *boundary_vf, const double *boundary_Sf,
+        int num_patches, const int *patch_size, const int *patch_type, const int *boundary_cell_face,
+        const double *boundary_weight, const double *boundary_vf, const double *boundary_Sf,
         const double *volume, double sign = 1.);
 
 void fvc_div_cell_tensor(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces, 
@@ -171,7 +175,8 @@ void fvc_grad_cell_scalar(cudaStream_t stream, int num_cells, int num_surfaces, 
         int num_patches, const int *patch_size, const int *patch_type, const double *boundary_weight,
         const int *boundary_cell_face, const double *boundary_vf, const double *boundary_Sf, const double *volume, double sign = 1.);
 
-void fvc_grad_cell_scalar_withBC(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces,
+void fvc_grad_cell_scalar_withBC(cudaStream_t stream, ncclComm_t comm, const int *neighbor_peer,
+        int num_cells, int num_surfaces, int num_boundary_surfaces,
         const int *lowerAddr, const int *upperAddr,
         const double *weight, const double *Sf, const double *vf, double *output, // end for internal
         int num_patches, const int *patch_size, const int *patch_type, const double *boundary_weight,

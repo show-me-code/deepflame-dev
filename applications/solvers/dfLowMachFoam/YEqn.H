@@ -1,5 +1,5 @@
-#undef GPUSolverNew_
-#define CPUSolver_
+//#undef GPUSolverNew_
+//#define CPUSolver_
 hDiffCorrFlux = Zero;
 diffAlphaD = Zero;
 sumYDiffError = Zero;
@@ -225,13 +225,35 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
         int offset = 0;
         forAll(rhoDi.boundaryField(), patchi)
         {
-            const scalarField& patchRhoDi = rhoDi.boundaryField()[patchi];
+            const fvPatchScalarField& patchRhoDi = rhoDi.boundaryField()[patchi];
+            const fvPatchScalarField& patchHaii = haii.boundaryField()[patchi];
             int patchSize = patchRhoDi.size();
-            memcpy(h_boundary_rhoD + dfDataBase.num_boundary_surfaces * i + offset, &patchRhoDi[0], patchSize*sizeof(double));
-            // UnityLewis
-            const scalarField& patchHaii = haii.boundaryField()[patchi];
-            memcpy(h_boundary_hai + dfDataBase.num_boundary_surfaces * i + offset, &patchHaii[0], patchSize*sizeof(double));
-            offset += patchSize;
+
+            if (patchRhoDi.type() == "processor") {
+                int rank = dynamic_cast<const processorFvPatchField<scalar>&>(patchRhoDi).rank();
+                if (dynamic_cast<const processorFvPatchField<scalar>&>(patchRhoDi).doTransform()) {
+                    Info << "rank = " << rank << ", rhoD transform = true" << endl;
+                } else {
+                    Info << "rank = " << rank << ", rhoD transform = false" << endl;
+                }
+
+                scalarField patchRhoDiInternal = dynamic_cast<const processorFvPatchField<scalar>&>(patchRhoDi).patchInternalField()();
+                memcpy(h_boundary_rhoD + dfDataBase.num_boundary_surfaces * i + offset, &patchRhoDi[0], patchSize * sizeof(double));
+                memcpy(h_boundary_rhoD + dfDataBase.num_boundary_surfaces * i + offset + patchSize,
+                    &patchRhoDiInternal[0], patchSize * sizeof(double));
+
+                // UnityLewis
+                scalarField patchHaiiInternal = dynamic_cast<const processorFvPatchField<scalar>&>(patchHaii).patchInternalField()();
+                memcpy(h_boundary_hai + dfDataBase.num_boundary_surfaces * i + offset, &patchHaii[0], patchSize*sizeof(double));
+                memcpy(h_boundary_hai + dfDataBase.num_boundary_surfaces * i + offset + patchSize,
+                    &patchHaiiInternal[0], patchSize*sizeof(double));
+
+                offset += patchSize * 2;
+            } else {
+                memcpy(h_boundary_rhoD + dfDataBase.num_boundary_surfaces * i + offset, &patchRhoDi[0], patchSize * sizeof(double));
+                memcpy(h_boundary_hai + dfDataBase.num_boundary_surfaces * i + offset, &patchHaii[0], patchSize*sizeof(double));
+                offset += patchSize;
+            }
         }
     }
     // UnityLewis
@@ -242,10 +264,24 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
     int offset = 0;
     forAll(mut_sct.boundaryField(), patchi)
     {
-        const scalarField& patchMutSct = mut_sct.boundaryField()[patchi];
+        const fvPatchScalarField& patchMutSct = mut_sct.boundaryField()[patchi];
         int patchSize = patchMutSct.size();
-        memcpy(h_boundary_mut_sct + offset, &patchMutSct[0], patchSize*sizeof(double));
-        offset += patchSize;
+        if (patchMutSct.type() == "processor") {
+            int rank = dynamic_cast<const processorFvPatchField<scalar>&>(patchMutSct).rank();
+            if (dynamic_cast<const processorFvPatchField<scalar>&>(patchMutSct).doTransform()) {
+                Info << "rank = " << rank << ", mut_sct transform = true" << endl;
+            } else {
+                Info << "rank = " << rank << ", mut_sct transform = false" << endl;
+            }
+            scalarField patchMutSctInternal = dynamic_cast<const processorFvPatchField<scalar>&>(patchMutSct).patchInternalField()();
+            memcpy(h_boundary_mut_sct + offset, &patchMutSct[0], patchSize*sizeof(double));
+            memcpy(h_boundary_mut_sct + offset + patchSize,
+                    &patchMutSctInternal[0], patchSize*sizeof(double));
+            offset += patchSize * 2;
+        } else {
+            memcpy(h_boundary_mut_sct + offset, &patchMutSct[0], patchSize*sizeof(double));
+            offset += patchSize;
+        }
     }
     TICK_STOP(prepare on CPU);
 
@@ -274,18 +310,38 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
     offset = 0;
     forAll(diffAlphaD.boundaryField(), patchi)
     {
-        const scalarField& patchdiffAlphaD = diffAlphaD.boundaryField()[patchi];
-        const vectorField& patchgradyi = grad_yi.boundaryField()[patchi];
-        const vectorField& patchsumYDiffError = sumYDiffError.boundaryField()[patchi];
-        const vectorField& patchhDiffCorrFlux = hDiffCorrFlux.boundaryField()[patchi];
-        const scalarField& patchphiUc = phiUc.boundaryField()[patchi];
+        //const scalarField& patchdiffAlphaD = diffAlphaD.boundaryField()[patchi];
+        const fvPatchScalarField& patchdiffAlphaD = diffAlphaD.boundaryField()[patchi];
+        const fvPatchVectorField& patchgradyi = grad_yi.boundaryField()[patchi];
+        const fvPatchVectorField& patchsumYDiffError = sumYDiffError.boundaryField()[patchi];
+        const fvPatchVectorField& patchhDiffCorrFlux = hDiffCorrFlux.boundaryField()[patchi];
+        const fvsPatchScalarField& patchphiUc = phiUc.boundaryField()[patchi];
+        //fprintf(stderr, "myRank[%d] patchphiUc type: %s\n", myRank, patchphiUc.type().c_str());
         int patchSize = patchdiffAlphaD.size();
-        memcpy(h_boundary_diffAlphaD.data() + offset, &patchdiffAlphaD[0], patchSize*sizeof(double));
-        memcpy(h_boundary_grad_yi.data() + offset * 3, &patchgradyi[0][0], patchSize * 3 *sizeof(double));
-        memcpy(h_boundary_sumYDiffError.data() + offset * 3, &patchsumYDiffError[0][0], patchSize * 3 *sizeof(double));
-        memcpy(h_boundary_hDiffCorrFlux.data() + offset * 3, &patchhDiffCorrFlux[0][0], patchSize * 3 *sizeof(double));
-        memcpy(h_boundary_phiUc.data() + offset, &patchphiUc[0], patchSize*sizeof(double));
-        offset += patchSize;
+        if (patchdiffAlphaD.type() == "processor") {
+            scalarField patchdiffAlphaDInternal = dynamic_cast<const processorFvPatchField<scalar>&>(patchdiffAlphaD).patchInternalField()();
+            vectorField patchgradyiInternal = dynamic_cast<const processorFvPatchField<vector>&>(patchgradyi).patchInternalField()();
+            vectorField patchsumYDiffErrorInternal = dynamic_cast<const processorFvPatchField<vector>&>(patchsumYDiffError).patchInternalField()();
+            vectorField patchhDiffCorrFluxInternal = dynamic_cast<const processorFvPatchField<vector>&>(patchhDiffCorrFlux).patchInternalField()();
+            memcpy(h_boundary_diffAlphaD.data() + offset, &patchdiffAlphaD[0], patchSize*sizeof(double));
+            memcpy(h_boundary_diffAlphaD.data() + offset + patchSize, &patchdiffAlphaDInternal[0], patchSize*sizeof(double));
+            memcpy(h_boundary_grad_yi.data() + offset * 3, &patchgradyi[0][0], patchSize * 3 *sizeof(double));
+            memcpy(h_boundary_grad_yi.data() + (offset + patchSize) * 3, &patchgradyiInternal[0][0], patchSize * 3 *sizeof(double));
+            memcpy(h_boundary_sumYDiffError.data() + offset * 3, &patchsumYDiffError[0][0], patchSize * 3 *sizeof(double));
+            memcpy(h_boundary_sumYDiffError.data() + (offset + patchSize) * 3, &patchsumYDiffErrorInternal[0][0], patchSize * 3 *sizeof(double));
+            memcpy(h_boundary_hDiffCorrFlux.data() + offset * 3, &patchhDiffCorrFlux[0][0], patchSize * 3 *sizeof(double));
+            memcpy(h_boundary_hDiffCorrFlux.data() + (offset + patchSize) * 3, &patchhDiffCorrFluxInternal[0][0], patchSize * 3 *sizeof(double));
+            memcpy(h_boundary_phiUc.data() + offset, &patchphiUc[0], patchSize*sizeof(double));
+            memcpy(h_boundary_phiUc.data() + offset, &patchphiUc[0], patchSize*sizeof(double));
+            offset += patchSize * 2;
+        } else {
+            memcpy(h_boundary_diffAlphaD.data() + offset, &patchdiffAlphaD[0], patchSize*sizeof(double));
+            memcpy(h_boundary_grad_yi.data() + offset * 3, &patchgradyi[0][0], patchSize * 3 *sizeof(double));
+            memcpy(h_boundary_sumYDiffError.data() + offset * 3, &patchsumYDiffError[0][0], patchSize * 3 *sizeof(double));
+            memcpy(h_boundary_hDiffCorrFlux.data() + offset * 3, &patchhDiffCorrFlux[0][0], patchSize * 3 *sizeof(double));
+            memcpy(h_boundary_phiUc.data() + offset, &patchphiUc[0], patchSize*sizeof(double));
+            offset += patchSize;
+        }
     }
     DEBUG_TRACE;
     YEqn_GPU.comparediffAlphaD(&diffAlphaD[0], h_boundary_diffAlphaD.data(), false);
@@ -316,6 +372,7 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
     //DEBUG_TRACE;
     YEqn_GPU.compareResult(&YiEqn.lower()[0], &YiEqn.upper()[0], &YiEqn.diag()[0], &YiEqn.source()[0],
        yeqn_h_internal_coeffs.data(), yeqn_h_boundary_coeffs.data(), false);
+
     DEBUG_TRACE;
     // YEqn_GPU.compareYi(&Y[specie_index][0], specie_index, false);
     // DEBUG_TRACE;
@@ -324,7 +381,8 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
     TICK_START;
     // postProcess
     double *h_y = dfDataBase.getFieldPointer("y", location::cpu, position::internal);
-    YEqn_GPU.postProcess(h_y);
+    double *h_boundary_y = dfDataBase.getFieldPointer("y", location::cpu, position::boundary);
+    YEqn_GPU.postProcess(h_y, h_boundary_y);
     TICK_STOP(postProcess on GPU);
     DEBUG_TRACE;
 
@@ -337,11 +395,27 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
         offset += Yi.size();
     }
 
-    // correct boundary conditions of Y(cpu)
+    // copy h_boundary_y to Y(cpu)
+    offset = 0;
     forAll(Y, i)
     {
         volScalarField& Yi = Y[i];
-        Yi.correctBoundaryConditions();
+        forAll(Yi.boundaryField(), patchi) {
+            const fvPatchScalarField& const_patchYi = Yi.boundaryField()[patchi];
+            fvPatchScalarField& patchYi = const_cast<fvPatchScalarField&>(const_patchYi);
+            int patchsize = patchYi.size();
+            if (patchYi.type() == "processor") {
+                const scalarField const_patchYiInternal =
+                    dynamic_cast<const processorFvPatchField<scalar>&>(patchYi).patchInternalField()();
+                scalarField patchYiInternal = const_cast<scalarField&>(const_patchYiInternal);
+                memcpy(&patchYi[0], h_boundary_y + offset, patchsize * sizeof(double));
+                memcpy(&patchYiInternal[0], h_boundary_y + offset + patchsize, patchsize * sizeof(double));
+                offset += patchsize * 2;
+            } else {
+                memcpy(&patchYi[0], h_boundary_y + offset, patchsize * sizeof(double));
+                offset += patchsize;
+            }
+        }
     }
     DEBUG_TRACE;
 
@@ -398,5 +472,5 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
     time_monitor_YEqn += double(end2 - start2) / double(CLOCKS_PER_SEC);
 #endif
 }
-#undef CPUSolver_
-#define GPUSolverNew_
+//#undef CPUSolver_
+//#define GPUSolverNew_

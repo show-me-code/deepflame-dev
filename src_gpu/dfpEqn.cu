@@ -423,7 +423,8 @@ void dfpEqn::postProcess() {
     // correct U
     checkCudaErrors(cudaMemsetAsync(dataBase_.d_u, 0., dataBase_.cell_value_vec_bytes, dataBase_.stream));
     // TODO: may do not need to calculate boundary fields
-    fvc_grad_cell_scalar_withBC(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, 
+    fvc_grad_cell_scalar_withBC(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
+            dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
             dataBase_.d_owner, dataBase_.d_neighbor, dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_p, dataBase_.d_u, 
             dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_p.data(), dataBase_.d_boundary_weight,
             dataBase_.d_boundary_face_cell, dataBase_.d_boundary_p, dataBase_.d_boundary_sf, dataBase_.d_volume, 
@@ -476,7 +477,7 @@ void dfpEqn::getrhorAUf(cudaStream_t stream, int num_cells, int num_surfaces,
             offset += 2 * patch_size[i];
             continue;
         } else {
-            fprintf(stderr, "this boundary type is not support yet!\n");
+            fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
         }
         offset += patch_size[i];
     }
@@ -545,7 +546,7 @@ void dfpEqn::getphiHbyA(cudaStream_t stream, int num_cells, int num_surfaces, in
             offset += 2 * patch_size[i];
             continue;
         } else {
-            fprintf(stderr, "boundaryConditions other than zeroGradient are not support yet!\n");
+            fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
         }
         offset += patch_size[i];
     }

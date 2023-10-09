@@ -269,8 +269,8 @@ struct dfMatrixDataBase
 
     void createNonConstantFieldsInternal();
     void createNonConstantFieldsBoundary();
-    void initNonConstantFieldsInternal(const double *y);
-    void initNonConstantFieldsBoundary(const double *boundary_y);
+    void initNonConstantFieldsInternal();
+    void initNonConstantFieldsBoundary();
 
     void preTimeStep(const double *u_old, const double *boundary_u_old, const double *p_old, const double *boundary_p_old);
     void postTimeStep();
