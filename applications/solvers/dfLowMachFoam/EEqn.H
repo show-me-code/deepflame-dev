@@ -1,5 +1,5 @@
-#undef GPUSolverNew_
-#define CPUSolver_
+// #undef GPUSolverNew_
+// #define CPUSolver_
 {
     volScalarField& he = thermo.he();
 #ifdef GPUSolver_
@@ -122,41 +122,43 @@
 
     // get boundary value
     int eeqn_offset = 0;
-    int patchNum = 0;
     //TODO: check the difference between patchGradMau and patchGrad
     forAll(he.boundaryField(), patchi)
     {
-        patchNum++;
         const fvsPatchScalarField& pw = mesh.surfaceInterpolation::weights().boundaryField()[patchi];
         int patchSize = pw.size();
-
-        // construct gradient manually
-        const fvPatchScalarField& hew = he.boundaryField()[patchi];
-        const basicThermo& bThermo = basicThermo::lookupThermo(hew);
-        const scalarField& ppw = bThermo.p().boundaryField()[patchi];
-        fvPatchScalarField& Tw =
-            const_cast<fvPatchScalarField&>(bThermo.T().boundaryField()[patchi]);
-        scalarField& Tw_v = Tw;
-
-        Tw.evaluate();
-        const scalarField& patchDeltaCoeff = mesh.boundary()[patchi].deltaCoeffs();
-        const scalarField heInternal = bThermo.he(ppw, Tw, patchi)();
-        const scalarField heBoundary = bThermo.he(ppw, Tw, mesh.boundary()[patchi].faceCells())();
-        const scalarField patchGradMau = patchDeltaCoeff * (heInternal - heBoundary);
-
         const scalarField& patchK = K.boundaryField()[patchi];
-        // const scalarField& patchAlphaEff = alphaEff.boundaryField()[patchi]; // not H2Dcopy when use UnityLewis
-        // const scalarField& patchGrad = he.boundaryField()[patchi].gradientBoundaryCoeffs(); // gradient_
-
-        // const DimensionedField<scalar, volMesh>& patchHa_ = he.boundaryField()[patchi];
-        // const gradientEnergyFvPatchScalarField patchHa(mesh.boundary()[patchi], patchHa_);
-        // const scalarField& patchGrad = patchHa.gradient(); // gradient_
         memcpy(h_boundary_k + eeqn_offset, &patchK[0], patchSize*sizeof(double)); // tmp
-        // memcpy(boundary_alphaEff + eeqn_offset, &patchAlphaEff[0], patchSize*sizeof(double));
-        memcpy(h_boundary_heGradient + eeqn_offset, &patchGradMau[0], patchSize*sizeof(double)); // tmp
+        if (pw.type() == "processor") {
+            eeqn_offset += 2 * patchSize;
+        } else {
+            // construct gradient manually
+            const fvPatchScalarField& hew = he.boundaryField()[patchi];
+            const basicThermo& bThermo = basicThermo::lookupThermo(hew);
+            const scalarField& ppw = bThermo.p().boundaryField()[patchi];
+            fvPatchScalarField& Tw =
+                const_cast<fvPatchScalarField&>(bThermo.T().boundaryField()[patchi]);
+            scalarField& Tw_v = Tw;
 
-        eeqn_offset += patchSize;
+            Tw.evaluate();
+            const scalarField& patchDeltaCoeff = mesh.boundary()[patchi].deltaCoeffs();
+            const scalarField heInternal = bThermo.he(ppw, Tw, patchi)();
+            const scalarField heBoundary = bThermo.he(ppw, Tw, mesh.boundary()[patchi].faceCells())();
+            const scalarField patchGradMau = patchDeltaCoeff * (heInternal - heBoundary);
+
+            // const scalarField& patchAlphaEff = alphaEff.boundaryField()[patchi]; // not H2Dcopy when use UnityLewis
+            // const scalarField& patchGrad = he.boundaryField()[patchi].gradientBoundaryCoeffs(); // gradient_
+
+            // const DimensionedField<scalar, volMesh>& patchHa_ = he.boundaryField()[patchi];
+            // const gradientEnergyFvPatchScalarField patchHa(mesh.boundary()[patchi], patchHa_);
+            // const scalarField& patchGrad = patchHa.gradient(); // gradient_
+            // memcpy(boundary_alphaEff + eeqn_offset, &patchAlphaEff[0], patchSize*sizeof(double));
+            memcpy(h_boundary_heGradient + eeqn_offset, &patchGradMau[0], patchSize*sizeof(double)); // tmp
+
+            eeqn_offset += patchSize;
+        }
     }
+    exit(0);
 
     EEqn_GPU.preProcess(h_he, h_k, h_k_old, h_dpdt, h_boundary_k, h_boundary_heGradient);
 
@@ -246,5 +248,5 @@
     time_monitor_EEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
 #endif
 }
-#undef CPUSolver_
-#define GPUSolverNew_
+// #undef CPUSolver_
+// #define GPUSolverNew_

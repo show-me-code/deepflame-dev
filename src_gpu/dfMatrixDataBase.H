@@ -105,6 +105,7 @@ struct dfMatrixDataBase
     std::vector<int> patch_size;
     std::vector<int> patch_type_calculated;
     std::vector<int> patch_type_extropolated;
+    std::vector<int> patch_type_T;
     double rdelta_t = 0;
 
     // constant values -- ldu bytesize
@@ -177,10 +178,14 @@ struct dfMatrixDataBase
     double *d_phi_old = nullptr;
     // other shared fields between eqns - thermophysical
     double *d_thermo_psi = nullptr;
-    double *d_thermo_alpha = nullptr;
     double *d_hDiff_corr_flux = nullptr;
     double *d_diff_alphaD = nullptr;
     double *d_dpdt = nullptr;
+
+    double *d_T = nullptr;
+    double *d_mu = nullptr;
+    double *d_thermo_alpha = nullptr;
+
     // computed on GPU, used on CPU, need memcpyd2h - host
     double *h_rho = nullptr;
     double *h_rho_old = nullptr;
@@ -220,9 +225,12 @@ struct dfMatrixDataBase
     double *d_boundary_phi_old = nullptr;
     // other shared fields between eqns - thermophysical
     double *d_boundary_thermo_psi = nullptr;
-    double *d_boundary_thermo_alpha = nullptr;
     double *d_boundary_hDiff_corr_flux = nullptr;
     double *d_boundary_diff_alphaD = nullptr;
+
+    double *d_boundary_T = nullptr;
+    double *d_boundary_mu = nullptr;
+    double *d_boundary_thermo_alpha = nullptr;
     // boundary fields used between eqns
     double *d_boundary_rAU = nullptr;
     double *d_boundary_HbyA = nullptr;

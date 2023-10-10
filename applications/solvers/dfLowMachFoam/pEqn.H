@@ -308,14 +308,14 @@ else
             }
         }
         memcpy(h_p, &p[0], dfDataBase.cell_value_bytes);
-        // pEqn_GPU.correctP(h_p, h_boundary_p);
-        if (!mpi_init_flag || rank == 0) {
-            pEqn_GPU.comparep(h_p, h_boundary_p, false);
-        }
+        pEqn_GPU.correctP(h_p, h_boundary_p);
+        // if (!mpi_init_flag || rank == 0) {
+        //     pEqn_GPU.comparep(h_p, h_boundary_p, false);
+        // }
         #endif
         
         #ifdef GPUSolverNew_
-        // pEqn_GPU.postProcess();
+        pEqn_GPU.postProcess();
         #endif
 
         end1 = std::clock();
@@ -366,16 +366,19 @@ else
             const fvsPatchScalarField& patchFlux = phi.boundaryField()[patchi];
             int patchSize = patchFlux.size();
             memcpy(h_boundary_phi + offset, &patchFlux[0], patchSize*sizeof(double));
-            if (patchFlux.type() == "process") offset += 2 * patchSize;
-            else offset += patchSize;
+            if (patchFlux.type() == "processor") {
+                memset(h_boundary_phi + offset + patchSize, 0, patchSize*sizeof(double));
+                offset += 2 * patchSize;
+            } else {
+                offset += patchSize;
+            }
         }
-        // if (!mpi_init_flag || rank == 0) {
-        //     pEqn_GPU.comparephi(&phi[0], h_boundary_phi, false);
-        // }
+        if (!mpi_init_flag || rank == 0) {
+            pEqn_GPU.comparephi(&phi[0], h_boundary_phi, false);
+        }
         #endif
     }
 }
-exit(0);
  
 bool limitedp = pressureControl.limit(p);
 

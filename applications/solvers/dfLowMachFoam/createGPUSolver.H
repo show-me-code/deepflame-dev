@@ -10,6 +10,7 @@ dfUEqn UEqn_GPU(dfDataBase);
 dfYEqn YEqn_GPU(dfDataBase);
 dfEEqn EEqn_GPU(dfDataBase);
 dfpEqn pEqn_GPU(dfDataBase);
+dfThermo thermo_GPU(dfDataBase);
 
 #if defined(DEBUG_)
 template <typename T>
@@ -210,11 +211,9 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
             nProcValues += len;
         }
     }
-    DEBUG_TRACE;
     label globalOffset = globalNumbering.toGlobal(0);
-    DEBUG_TRACE;
     dfDataBase.setConstantIndexes(&owner[0], &neighbour[0], &procRows[0], &procCols[0], globalOffset);
-    DEBUG_TRACE;
+
     // prepare internal and boundary of sf, mag_sf, weights, delta_coeffs, volume
     double *boundary_sf = new double[3 * num_boundary_surfaces];
     double *boundary_mag_sf = new double[num_boundary_surfaces];
@@ -309,6 +308,7 @@ void createGPURhoEqn(const volScalarField& rho, const surfaceScalarField& phi) {
             memcpy(h_boundary_rho + offset + patchsize, &patchRhoInternal[0], patchsize * sizeof(double));
 
             memcpy(h_boundary_phi + offset, &patchPhi[0], patchsize * sizeof(double));
+            memset(h_boundary_phi + offset + patchsize, 0, patchsize * sizeof(double));
 
             offset += patchsize * 2;
         } else {
@@ -484,4 +484,51 @@ void createGPUpEqn(const IOdictionary& CanteraTorchProperties, volScalarField& p
     pEqn_GPU.createNonConstantFieldsInternal();
     pEqn_GPU.createNonConstantFieldsBoundary();
     pEqn_GPU.createNonConstantLduAndCsrFields();
+}
+
+void createGPUThermo(const IOdictionary& CanteraTorchProperties, volScalarField& T, volScalarField& he) {
+    DEBUG_TRACE;
+    // initialize dfThermo
+    string mechanismFile;
+    mechanismFile = CanteraTorchProperties.lookupOrDefault("CanteraMechanismFile", string(""));
+
+    thermo_GPU.setConstantValue(mechanismFile, dfDataBase.num_cells, dfDataBase.num_species);
+
+    double *h_T = new double[dfDataBase.num_cells];
+    double *h_he = new double[dfDataBase.num_cells];
+    double *h_boundary_T = new double[dfDataBase.num_boundary_surfaces];
+    double *h_boundary_he = new double[dfDataBase.num_boundary_surfaces];
+    memcpy(h_T, &T[0], dfDataBase.cell_value_bytes);
+    memcpy(h_he, &he[0], dfDataBase.cell_value_bytes);
+
+    // initialize T
+    std::vector<int> patch_type_T(dfDataBase.num_patches);
+    int offset = 0;
+    forAll(T.boundaryField(), patchi)
+    {
+        constructBoundarySelectorPerPatch(&(patch_type_T[patchi]), T.boundaryField()[patchi].type());
+        const fvPatchScalarField& patchT = T.boundaryField()[patchi];
+        const fvPatchScalarField& patchHe = he.boundaryField()[patchi];
+        int patchsize = patchT.size();
+        if (patchT.type() == "processor") {
+            memcpy(h_boundary_T + offset, &patchT[0], patchsize * sizeof(double));
+            scalarField patchTInternal = 
+                    dynamic_cast<const processorFvPatchField<scalar>&>(patchT).patchInternalField()();
+            memcpy(h_boundary_T + offset + patchsize, &patchTInternal[0], patchsize * sizeof(double));
+
+            memcpy(h_boundary_he + offset, &patchHe[0], patchsize * sizeof(double));
+            scalarField patchHeInternal = 
+                    dynamic_cast<const processorFvPatchField<scalar>&>(patchHe).patchInternalField()();
+            memcpy(h_boundary_he + offset + patchsize, &patchHeInternal[0], patchsize * sizeof(double));
+
+            offset += patchsize * 2;
+        } else {
+            memcpy(h_boundary_T + offset, &patchT[0], patchsize * sizeof(double));
+            memcpy(h_boundary_he + offset, &patchHe[0], patchsize * sizeof(double));
+            offset += patchsize;
+        }
+    }
+    thermo_GPU.setConstantFields(patch_type_T);
+    thermo_GPU.initNonConstantFields(h_T, h_boundary_T, h_he, h_boundary_he);
+    thermo_GPU.updateEnergy();
 }
