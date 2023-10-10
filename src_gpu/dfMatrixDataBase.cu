@@ -188,7 +188,6 @@ void dfMatrixDataBase::setConstantIndexes(const int *owner, const int *neighbor,
     }
     std::partial_sum(CSRRowIndex.begin(), CSRRowIndex.end(), CSRRowIndex.begin());
 
-
     std::transform(rowIndicesPermPair.begin(), rowIndicesPermPair.end(), std::back_inserter(lduCSRIndex), []
         (const std::pair<int, int>& pair) {
         return pair.second;
@@ -335,6 +334,8 @@ void dfMatrixDataBase::createNonConstantFieldsInternal() {
     checkCudaErrors(cudaMalloc((void**)&d_hDiff_corr_flux, cell_value_vec_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_diff_alphaD, cell_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_dpdt, cell_value_bytes));
+    checkCudaErrors(cudaMalloc((void**)&d_T, cell_value_bytes));
+    checkCudaErrors(cudaMalloc((void**)&d_mu, cell_value_bytes));
 
     // internal fields used between eqns
     checkCudaErrors(cudaMalloc((void**)&d_rAU, cell_value_bytes));
@@ -402,6 +403,8 @@ void dfMatrixDataBase::createNonConstantFieldsBoundary() {
     checkCudaErrors(cudaMalloc((void**)&d_boundary_thermo_alpha, boundary_surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_hDiff_corr_flux, boundary_surface_value_vec_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_diff_alphaD, boundary_surface_value_bytes));
+    checkCudaErrors(cudaMalloc((void**)&d_boundary_T, boundary_surface_value_bytes));
+    checkCudaErrors(cudaMalloc((void**)&d_boundary_mu, boundary_surface_value_bytes));
 
     // internal fields used between eqns
     checkCudaErrors(cudaMalloc((void**)&d_boundary_rAU, boundary_surface_value_bytes));

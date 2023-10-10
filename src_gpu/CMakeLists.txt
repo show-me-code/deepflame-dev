@@ -30,7 +30,8 @@ add_library(${PROJECT_NAME}
         dfYEqn.cu
         dfEEqn.cu
         dfRhoEqn.cu
-        dfpEqn.cu)
+        dfpEqn.cu
+        dfThermo.cu)
 
 target_link_libraries(${PROJECT_NAME}
     ${MPI_LIBRARIES}

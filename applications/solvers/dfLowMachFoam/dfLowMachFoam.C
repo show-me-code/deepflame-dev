@@ -73,6 +73,7 @@ Description
 #include "dfMatrixDataBase.H"
 #include "dfMatrixOpBase.H"
 #include "dfNcclBase.H"
+#include "dfThermo.H"
 #include <cuda_runtime.h>
 #include <thread>
 
@@ -201,7 +202,11 @@ int main(int argc, char *argv[])
     createGPUEEqn(CanteraTorchProperties, thermo.he(), K);
     createGPUpEqn(CanteraTorchProperties, p, U);
     createGPURhoEqn(rho, phi);
+    // createGPUThermo(CanteraTorchProperties, T, thermo.he());
     DEBUG_TRACE;
+
+    // volScalarField& he = thermo.he();
+    // thermo_GPU.compareHe(&he[0]);
 #endif
 
     end1 = std::clock();
