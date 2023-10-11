@@ -1,5 +1,5 @@
-#undef GPUSolverNew_
-#define CPUSolver_
+//#undef GPUSolverNew_
+//#define CPUSolver_
 hDiffCorrFlux = Zero;
 diffAlphaD = Zero;
 sumYDiffError = Zero;
@@ -355,23 +355,40 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
     // TODO: for temp, now we compare ldu, finally we compare csr
     std::vector<double> yeqn_h_internal_coeffs(dfDataBase.num_boundary_surfaces);
     std::vector<double> yeqn_h_boundary_coeffs(dfDataBase.num_boundary_surfaces);
+
     offset = 0;
-    for (int patchi = 0; patchi < dfDataBase.num_patches; patchi++)
+    forAll(Y[specie_index].boundaryField(), patchi)
     {
-        int patchsize = dfDataBase.patch_size[patchi];
+        const fvPatchScalarField& patchYi = Y[specie_index].boundaryField()[patchi];
+        int patchsize = patchYi.size();
         const double* internal_coeff_ptr = &YiEqn.internalCoeffs()[patchi][0];
         const double* boundary_coeff_ptr = &YiEqn.boundaryCoeffs()[patchi][0];
-        memcpy(yeqn_h_internal_coeffs.data() + offset, internal_coeff_ptr, patchsize * sizeof(double));
-        memcpy(yeqn_h_boundary_coeffs.data() + offset, boundary_coeff_ptr, patchsize * sizeof(double));
-        offset += patchsize;
+        if (patchYi.type() == "processor") {
+            memcpy(yeqn_h_internal_coeffs.data() + offset, internal_coeff_ptr, patchsize * sizeof(double));
+            memset(yeqn_h_internal_coeffs.data() + offset + patchsize, 0, patchsize * sizeof(double));
+            memcpy(yeqn_h_boundary_coeffs.data() + offset, boundary_coeff_ptr, patchsize * sizeof(double));
+            memset(yeqn_h_boundary_coeffs.data() + offset + patchsize, 0, patchsize * sizeof(double));
+            offset += patchsize * 2;
+        } else {
+            memcpy(yeqn_h_internal_coeffs.data() + offset, internal_coeff_ptr, patchsize * sizeof(double));
+            memcpy(yeqn_h_boundary_coeffs.data() + offset, boundary_coeff_ptr, patchsize * sizeof(double));
+            offset += patchsize;
+        }
     }
     // NOTE: ldu and yi can't be compared at the same time
     // to compare ldu data, you should open both DEBUG_ and DEBUG_CHECK_LDU in src_gpu
     // to compare yi, you should only open DEBUG_ in src_gpu.
     // Besides, if you compare ldu data, be patient to keep specie_index in YEqn.H and dfYEqn.cu the same.
     //DEBUG_TRACE;
-    YEqn_GPU.compareResult(&YiEqn.lower()[0], &YiEqn.upper()[0], &YiEqn.diag()[0], &YiEqn.source()[0],
-       yeqn_h_internal_coeffs.data(), yeqn_h_boundary_coeffs.data(), false);
+    bool printFlag = false;
+    int rank = -1;
+    if (mpi_init_flag) {
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    }
+    if (!mpi_init_flag || rank == 0) {
+        YEqn_GPU.compareResult(&YiEqn.lower()[0], &YiEqn.upper()[0], &YiEqn.diag()[0], &YiEqn.source()[0],
+                yeqn_h_internal_coeffs.data(), yeqn_h_boundary_coeffs.data(), printFlag);
+    }
 
     DEBUG_TRACE;
     // YEqn_GPU.compareYi(&Y[specie_index][0], specie_index, false);
@@ -472,5 +489,5 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
     time_monitor_YEqn += double(end2 - start2) / double(CLOCKS_PER_SEC);
 #endif
 }
-#undef CPUSolver_
-#define GPUSolverNew_
+//#undef CPUSolver_
+//#define GPUSolverNew_

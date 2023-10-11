@@ -191,7 +191,9 @@ start2 = std::clock();
         pEqn_GPU.comparerhorAUf(&rhorAUf[0], h_boundary_rhorAUf, false);
     }
 
-    
+    delete h_boundary_rAU;
+    delete h_boundary_rhorAUf;
+    delete h_boundary_HbyA;
 #endif
 
 #else
@@ -448,10 +450,11 @@ if (pimple.simpleRho())
 
 // Correct rhoUf if the mesh is moving
 fvc::correctRhoUf(rhoUf, rho, U, phi);
-
 if (thermo.dpdt())
 {
+DEBUG_TRACE;
     dpdt = EulerDdtSchemeFvcDdt(p);
+DEBUG_TRACE;
 
     if (mesh.moving())
     {
