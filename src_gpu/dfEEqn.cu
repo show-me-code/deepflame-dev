@@ -80,6 +80,12 @@ void dfEEqn::createNonConstantLduAndCsrFields() {
 #endif
 }
 
+void dfEEqn::initNonConstantFields(const double *he, const double *boundary_he)
+{
+    checkCudaErrors(cudaMemcpyAsync(dataBase_.d_he, he, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+    checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_he, boundary_he, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice));
+}
+
 void dfEEqn::preProcess(const double *h_he, const double *h_k, const double *h_k_old, const double *h_dpdt, const double *h_boundary_k, const double *h_boundary_heGradient)
 {
 }
@@ -142,6 +148,8 @@ void dfEEqn::process() {
             d_gradient_internal_coeffs, d_gradient_boundary_coeffs, d_boundary_heGradient);
     fvm_ddt_vol_scalar_vol_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.rdelta_t, dataBase_.d_rho, dataBase_.d_rho_old, 
             dataBase_.d_he, dataBase_.d_volume, d_diag, d_source);
+    // NOTE: fvm_div_scalar use d_phi_weight, which is computed in YEqn_GPU by compute_upwind_weight()
+    // thus we need open YEqn_GPU before UEqn_GPU
     fvm_div_scalar(dataBase_.stream, dataBase_.num_surfaces, dataBase_.d_owner, dataBase_.d_neighbor,
             dataBase_.d_phi, dataBase_.d_phi_weight,
             d_lower, d_upper, d_diag, // end for internal
@@ -149,7 +157,8 @@ void dfEEqn::process() {
             dataBase_.d_boundary_phi,
             d_value_internal_coeffs, d_value_boundary_coeffs,
             d_internal_coeffs, d_boundary_coeffs, 1.);
-    fvc_ddt_vol_scalar_vol_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.rdelta_t, dataBase_.d_rho, dataBase_.d_rho_old, dataBase_.d_k, 
+    fvc_ddt_vol_scalar_vol_scalar(dataBase_.stream, dataBase_.num_cells,
+            dataBase_.rdelta_t, dataBase_.d_rho, dataBase_.d_rho_old, dataBase_.d_k,
             dataBase_.d_k_old, dataBase_.d_volume, d_source, -1.);
     fvc_div_surface_scalar_vol_scalar(dataBase_.stream, dataBase_.num_surfaces, dataBase_.d_owner, dataBase_.d_neighbor, dataBase_.d_weight, 
             dataBase_.d_k, dataBase_.d_phi, d_source, // end for internal
@@ -228,42 +237,42 @@ void dfEEqn::compareResult(const double *lower, const double *upper, const doubl
     std::vector<double> h_lower;
     h_lower.resize(dataBase_.num_surfaces);
     checkCudaErrors(cudaMemcpy(h_lower.data(), d_lower, dataBase_.surface_value_bytes, cudaMemcpyDeviceToHost));
-    fprintf(stderr, "check h_lower");
+    fprintf(stderr, "check h_lower\n");
     checkVectorEqual(dataBase_.num_surfaces, lower, h_lower.data(), 1e-14, printFlag);
     DEBUG_TRACE;
 
     std::vector<double> h_upper;
     h_upper.resize(dataBase_.num_surfaces);
     checkCudaErrors(cudaMemcpy(h_upper.data(), d_upper, dataBase_.surface_value_bytes, cudaMemcpyDeviceToHost));
-    fprintf(stderr, "check h_upper");
+    fprintf(stderr, "check h_upper\n");
     checkVectorEqual(dataBase_.num_surfaces, upper, h_upper.data(), 1e-14, printFlag);
     DEBUG_TRACE;
 
     std::vector<double> h_diag;
     h_diag.resize(dataBase_.num_cells);
     checkCudaErrors(cudaMemcpy(h_diag.data(), d_diag, dataBase_.cell_value_bytes, cudaMemcpyDeviceToHost));
-    fprintf(stderr, "check h_diag");
+    fprintf(stderr, "check h_diag\n");
     checkVectorEqual(dataBase_.num_cells, diag, h_diag.data(), 1e-14, printFlag);
     DEBUG_TRACE;
 
     std::vector<double> h_source;
     h_source.resize(dataBase_.num_cells);
     checkCudaErrors(cudaMemcpy(h_source.data(), d_source, dataBase_.cell_value_bytes, cudaMemcpyDeviceToHost));
-    fprintf(stderr, "check h_source");
+    fprintf(stderr, "check h_source\n");
     checkVectorEqual(dataBase_.num_cells, source, h_source.data(), 1e-14, printFlag);
     DEBUG_TRACE;
 
     std::vector<double> h_internal_coeffs;
     h_internal_coeffs.resize(dataBase_.num_boundary_surfaces);
     checkCudaErrors(cudaMemcpy(h_internal_coeffs.data(), d_internal_coeffs, dataBase_.boundary_surface_value_bytes, cudaMemcpyDeviceToHost));
-    fprintf(stderr, "check h_internal_coeffs");
+    fprintf(stderr, "check h_internal_coeffs\n");
     checkVectorEqual(dataBase_.num_boundary_surfaces, internal_coeffs, h_internal_coeffs.data(), 1e-14, printFlag);
     DEBUG_TRACE;
 
     std::vector<double> h_boundary_coeffs;
     h_boundary_coeffs.resize(dataBase_.num_boundary_surfaces);
     checkCudaErrors(cudaMemcpy(h_boundary_coeffs.data(), d_boundary_coeffs, dataBase_.boundary_surface_value_bytes, cudaMemcpyDeviceToHost));
-    fprintf(stderr, "check h_boundary_coeffs");
+    fprintf(stderr, "check h_boundary_coeffs\n");
     checkVectorEqual(dataBase_.num_boundary_surfaces, boundary_coeffs, h_boundary_coeffs.data(), 1e-14, printFlag);
     DEBUG_TRACE;
 }
@@ -296,7 +305,7 @@ void dfEEqn::solve()
     num_iteration++;
 }
 
-void dfEEqn::postProcess(double *h_he)
+void dfEEqn::postProcess(double *h_he, double *h_boundary_he)
 {
 #ifdef STREAM_ALLOCATOR
     // thermophysical fields
@@ -317,6 +326,15 @@ void dfEEqn::postProcess(double *h_he)
     checkCudaErrors(cudaFreeAsync(d_A, dataBase_.stream));
     checkCudaErrors(cudaFreeAsync(d_b, dataBase_.stream));
 #endif
+
+    // correct boundary conditions
+    correct_boundary_conditions_scalar(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
+            dataBase_.num_boundary_surfaces, dataBase_.num_patches, dataBase_.patch_size.data(),
+            patch_type_he.data(), dataBase_.d_boundary_face_cell,
+            dataBase_.d_he, dataBase_.d_boundary_he);
+
+    // copy y to host
     checkCudaErrors(cudaMemcpyAsync(h_he, dataBase_.d_he, dataBase_.cell_value_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
+    checkCudaErrors(cudaMemcpyAsync(h_boundary_he, dataBase_.d_boundary_he, dataBase_.boundary_surface_value_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
     sync();
 }

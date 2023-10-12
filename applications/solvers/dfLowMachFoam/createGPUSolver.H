@@ -273,6 +273,12 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
     
     dfDataBase.createNonConstantFieldsInternal();
     dfDataBase.createNonConstantFieldsBoundary();
+
+    delete boundary_sf;
+    delete boundary_mag_sf;
+    delete boundary_delta_coeffs;
+    delete boundary_weights;
+    delete boundary_face_cell;
 }
 
 void createGPURhoEqn(const volScalarField& rho, const surfaceScalarField& phi) {
@@ -442,6 +448,28 @@ void createGPUEEqn(const IOdictionary& CanteraTorchProperties, volScalarField& h
     EEqn_GPU.createNonConstantFieldsInternal();
     EEqn_GPU.createNonConstantFieldsBoundary();
     EEqn_GPU.createNonConstantLduAndCsrFields();
+
+    double *h_he = dfDataBase.getFieldPointer("he", location::cpu, position::internal);
+    double *h_boundary_he = dfDataBase.getFieldPointer("he", location::cpu, position::boundary);
+    memcpy(h_he, &he[0], dfDataBase.cell_value_bytes);
+    int offset = 0;
+    forAll(he.boundaryField(), patchi)
+    {
+        const fvPatchScalarField& patchHe = he.boundaryField()[patchi];
+        int patchsize = patchHe.size();
+        if (patchHe.type() == "processor") {
+            scalarField patchHeInternal =
+                    dynamic_cast<const processorFvPatchField<scalar>&>(patchHe).patchInternalField()();
+            memcpy(h_boundary_he + offset, &patchHe[0], patchsize * sizeof(double));
+            memcpy(h_boundary_he + offset + patchsize, &patchHeInternal[0], patchsize * sizeof(double));
+            offset += patchsize * 2;
+        } else {
+            memcpy(h_boundary_he + offset, &patchHe[0], patchsize * sizeof(double));
+            offset += patchsize;
+        }
+    }
+
+    EEqn_GPU.initNonConstantFields(h_he, h_boundary_he);
 }
 
 void createGPUpEqn(const IOdictionary& CanteraTorchProperties, volScalarField& p, const volVectorField& U) {
@@ -500,6 +528,7 @@ void createGPUThermo(const IOdictionary& CanteraTorchProperties, volScalarField&
             thermo_GPU.binary_diffusion_coeffs, thermo_GPU.molecular_weights);
 
     // thermal variables in dataBase
+    // TODO: note that h_he & h_boundary_he are transfered to GPU in EEqn_GPU, too. We should delete one of them.
     double *h_T = new double[dfDataBase.num_cells];
     double *h_he = new double[dfDataBase.num_cells];
     double *h_thermo_psi = new double[dfDataBase.num_cells];
@@ -571,4 +600,9 @@ void createGPUThermo(const IOdictionary& CanteraTorchProperties, volScalarField&
     thermo_GPU.setConstantFields(patch_type_T);
     thermo_GPU.initNonConstantFields(h_T, h_he, h_thermo_psi, h_thermo_alpha, h_mu, 
             h_boundary_T, h_boundary_he, h_boundary_thermo_psi, h_boundary_thermo_alpha, h_boundary_mu);
+
+    delete h_T;
+    delete h_he;
+    delete h_boundary_T;
+    delete h_boundary_he;
 }

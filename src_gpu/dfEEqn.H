@@ -85,13 +85,14 @@ public:
     void createNonConstantFieldsInternal();
     void createNonConstantFieldsBoundary();
     void createNonConstantLduAndCsrFields();
+    void initNonConstantFields(const double *he, const double *boundary_he);
 
     // run equation
     // volScalarField diffAlphaD, volVectorField hDiffCorrFlux, 
     void preProcessForYEqn();
     void preProcess(const double *h_he, const double *h_k, const double *h_k_old, const double *h_dpdt, const double *h_boundary_k, const double *h_boundary_heGradient);
 	void process();
-	void postProcess(double *h_he);
+	void postProcess(double *h_he, double *h_boundary_he);
 
     void eeqn_calculate_energy_gradient(dfThermo& GPUThermo, int num_cells, int num_species, 
             int num_boundary_surfaces, const int *face2Cells, double *T, double *p, double *y,

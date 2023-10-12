@@ -19,9 +19,9 @@
     // const volScalarField& alphaEff = alphaEff_tmp();
     double *alphaEff = nullptr; // tmp
     end2 = std::clock();
-    int eeqn_offset = 0;
     int patchNum = 0;
 
+    offset = 0;
     forAll(he.boundaryField(), patchi)
     {
         patchNum++;
@@ -49,11 +49,11 @@
         // const DimensionedField<scalar, volMesh>& patchHa_ = he.boundaryField()[patchi];
         // const gradientEnergyFvPatchScalarField patchHa(mesh.boundary()[patchi], patchHa_);
         // const scalarField& patchGrad = patchHa.gradient(); // gradient_
-        memcpy(boundary_K + eeqn_offset, &patchK[0], patchSize*sizeof(double));
-        // memcpy(boundary_alphaEff + eeqn_offset, &patchAlphaEff[0], patchSize*sizeof(double));
-        memcpy(boundary_gradient + eeqn_offset, &patchGradMau[0], patchSize*sizeof(double));
+        memcpy(boundary_K + offset, &patchK[0], patchSize*sizeof(double));
+        // memcpy(boundary_alphaEff + offset, &patchAlphaEff[0], patchSize*sizeof(double));
+        memcpy(boundary_gradient + offset, &patchGradMau[0], patchSize*sizeof(double));
 
-        eeqn_offset += patchSize;
+        offset += patchSize;
     }
     end1 = std::clock();
     time_monitor_EEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
@@ -110,6 +110,7 @@
     double *h_he = dfDataBase.getFieldPointer("he", location::cpu, position::internal);
     double *h_k = dfDataBase.getFieldPointer("k", location::cpu, position::internal);
     double *h_k_old = dfDataBase.getFieldPointer("k_old", location::cpu, position::internal);
+    double *h_boundary_he = dfDataBase.getFieldPointer("he", location::cpu, position::boundary);
     double *h_boundary_k = dfDataBase.getFieldPointer("k", location::cpu, position::boundary);
     double *h_boundary_heGradient = EEqn_GPU.getFieldPointer("heGradient", location::cpu, position::boundary);
     double *h_dpdt = EEqn_GPU.getFieldPointer("dpdt", location::cpu, position::internal);
@@ -121,17 +122,21 @@
     memcpy(h_dpdt, &dpdt[0], dfDataBase.cell_value_bytes); 
 
     // get boundary value
-    int eeqn_offset = 0;
     //TODO: check the difference between patchGradMau and patchGrad
+    offset = 0;
     forAll(he.boundaryField(), patchi)
     {
-        const fvsPatchScalarField& pw = mesh.surfaceInterpolation::weights().boundaryField()[patchi];
-        int patchSize = pw.size();
-        const scalarField& patchK = K.boundaryField()[patchi];
-        memcpy(h_boundary_k + eeqn_offset, &patchK[0], patchSize*sizeof(double)); // tmp
-        if (pw.type() == "processor") {
-            eeqn_offset += 2 * patchSize;
-        } else {
+        const fvPatchScalarField& patchK = K.boundaryField()[patchi];
+        int patchSize = patchK.size();
+          if (patchK.type() == "processor") {
+              scalarField patchKInternal = dynamic_cast<const processorFvPatchField<scalar>&>(patchK).patchInternalField()();
+              memcpy(h_boundary_k + offset, &patchK[0], patchSize * sizeof(double));
+              memcpy(h_boundary_k + offset + patchSize,
+                      &patchKInternal[0], patchSize * sizeof(double));
+              offset += 2 * patchSize;
+          } else {
+            memcpy(h_boundary_k + offset, &patchK[0], patchSize*sizeof(double));
+
             // construct gradient manually
             const fvPatchScalarField& hew = he.boundaryField()[patchi];
             const basicThermo& bThermo = basicThermo::lookupThermo(hew);
@@ -152,20 +157,48 @@
             // const DimensionedField<scalar, volMesh>& patchHa_ = he.boundaryField()[patchi];
             // const gradientEnergyFvPatchScalarField patchHa(mesh.boundary()[patchi], patchHa_);
             // const scalarField& patchGrad = patchHa.gradient(); // gradient_
-            // memcpy(boundary_alphaEff + eeqn_offset, &patchAlphaEff[0], patchSize*sizeof(double));
-            memcpy(h_boundary_heGradient + eeqn_offset, &patchGradMau[0], patchSize*sizeof(double)); // tmp
+            // memcpy(boundary_alphaEff + offset, &patchAlphaEff[0], patchSize*sizeof(double));
+            memcpy(h_boundary_heGradient + offset, &patchGradMau[0], patchSize*sizeof(double)); // tmp
 
-            eeqn_offset += patchSize;
+            offset += patchSize;
         }
     }
 
     EEqn_GPU.preProcess(h_he, h_k, h_k_old, h_dpdt, h_boundary_k, h_boundary_heGradient);
 
+    DEBUG_TRACE;
     EEqn_GPU.process();
 
-    EEqn_GPU.postProcess(h_he);
+    DEBUG_TRACE;
+    EEqn_GPU.postProcess(h_he, h_boundary_he);
+    DEBUG_TRACE;
+
+    // copy h_he to he(cpu)
     memcpy(&he[0], h_he, dfDataBase.cell_value_bytes);
-    he.correctBoundaryConditions();
+
+    // copy h_boundary_he to he(cpu)
+    offset = 0;
+    forAll(he.boundaryField(), patchi) {
+        const fvPatchScalarField& const_patchHe = he.boundaryField()[patchi];
+        fvPatchScalarField& patchHe = const_cast<fvPatchScalarField&>(const_patchHe);
+        int patchsize = patchHe.size();
+        if (patchHe.type() == "processor") {
+            const scalarField const_patchHeInternal =
+                dynamic_cast<const processorFvPatchField<scalar>&>(patchHe).patchInternalField()();
+            scalarField patchHeInternal = const_cast<scalarField&>(const_patchHeInternal);
+            memcpy(&patchHe[0], h_boundary_he + offset, patchsize * sizeof(double));
+            memcpy(&patchHeInternal[0], h_boundary_he + offset + patchsize, patchsize * sizeof(double));
+            offset += patchsize * 2;
+        } else {
+            memcpy(&patchHe[0], h_boundary_he + offset, patchsize * sizeof(double));
+            offset += patchsize;
+        }
+    }
+    DEBUG_TRACE;
+
+    //DEBUG_TRACE;
+    //he.correctBoundaryConditions();
+    //DEBUG_TRACE;
 
 #if defined DEBUG_
     fvScalarMatrix EEqn
@@ -197,19 +230,36 @@
     std::vector<double> h_boundary_coeffs(dfDataBase.num_boundary_surfaces);
 
     offset = 0;
-    for (int patchi = 0; patchi < dfDataBase.num_patches; patchi++)
+    forAll(he.boundaryField(), patchi)
     {
-        int patchsize = dfDataBase.patch_size[patchi];
+        const fvPatchScalarField& patchHe = he.boundaryField()[patchi];
+        int patchSize = patchHe.size();
         const double* internal_coeff_ptr = &EEqn.internalCoeffs()[patchi][0];
         const double* boundary_coeff_ptr = &EEqn.boundaryCoeffs()[patchi][0];
-        memcpy(h_internal_coeffs.data() + offset, internal_coeff_ptr, patchsize * sizeof(double));
-        memcpy(h_boundary_coeffs.data() + offset, boundary_coeff_ptr, patchsize * sizeof(double));
-        offset += patchsize;
+        if (patchHe.type() == "processor") {
+            memcpy(h_internal_coeffs.data() + offset, internal_coeff_ptr, patchSize * sizeof(double));
+            memset(h_internal_coeffs.data() + offset + patchSize, 0, patchSize * sizeof(double));
+            memcpy(h_boundary_coeffs.data() + offset, boundary_coeff_ptr, patchSize * sizeof(double));
+            memset(h_boundary_coeffs.data() + offset + patchSize, 0, patchSize * sizeof(double));
+            offset += patchSize * 2;
+        } else {
+            memcpy(h_internal_coeffs.data() + offset, internal_coeff_ptr, patchSize * sizeof(double));
+            memcpy(h_boundary_coeffs.data() + offset, boundary_coeff_ptr, patchSize * sizeof(double));
+            offset += patchSize;
+        }
     }
     bool printFlag = false;
-    EEqn_GPU.compareResult(&EEqn.lower()[0], &EEqn.upper()[0], &EEqn.diag()[0], &EEqn.source()[0],
-            h_internal_coeffs.data(), h_boundary_coeffs.data(), printFlag);
-    DEBUG_TRACE;
+    int rank = -1;
+    if (mpi_init_flag) {
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    }
+    if (!mpi_init_flag || rank == 0) {
+		DEBUG_TRACE;
+		EEqn_GPU.compareResult(&EEqn.lower()[0], &EEqn.upper()[0], &EEqn.diag()[0], &EEqn.source()[0],
+				h_internal_coeffs.data(), h_boundary_coeffs.data(), printFlag);
+		DEBUG_TRACE;
+    }
+
 #endif
 
 #else
