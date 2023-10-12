@@ -16,10 +16,13 @@
 #include <cmath>
 #include <unordered_map>
 
+extern int myRank;
+
 #define DEBUG_
 
 #ifdef DEBUG_
-   #define DEBUG_TRACE fprintf(stderr, "%s %d\n", __FILE__, __LINE__);
+   //#define DEBUG_TRACE fprintf(stderr, "%s %d\n", __FILE__, __LINE__);
+   #define DEBUG_TRACE fprintf(stderr, "myRank[%d] %s %d\n", myRank, __FILE__, __LINE__);
 #else
    #define DEBUG_TRACE
 #endif
@@ -47,11 +50,12 @@ inline void checkVectorEqual(int count, const double* basevec, double* vec, doub
     {
         double abs_diff = fabs(basevec[i] - vec[i]);
         double rel_diff = fabs(basevec[i] - vec[i]) / fabs(basevec[i]);
-        if (print)
-            fprintf(stderr, "index %d, cpu data: %.24lf, gpu data: %.24lf, relative error: %.24lf\n", i, basevec[i], vec[i], rel_diff);
+        if (print && myRank == 0)
+            fprintf(stderr, "myRank[%d] index %d, cpu data: %.24lf, gpu data: %.24lf, relative error: %.24lf\n", myRank, i, basevec[i
+    ], vec[i], rel_diff);
         // if (abs_diff > 1e-12 && rel_diff > max_relative_error && !std::isinf(rel_diff))
-        if (abs_diff > 1e-15 && rel_diff > max_relative_error)
-            fprintf(stderr, "mismatch index %d, cpu data: %.30lf, gpu data: %.30lf, relative error: %.16lf\n", i, basevec[i], vec[i], rel_diff);
+        if (abs_diff > 1e-15 && rel_diff > max_relative_error && myRank == 0)
+            fprintf(stderr, "myRank[%d] mismatch index %d, cpu data: %.30lf, gpu data: %.30lf, relative error: %.16lf\n", myRank, i, basevec[i], vec[i], rel_diff);
     }   
 }
 

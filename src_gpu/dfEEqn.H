@@ -82,13 +82,14 @@ public:
     void createNonConstantFieldsInternal();
     void createNonConstantFieldsBoundary();
     void createNonConstantLduAndCsrFields();
+    void initNonConstantFields(const double *he, const double *boundary_he);
 
     // run equation
     // volScalarField diffAlphaD, volVectorField hDiffCorrFlux, 
     void preProcessForYEqn();
     void preProcess(const double *h_he, const double *h_k, const double *h_k_old, const double *h_dpdt, const double *h_boundary_k, const double *h_boundary_heGradient);
 	void process();
-	void postProcess(double *h_he);
+	void postProcess(double *h_he, double *h_boundary_he);
 
     void solve();
     void compareResult(const double *lower, const double *upper, const double *diag, const double *source, const double *internal_coeffs, const double *boundary_coeffs, bool printFlag);
