@@ -27,15 +27,17 @@ __global__ void yeqn_compute_thermo_alpha_boundary(int num_boundary_surfaces,
 }
 
 __global__ void yeqn_compute_DEff_kernel(int num_species, int num,
-        const double *rhoD, const double *mut_sct, double *DEff)
+        const double *lewis_number, const double *thermo_alpha, const double *mut_sct, double *DEff)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index >= num)
         return;
 
     double mutsct = mut_sct[index];
+    double rhoD;
     for (int s = 0; s < num_species; s++) {
-        DEff[num * s + index] =  rhoD[num * s + index] + mutsct;
+        rhoD = thermo_alpha[index] / lewis_number[s]; // le = alpha / D
+        DEff[num * s + index] =  rhoD + mutsct;
     }
 }
 
@@ -81,7 +83,7 @@ __global__ void yeqn_compute_phiUc_boundary(int num_boundary_surfaces,
 }
  
 __global__ void yeqn_sumError_and_compute_hDiffCorrFlux(int num_species, int num,
-        const double *rhoD, const double *hai, const double *y, const double *grady,
+        const double *lewis_number, const double *thermo_alpha, const double *hai, const double *y, const double *grady,
         double *sum_rhoD_grady, double *hDiffCorrFlux)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
@@ -97,7 +99,7 @@ __global__ void yeqn_sumError_and_compute_hDiffCorrFlux(int num_species, int num
     double sum_hai_y = 0;
     for (int s = 0; s < num_species; s++) {
         double hai_value = hai[num * s + index];
-        double rhoD_value = rhoD[num * s + index];
+        double rhoD_value = thermo_alpha[index] / lewis_number[s]; // le = alpha/D
         double y_value = y[num * s + index];
         double grady_x = grady[num * s * 3 + num * 0 + index];
         double grady_y = grady[num * s * 3 + num * 1 + index];
@@ -291,14 +293,17 @@ void dfYEqn::setConstantValues(const std::string &mode_string, const std::string
         solver = new AmgXSolver(mode_string, setting_path, dataBase_.localRank);
 }
 
-void dfYEqn::setConstantFields(const std::vector<int> patch_type) {
+void dfYEqn::setConstantFields(const std::vector<int> patch_type, const std::vector<double> lewis_number) {
     this->patch_type = patch_type;
+    this->lewis_number = lewis_number;
+    // print lewis number
+    checkCudaErrors(cudaMalloc((void**)&d_lewis_number, dataBase_.num_species * sizeof(double)));
+    checkCudaErrors(cudaMemcpy(d_lewis_number, lewis_number.data(), dataBase_.num_species * sizeof(double), cudaMemcpyHostToDevice));
 }
 
 void dfYEqn::createNonConstantFieldsInternal() {
 #ifndef STREAM_ALLOCATOR
     // thermophysical fields
-    checkCudaErrors(cudaMalloc((void**)&d_rhoD, dataBase_.cell_value_bytes * dataBase_.num_species));
     checkCudaErrors(cudaMalloc((void**)&d_hai, dataBase_.cell_value_bytes * dataBase_.num_species));
     checkCudaErrors(cudaMalloc((void**)&d_mut_sct, dataBase_.cell_value_bytes));
     // intermediate fields
@@ -323,7 +328,6 @@ void dfYEqn::createNonConstantFieldsInternal() {
 void dfYEqn::createNonConstantFieldsBoundary() {
 #ifndef STREAM_ALLOCATOR
     // thermophysical fields
-    checkCudaErrors(cudaMalloc((void**)&d_boundary_rhoD, dataBase_.boundary_surface_value_bytes * dataBase_.num_species));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_hai, dataBase_.boundary_surface_value_bytes * dataBase_.num_species));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_mut_sct, dataBase_.boundary_surface_value_bytes));
     // intermediate fields
@@ -413,7 +417,6 @@ void dfYEqn::process() {
 
 #ifdef STREAM_ALLOCATOR
 	// thermophysical fields
-	checkCudaErrors(cudaMallocAsync((void**)&d_rhoD, dataBase_.cell_value_bytes * dataBase_.num_species, dataBase_.stream));
 	checkCudaErrors(cudaMallocAsync((void**)&d_hai, dataBase_.cell_value_bytes * dataBase_.num_species, dataBase_.stream));
 	checkCudaErrors(cudaMallocAsync((void**)&d_mut_sct, dataBase_.cell_value_bytes, dataBase_.stream));
 	// intermediate fields
@@ -423,7 +426,6 @@ void dfYEqn::process() {
 	checkCudaErrors(cudaMallocAsync((void**)&d_DEff, dataBase_.cell_value_bytes * dataBase_.num_species, dataBase_.stream));
 	checkCudaErrors(cudaMallocAsync((void**)&d_permute, dataBase_.cell_value_vec_bytes, dataBase_.stream));
 	// thermophysical fields
-	checkCudaErrors(cudaMallocAsync((void**)&d_boundary_rhoD, dataBase_.boundary_surface_value_bytes * dataBase_.num_species, dataBase_.stream));
 	checkCudaErrors(cudaMallocAsync((void**)&d_boundary_hai, dataBase_.boundary_surface_value_bytes * dataBase_.num_species, dataBase_.stream));
 	checkCudaErrors(cudaMallocAsync((void**)&d_boundary_mut_sct, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
 	// intermediate fields
@@ -442,9 +444,6 @@ void dfYEqn::process() {
 	checkCudaErrors(cudaMallocAsync((void**)&d_boundary_coeffs, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
 	checkCudaErrors(cudaMallocAsync((void**)&d_A, dataBase_.csr_value_bytes, dataBase_.stream));
 #endif
-
-	checkCudaErrors(cudaMemcpyAsync(d_rhoD, h_rhoD, dataBase_.cell_value_bytes * dataBase_.num_species, cudaMemcpyHostToDevice, dataBase_.stream));
-	checkCudaErrors(cudaMemcpyAsync(d_boundary_rhoD, h_boundary_rhoD, dataBase_.boundary_surface_value_bytes * dataBase_.num_species, cudaMemcpyHostToDevice, dataBase_.stream));
 	// UnityLewis
 	checkCudaErrors(cudaMemcpyAsync(d_hai, h_hai, dataBase_.cell_value_bytes * dataBase_.num_species, cudaMemcpyHostToDevice, dataBase_.stream));
 	checkCudaErrors(cudaMemcpyAsync(d_boundary_hai, h_boundary_hai, dataBase_.boundary_surface_value_bytes * dataBase_.num_species, cudaMemcpyHostToDevice, dataBase_.stream));
@@ -456,10 +455,10 @@ void dfYEqn::process() {
 	checkCudaErrors(cudaMemsetAsync(d_grad_y, 0, dataBase_.cell_value_vec_bytes * dataBase_.num_species, dataBase_.stream));
 	checkCudaErrors(cudaMemsetAsync(d_boundary_grad_y, 0, dataBase_.boundary_surface_value_vec_bytes * dataBase_.num_species, dataBase_.stream));
 
-        // compute thermo_alpha
-        yeqn_compute_thermo_alpha(dataBase_.stream,
-                dataBase_.num_cells, d_rhoD, dataBase_.d_thermo_alpha,
-                dataBase_.num_boundary_surfaces, d_boundary_rhoD, dataBase_.d_boundary_thermo_alpha);
+        // // compute thermo_alpha
+        // yeqn_compute_thermo_alpha(dataBase_.stream,
+        //         dataBase_.num_cells, d_rhoD, dataBase_.d_thermo_alpha,
+        //         dataBase_.num_boundary_surfaces, d_boundary_rhoD, dataBase_.d_boundary_thermo_alpha);
         // compute diffAlphaD
         yeqn_fvc_laplacian_scalar(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
                 dataBase_.num_species, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
@@ -492,8 +491,9 @@ void dfYEqn::process() {
         // compute sumYDiffError and hDiffCorrFlux
         yeqn_compute_sumYDiffError_and_hDiffCorrFlux(dataBase_.stream,
                 dataBase_.num_species, dataBase_.num_cells, dataBase_.num_boundary_surfaces,
-                d_rhoD, d_hai, dataBase_.d_y, d_grad_y, d_sumY_diff_error, dataBase_.d_hDiff_corr_flux,
-                d_boundary_rhoD, d_boundary_hai, dataBase_.d_boundary_y, d_boundary_grad_y,
+                d_lewis_number, dataBase_.d_thermo_alpha, d_hai, dataBase_.d_y, d_grad_y, 
+                d_sumY_diff_error, dataBase_.d_hDiff_corr_flux,
+                d_boundary_hai, dataBase_.d_boundary_y, d_boundary_grad_y, dataBase_.d_boundary_thermo_alpha,
                 d_boundary_sumY_diff_error, dataBase_.d_boundary_hDiff_corr_flux);
         // compute phiUc
         yeqn_compute_phiUc(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
@@ -505,11 +505,11 @@ void dfYEqn::process() {
         // compute DEff
         // UnityLewis
         // tmp<volScalarField> DEff = chemistry->rhoD(i) + turbulence->mut()/Sct;
-        // turbulence->mut()/Sct = 0 when UnityLewis.
+        // turbulence->mut()/Sct = 0 when laminar.
         // double *d_DEff = d_rhoD;
         // double *d_boundary_DEff = d_boundary_rhoD;
         yeqn_compute_DEff(dataBase_.stream, dataBase_.num_species, dataBase_.num_cells, dataBase_.num_boundary_surfaces,
-                d_rhoD, d_mut_sct, d_DEff, d_boundary_rhoD, d_boundary_mut_sct, d_boundary_DEff);
+                d_lewis_number, dataBase_.d_thermo_alpha, d_mut_sct, d_DEff, dataBase_.d_boundary_thermo_alpha, d_boundary_mut_sct, d_boundary_DEff);
 #ifndef TIME_GPU
         checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph));
         checkCudaErrors(cudaGraphInstantiate(&graph_instance, graph, NULL, NULL, 0));
@@ -678,17 +678,17 @@ void dfYEqn::yeqn_compute_thermo_alpha(cudaStream_t stream,
             num_boundary_surfaces, boundary_rhoD, boundary_thermo_alpha);
 }
 
-void dfYEqn::yeqn_compute_DEff(cudaStream_t stream, int num_species, int num_cells, int num_boundary_surfaces,
-        const double *rhoD, const double *mut_sct, double *DEff,
-        const double *boundary_rhoD, const double *boundary_mut_sct, double *boundary_DEff)
+void dfYEqn::yeqn_compute_DEff(cudaStream_t stream, int num_species, int num_cells, int num_boundary_surfaces, 
+        double *lewis_number, const double *alpha, const double *mut_sct, double *DEff,
+        const double *boundary_alpha, const double *boundary_mut_sct, double *boundary_DEff)
 {
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
     yeqn_compute_DEff_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_species, num_cells,
-            rhoD, mut_sct, DEff);
+            lewis_number, alpha, mut_sct, DEff);
     blocks_per_grid = (num_boundary_surfaces + threads_per_block - 1) / threads_per_block;
     yeqn_compute_DEff_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_species, num_boundary_surfaces,
-            boundary_rhoD, boundary_mut_sct, boundary_DEff);
+            lewis_number, boundary_alpha, boundary_mut_sct, boundary_DEff);
 }
 
 void dfYEqn::yeqn_fvc_laplacian_scalar(cudaStream_t stream, ncclComm_t comm, const int *neighbor_peer,
@@ -729,7 +729,6 @@ void dfYEqn::yeqn_fvc_laplacian_scalar(cudaStream_t stream, ncclComm_t comm, con
             offset += 2 * patch_size[i]; // patchNeighbourFields and patchInternalFields
             continue;
         } else {
-            // xxx
             fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
         }
         offset += patch_size[i];
@@ -757,18 +756,18 @@ void dfYEqn::yeqn_fvc_laplacian_scalar(cudaStream_t stream, ncclComm_t comm, con
 }
 
 void dfYEqn::yeqn_compute_sumYDiffError_and_hDiffCorrFlux(cudaStream_t stream, int num_species, int num_cells, int num_boundary_surfaces,
-        const double *rhoD, const double *hai, const double *y, const double *grad_y,
+        const double *lewis_number, const double *thermo_alpha, const double *hai, const double *y, const double *grad_y,
         double *sumY_diff_error, double *hDiff_corr_flux,
-        const double *boundary_rhoD, const double *boundary_hai, const double *boundary_y, const double *boundary_grad_y,
+        const double *boundary_hai, const double *boundary_y, const double *boundary_grad_y, const double *boundary_thermo_alpha,
         double *boundary_sumY_diff_error, double *boundary_hDiff_corr_flux)
 {
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
     yeqn_sumError_and_compute_hDiffCorrFlux<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_species, num_cells,
-            rhoD, hai, y, grad_y, sumY_diff_error, hDiff_corr_flux);
+            lewis_number, thermo_alpha, hai, y, grad_y, sumY_diff_error, hDiff_corr_flux);
     blocks_per_grid = (num_boundary_surfaces + threads_per_block - 1) / threads_per_block;
     yeqn_sumError_and_compute_hDiffCorrFlux<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_species, num_boundary_surfaces,
-            boundary_rhoD, boundary_hai, boundary_y, boundary_grad_y, boundary_sumY_diff_error, boundary_hDiff_corr_flux);
+            lewis_number, boundary_thermo_alpha, boundary_hai, boundary_y, boundary_grad_y, boundary_sumY_diff_error, boundary_hDiff_corr_flux);
 }
 
 void dfYEqn::yeqn_compute_phiUc(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces,

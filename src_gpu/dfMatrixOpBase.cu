@@ -2092,6 +2092,8 @@ void correct_boundary_conditions_scalar(cudaStream_t stream, ncclComm_t comm,
                     vf, boundary_cell_face, boundary_vf);
             offset += 2 * patch_size[i]; // patchNeighbourFields and patchInternalFields
             continue;
+        } else if (patch_type[i] == boundaryConditions::gradientEnergy) {
+            // TODO: implement it
         } else {
             fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
         }

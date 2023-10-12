@@ -158,7 +158,6 @@
             eeqn_offset += patchSize;
         }
     }
-    exit(0);
 
     EEqn_GPU.preProcess(h_he, h_k, h_k_old, h_dpdt, h_boundary_k, h_boundary_heGradient);
 

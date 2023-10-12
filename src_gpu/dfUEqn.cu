@@ -407,8 +407,8 @@ void dfUEqn::process() {
         // checkCudaErrors(cudaMemcpyAsync(d_boundary_u_host_order, dataBase_.h_boundary_u, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
         // checkCudaErrors(cudaMemcpyAsync(dataBase_.d_p, dataBase_.h_p, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
         // checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_p, dataBase_.h_boundary_p, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
-        checkCudaErrors(cudaMemcpyAsync(d_nu_eff, h_nu_eff, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
-        checkCudaErrors(cudaMemcpyAsync(d_boundary_nu_eff, h_boundary_nu_eff, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+        // checkCudaErrors(cudaMemcpyAsync(d_nu_eff, h_nu_eff, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
+        // checkCudaErrors(cudaMemcpyAsync(d_boundary_nu_eff, h_boundary_nu_eff, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
 
         checkCudaErrors(cudaMemsetAsync(d_ldu, 0, dataBase_.csr_value_bytes, dataBase_.stream)); // d_ldu contains d_lower, d_diag, and d_upper
         checkCudaErrors(cudaMemsetAsync(d_source, 0, dataBase_.cell_value_vec_bytes, dataBase_.stream));
@@ -438,15 +438,15 @@ void dfUEqn::process() {
                 dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
                 dataBase_.d_boundary_phi, d_value_internal_coeffs, d_value_boundary_coeffs,
                 d_internal_coeffs, d_boundary_coeffs, 1.);
-        field_multiply_scalar(dataBase_.stream,
-               dataBase_.num_cells, dataBase_.d_rho, d_nu_eff, d_rho_nueff, // end for internal
-               dataBase_.num_boundary_surfaces, dataBase_.d_boundary_rho, d_boundary_nu_eff, d_boundary_rho_nueff);
+        // field_multiply_scalar(dataBase_.stream,
+        //        dataBase_.num_cells, dataBase_.d_rho, d_nu_eff, d_rho_nueff, // end for internal
+        //        dataBase_.num_boundary_surfaces, dataBase_.d_boundary_rho, d_boundary_nu_eff, d_boundary_rho_nueff);
         fvm_laplacian_vector(dataBase_.stream, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, 
                dataBase_.d_owner, dataBase_.d_neighbor,
-               dataBase_.d_weight, dataBase_.d_mag_sf, dataBase_.d_delta_coeffs, d_rho_nueff,
+               dataBase_.d_weight, dataBase_.d_mag_sf, dataBase_.d_delta_coeffs, dataBase_.d_mu,
                d_lower, d_upper, d_diag, // end for internal
                dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
-               dataBase_.d_boundary_mag_sf, d_boundary_rho_nueff,
+               dataBase_.d_boundary_mag_sf, dataBase_.d_boundary_mu,
                d_gradient_internal_coeffs, d_gradient_boundary_coeffs,
                d_internal_coeffs, d_boundary_coeffs, -1);
         fvc_grad_vector(dataBase_.stream, dataBase_.nccl_comm,
@@ -456,8 +456,8 @@ void dfUEqn::process() {
                 dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(),
                 dataBase_.d_boundary_face_cell, dataBase_.d_boundary_u, dataBase_.d_boundary_sf, dataBase_.d_boundary_weight, 
                 dataBase_.d_volume, dataBase_.d_boundary_mag_sf, d_boundary_grad_u, dataBase_.d_boundary_delta_coeffs);
-        scale_dev2T_tensor(dataBase_.stream, dataBase_.num_cells, d_rho_nueff, d_grad_u, // end for internal
-               dataBase_.num_boundary_surfaces, d_boundary_rho_nueff, d_boundary_grad_u);
+        scale_dev2T_tensor(dataBase_.stream, dataBase_.num_cells, dataBase_.d_mu, d_grad_u, // end for internal
+               dataBase_.num_boundary_surfaces, dataBase_.d_boundary_mu, d_boundary_grad_u);
         fvc_div_cell_tensor(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
                dataBase_.d_owner, dataBase_.d_neighbor,
                dataBase_.d_weight, dataBase_.d_sf, d_grad_u, d_source, // end for internal

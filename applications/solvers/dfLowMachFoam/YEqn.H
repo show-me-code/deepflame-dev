@@ -1,5 +1,5 @@
-#undef GPUSolverNew_
-#define CPUSolver_
+// #undef GPUSolverNew_
+// #define CPUSolver_
 hDiffCorrFlux = Zero;
 diffAlphaD = Zero;
 sumYDiffError = Zero;
@@ -172,7 +172,7 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
         volScalarField& Yi = Y[i];
         YEqn_GPU.updatePsi(&Yi[0], i);
         Yi.correctBoundaryConditions();
-    }
+    } 
     YEqn_GPU.correctBoundaryConditions();
     end1 = std::clock();
     time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
@@ -472,5 +472,5 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
     time_monitor_YEqn += double(end2 - start2) / double(CLOCKS_PER_SEC);
 #endif
 }
-#undef CPUSolver_
-#define GPUSolverNew_
+// #undef CPUSolver_
+// #define GPUSolverNew_

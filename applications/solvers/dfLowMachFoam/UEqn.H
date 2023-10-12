@@ -93,8 +93,6 @@
     const tmp<volScalarField> nuEff_tmp(turbulence->nuEff());
     const volScalarField& nuEff = nuEff_tmp();
     int offset;
-    // Info << "nuEff\n" << nuEff << endl;
-    // Info << "mu/rho\n" << thermo.mu()/rho << endl;
 
 #if defined DEBUG_
     // run CPU, for temp
@@ -251,7 +249,7 @@
             h_internal_coeffs.data(), h_boundary_coeffs.data(), 
             // &gradU[0][0], h_boundary_gradU,
             printFlag);
-        UEqn_GPU.compareU(&U[0][0], h_boundary_u_tmp, printFlag);
+        // UEqn_GPU.compareU(&U[0][0], h_boundary_u_tmp, printFlag);
     }
     DEBUG_TRACE;
 #endif
