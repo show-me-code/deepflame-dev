@@ -86,84 +86,92 @@ __global__ void get_mole_fraction_mean_mole_weight(int num_cells, int num_specie
     mean_mole_weight[index] = meanMoleWeight;
 }
 
-__global__ void calculate_TPoly_kernel(int num_cells, const double *T, double *d_T_poly)
+__global__ void calculate_TPoly_kernel(int num_thread, const double *T, double *d_T_poly, int offset)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
-    if (index >= num_cells)
+    if (index >= num_thread)
         return;
     
-    d_T_poly[num_cells * 0 + index] = 1.0;
-    d_T_poly[num_cells * 1 + index] = log(T[index]);
-    d_T_poly[num_cells * 2 + index] = d_T_poly[num_cells * 1 + index] * d_T_poly[num_cells * 1 + index];
-    d_T_poly[num_cells * 3 + index] = d_T_poly[num_cells * 1 + index] * d_T_poly[num_cells * 2 + index];
-    d_T_poly[num_cells * 4 + index] = d_T_poly[num_cells * 2 + index] * d_T_poly[num_cells * 2 + index];
+    int startIndex = index + offset;
+    
+    d_T_poly[num_thread * 0 + startIndex] = 1.0;
+    d_T_poly[num_thread * 1 + startIndex] = log(T[startIndex]);
+    d_T_poly[num_thread * 2 + startIndex] = d_T_poly[num_thread * 1 + startIndex] * d_T_poly[num_thread * 1 + startIndex];
+    d_T_poly[num_thread * 3 + startIndex] = d_T_poly[num_thread * 1 + startIndex] * d_T_poly[num_thread * 2 + startIndex];
+    d_T_poly[num_thread * 4 + startIndex] = d_T_poly[num_thread * 2 + startIndex] * d_T_poly[num_thread * 2 + startIndex];
 }
 
-__global__ void calculate_psi_kernel(int num_cells, const double *T, const double *mean_mole_weight,
+__global__ void calculate_psi_kernel(int num_cells, int offset, const double *T, const double *mean_mole_weight,
         double *psi)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index >= num_cells)
         return;
     
-    psi[index] = mean_mole_weight[index] / (GAS_CANSTANT * T[index]);
+    int startIndex = index + offset;
+    
+    psi[startIndex] = mean_mole_weight[startIndex] / (GAS_CANSTANT * T[startIndex]);
 }
 
-__global__ void calculate_rho_kernel(int num_cells, const double *p, const double *psi, double *rho)
+__global__ void calculate_rho_kernel(int num_thread, int offset, const double *p, const double *psi, double *rho)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
-    if (index >= num_cells)
+    if (index >= num_thread)
         return;
     
-    rho[index] = p[index] * psi[index];
+    int startIndex = index + offset;
+    
+    rho[startIndex] = p[startIndex] * psi[startIndex];
 }
 
-__global__ void calculate_viscosity_kernel(int num_cells, int num_species,
+__global__ void calculate_viscosity_kernel(int num_thread, int num_total, int num_species, int offset,
         const double *T_poly, const double *T, const double *mole_fraction,
         double *species_viscosities, double *mu)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
-    if (index >= num_cells)
+    if (index >= num_thread)
         return;
     
+    int startIndex = index + offset;
+
     double dot_product;
-    double local_T = T[index];
+    double local_T = T[startIndex];
 
     for (int i = 0; i < num_species; i++) {
         dot_product = 0.;
         for (int j = 0; j < 5; j++) {
-            dot_product += d_viscosity_coeffs[i * 5 + j] * T_poly[num_cells * j + index];
+            dot_product += d_viscosity_coeffs[i * 5 + j] * T_poly[num_total * j + startIndex];
         }
-        species_viscosities[i * num_cells + index] = (dot_product * dot_product) * sqrt(local_T);
+        species_viscosities[i * num_total + startIndex] = (dot_product * dot_product) * sqrt(local_T);
     }
 
     double mu_mix = 0.;
     for (int i = 0; i < num_species; i++) {
         double temp = 0.;
         for (int j = 0; j < num_species; j++) {
-            temp += mole_fraction[num_cells * j + index] / SQRT8 *
+            temp += mole_fraction[num_total * j + index] / SQRT8 *
             d_viscosity_conatant1[i * NUM_SPECIES + j] * // constant 1
-            pow(1.0 + sqrt(species_viscosities[i * num_cells + index] / species_viscosities[j * num_cells + index]) *
+            pow(1.0 + sqrt(species_viscosities[i * num_total + index] / species_viscosities[j * num_total + index]) *
             d_viscosity_conatant2[i * NUM_SPECIES + j], 2.0); // constant 2
         }
-        mu_mix += mole_fraction[num_cells * i + index] * species_viscosities[i * num_cells + index] / temp;
+        mu_mix += mole_fraction[num_total * i + index] * species_viscosities[i * num_total + index] / temp;
     }
 
     mu[index] = mu_mix;
 }
 
-__device__ double calculate_cp_device_kernel(int num_cells, int num_species, int index, 
+__device__ double calculate_cp_device_kernel(int num_total, int num_species, int index, 
         const double local_T, const double *mass_fraction)
 {   
     double cp = 0.;
 
     for (int i = 0; i < num_species; i++) {
         if (local_T > d_nasa_coeffs[i * 15 + 0]) {
-            cp += mass_fraction[i * num_cells + index] * (d_nasa_coeffs[i * 15 + 1] + d_nasa_coeffs[i * 15 + 2] * local_T + d_nasa_coeffs[i * 15 + 3] * local_T * local_T + 
+            cp += mass_fraction[i * num_total + index] * (d_nasa_coeffs[i * 15 + 1] + d_nasa_coeffs[i * 15 + 2] * local_T + d_nasa_coeffs[i * 15 + 3] * local_T * local_T + 
                     d_nasa_coeffs[i * 15 + 4] * local_T * local_T * local_T + 
                     d_nasa_coeffs[i * 15 + 5] * local_T * local_T * local_T * local_T) * GAS_CANSTANT / d_molecular_weights[i];
         } else {
-            cp += mass_fraction[i * num_cells + index] * (d_nasa_coeffs[i * 15 + 8] + d_nasa_coeffs[i * 15 + 9] * local_T + d_nasa_coeffs[i * 15 + 10] * local_T * local_T + 
+            cp += mass_fraction[i * num_total + index] * (d_nasa_coeffs[i * 15 + 8] + d_nasa_coeffs[i * 15 + 9] * local_T + d_nasa_coeffs[i * 15 + 10] * local_T * local_T + 
                     d_nasa_coeffs[i * 15 + 11] * local_T * local_T * local_T + 
                     d_nasa_coeffs[i * 15 + 12] * local_T * local_T * local_T * local_T) * GAS_CANSTANT / d_molecular_weights[i];
         }
@@ -171,41 +179,43 @@ __device__ double calculate_cp_device_kernel(int num_cells, int num_species, int
     return cp;
 }
 
-__global__ void calculate_thermoConductivity_kernel(int num_cells, int num_species, 
-        const double *nasa_coeffs, const double *mass_fraction,
+__global__ void calculate_thermoConductivity_kernel(int num_thread, int num_total, int num_species, 
+        int offset, const double *nasa_coeffs, const double *mass_fraction,
         const double *T_poly, const double *T, const double *mole_fraction,
         double *species_thermal_conductivities, double *thermal_conductivity)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
-    if (index >= num_cells)
+    if (index >= num_thread)
         return;
 
+    int startIndex = offset + index;
+
     double dot_product;
-    double local_T = T[index];
+    double local_T = T[startIndex];
 
     for (int i = 0; i < num_species; i++) {
         dot_product = 0.;
         for (int j = 0; j < 5; j++) {
-            dot_product += d_thermal_conductivity_coeffs[i * 5 + j] * T_poly[num_cells * j + index];
+            dot_product += d_thermal_conductivity_coeffs[i * 5 + j] * T_poly[num_total * j + startIndex];
         }
-        species_thermal_conductivities[i * num_cells + index] = dot_product * sqrt(local_T);
+        species_thermal_conductivities[i * num_total + startIndex] = dot_product * sqrt(local_T);
     }
 
     double sum_conductivity = 0.;
     double sum_inv_conductivity = 0.;
 
     for (int i = 0; i < num_species; i++) {
-        sum_conductivity += mole_fraction[num_cells * i + index] * species_thermal_conductivities[i * num_cells + index];
-        sum_inv_conductivity += mole_fraction[num_cells * i + index] / species_thermal_conductivities[i * num_cells + index];
+        sum_conductivity += mole_fraction[num_total * i + startIndex] * species_thermal_conductivities[i * num_total + startIndex];
+        sum_inv_conductivity += mole_fraction[num_total * i + startIndex] / species_thermal_conductivities[i * num_total + startIndex];
     }
     double lambda_mix = 0.5 * (sum_conductivity + 1.0 / sum_inv_conductivity);
 
-    double cp = calculate_cp_device_kernel(num_cells, num_species, index, local_T, mass_fraction);
+    double cp = calculate_cp_device_kernel(num_total, num_species, startIndex, local_T, mass_fraction);
 
-    thermal_conductivity[index] = lambda_mix / cp;
+    thermal_conductivity[startIndex] = lambda_mix / cp;
 }
 
-__device__ double calculate_enthalpy_device_kernel(int num_cells, int num_species, int index, const double local_T,
+__device__ double calculate_enthalpy_device_kernel(int num_total, int num_species, int index, const double local_T,
         const double *mass_fraction)
 {
     double h = 0.;
@@ -214,44 +224,66 @@ __device__ double calculate_enthalpy_device_kernel(int num_cells, int num_specie
         if (local_T > d_nasa_coeffs[i * 15 + 0]) {
             h += (d_nasa_coeffs[i * 15 + 1] + d_nasa_coeffs[i * 15 + 2] * local_T / 2 + d_nasa_coeffs[i * 15 + 3] * local_T * local_T / 3 + 
                     d_nasa_coeffs[i * 15 + 4] * local_T * local_T * local_T / 4 + d_nasa_coeffs[i * 15 + 5] * local_T * local_T * local_T * local_T / 5 + 
-                    d_nasa_coeffs[i * 15 + 6] / local_T) * GAS_CANSTANT * local_T / d_molecular_weights[i] * mass_fraction[i * num_cells + index];
+                    d_nasa_coeffs[i * 15 + 6] / local_T) * GAS_CANSTANT * local_T / d_molecular_weights[i] * mass_fraction[i * num_total + index];
         } else {
             h += (d_nasa_coeffs[i * 15 + 8] + d_nasa_coeffs[i * 15 + 9] * local_T / 2 + d_nasa_coeffs[i * 15 + 10] * local_T * local_T / 3 + 
                     d_nasa_coeffs[i * 15 + 11] * local_T * local_T * local_T / 4 + d_nasa_coeffs[i * 15 + 12] * local_T * local_T * local_T * local_T / 5 + 
-                    d_nasa_coeffs[i * 15 + 13] / local_T) * GAS_CANSTANT * local_T / d_molecular_weights[i] * mass_fraction[i * num_cells + index];
+                    d_nasa_coeffs[i * 15 + 13] / local_T) * GAS_CANSTANT * local_T / d_molecular_weights[i] * mass_fraction[i * num_total + index];
         }
     }
     return h;
 }
 
-__global__ void calculate_temperature_kernel(int num_cells, int num_species, 
+__global__ void calculate_energy_gradient_kernel(int num_thread, int num_cells, int num_species, 
+        int num_boundary_surfaces, int bou_offset, int gradient_offset,
+        const int *face2Cells, const double *T, const double *p, const double *y,
+        const double *boundary_p, const double *boundary_y, const double *boundary_delta_coeffs,
+        double *boundary_energy_gradient)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_thread)
+        return;
+    
+    int bou_start_index = index + bou_offset;
+    int gradient_start_index = index + gradient_offset;
+    int cellIndex = face2Cells[bou_start_index];
+    
+    double local_T = T[cellIndex];
+    double h_internal = calculate_enthalpy_device_kernel(num_cells, num_species, cellIndex, local_T, y);
+    double h_boundary = calculate_enthalpy_device_kernel(num_boundary_surfaces, num_species, bou_start_index, local_T, boundary_y);
+    boundary_energy_gradient[gradient_start_index] = (h_boundary - h_internal) * boundary_delta_coeffs[bou_start_index];
+}
+
+__global__ void calculate_temperature_kernel(int num_thread, int num_total, int num_species, int offset,
         const double *T_init, const double *h_target, const double *mass_fraction,
         double *T_est, double atol, double rtol, int max_iter)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
-    if (index >= num_cells)
+    if (index >= num_thread)
         return;
+    
+    int startIndex = index + offset;
 
-    double local_T = T_init[index];
-    double local_h_target = h_target[index];
+    double local_T = T_init[startIndex];
+    double local_h_target = h_target[startIndex];
     double h, cp, delta_T;
     for (int n = 0; n < max_iter; ++n) {
-        h = calculate_enthalpy_device_kernel(num_cells, num_species, index, local_T, mass_fraction);
-        cp = calculate_cp_device_kernel(num_cells, num_species, index, local_T, mass_fraction);
+        h = calculate_enthalpy_device_kernel(num_total, num_species, startIndex, local_T, mass_fraction);
+        cp = calculate_cp_device_kernel(num_total, num_species, startIndex, local_T, mass_fraction);
         delta_T = (h - local_h_target) / cp;
         local_T -= delta_T;
         if (fabs(h - local_h_target) < atol || fabs(delta_T / local_T) < rtol) {
             break;
         }
     }
-    T_est[index] = local_T;
+    T_est[startIndex] = local_T;
 }
 
-__global__ void calculate_enthalpy_kernel(int num, int offset, int num_cells, int num_species, 
+__global__ void calculate_enthalpy_kernel(int num_thread, int offset, int num_cells, int num_species, 
         const double *T, const double *mass_fraction, double *enthalpy)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
-    if (index >= num)
+    if (index >= num_thread)
         return;
     
     int startIndex = index + offset;
@@ -299,13 +331,17 @@ void dfThermo::setConstantValue(std::string mechanism_file, int num_cells, int n
     initCoeffsfromBinaryFile(fp);
 
     checkCudaErrors(cudaStreamCreate(&stream));
-    checkCudaErrors(cudaMalloc((void**)&d_mass_fraction, sizeof(double) * num_species * num_cells));
     checkCudaErrors(cudaMalloc((void**)&d_mole_fraction, sizeof(double) * num_species * num_cells));
+    checkCudaErrors(cudaMalloc((void**)&d_boundary_mole_fraction, sizeof(double) * num_species * dataBase_.num_boundary_surfaces));
     checkCudaErrors(cudaMalloc((void**)&d_mean_mole_weight, sizeof(double) * num_cells));
+    checkCudaErrors(cudaMalloc((void**)&d_boundary_mean_mole_weight, sizeof(double) * dataBase_.num_boundary_surfaces));
     checkCudaErrors(cudaMalloc((void**)&d_T_poly, sizeof(double) * 5 * num_cells));
+    checkCudaErrors(cudaMalloc((void**)&d_boundary_T_poly, sizeof(double) * 5 * dataBase_.num_boundary_surfaces));
 
     checkCudaErrors(cudaMalloc((void**)&d_species_viscosities, sizeof(double) * num_species * num_cells));
+    checkCudaErrors(cudaMalloc((void**)&d_boundary_species_viscosities, sizeof(double) * num_species * dataBase_.num_boundary_surfaces));
     checkCudaErrors(cudaMalloc((void**)&d_species_thermal_conductivities, sizeof(double) * num_species * num_cells));
+    checkCudaErrors(cudaMalloc((void**)&d_boundary_species_thermal_conductivities, sizeof(double) * num_species * dataBase_.num_boundary_surfaces));
     std::cout << "dfThermo initialized" << std::endl;
 }
 
@@ -331,16 +367,17 @@ void dfThermo::sync()
     checkCudaErrors(cudaStreamSynchronize(stream));
 }
 
-void dfThermo::setMassFraction(const double *d_mass_fraction)
+void dfThermo::setMassFraction(const double *d_y, const double *d_boundary_y)
 {
-    TICK_INIT_EVENT;
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
 
-    TICK_START_EVENT;
     get_mole_fraction_mean_mole_weight<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_species, 
-            d_mass_fraction, d_mole_fraction, d_mean_mole_weight);
-    TICK_END_EVENT(get_mole_fraction_mean_mole_weight);
+            d_y, d_mole_fraction, d_mean_mole_weight);
+    
+    blocks_per_grid = (dataBase_.num_boundary_surfaces + threads_per_block - 1) / threads_per_block;
+    get_mole_fraction_mean_mole_weight<<<blocks_per_grid, threads_per_block, 0, stream>>>(dataBase_.num_boundary_surfaces, num_species, 
+            d_boundary_y, d_boundary_mole_fraction, d_boundary_mean_mole_weight);
 }
 
 void dfThermo::setConstantFields(const std::vector<int> patch_type) 
@@ -348,88 +385,92 @@ void dfThermo::setConstantFields(const std::vector<int> patch_type)
     dataBase_.patch_type_T = patch_type;
 }
 
-void dfThermo::initNonConstantFields(double *h_T, double *h_he, double *h_boundary_T, double *h_boundary_he)
+void dfThermo::initNonConstantFields(double *h_T, double *h_he, double *h_psi, double *h_alpha, double *h_mu,
+            double *h_boundary_T, double *h_boundary_he, double *h_boundary_psi, double *h_boundary_alpha, double *h_boundary_mu)
 {
     checkCudaErrors(cudaMemcpy(dataBase_.d_T, h_T, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(dataBase_.d_he, h_he, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(dataBase_.d_thermo_psi, h_psi, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(dataBase_.d_thermo_alpha, h_alpha, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(dataBase_.d_mu, h_mu, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice));
+
     checkCudaErrors(cudaMemcpy(dataBase_.d_boundary_T, h_boundary_T, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(dataBase_.d_boundary_he, h_boundary_he, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(dataBase_.d_boundary_thermo_psi, h_boundary_psi, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(dataBase_.d_boundary_thermo_alpha, h_boundary_alpha, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(dataBase_.d_boundary_mu, h_boundary_mu, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice));
 }
 
-void dfThermo::calculateTPolyGPU(const double *T)
+void dfThermo::calculateTPolyGPU(int num_thread, const double *T, double *T_poly, int offset)
+{
+    size_t threads_per_block = 1024;
+    size_t blocks_per_grid = (num_thread + threads_per_block - 1) / threads_per_block;
+
+    calculate_TPoly_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, T, T_poly, offset);
+}
+
+void dfThermo::calculatePsiGPU(int num_thread, const double *T, double *d_psi, int offset)
 {
     TICK_INIT_EVENT;
     size_t threads_per_block = 1024;
-    size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
+    size_t blocks_per_grid = (num_thread + threads_per_block - 1) / threads_per_block;
     TICK_START_EVENT;
-    calculate_TPoly_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, T, d_T_poly);
-    TICK_END_EVENT(calculate_TPoly_kernel);
-}
-
-void dfThermo::calculatePsiGPU(const double *T, double *d_psi)
-{
-    TICK_INIT_EVENT;
-    size_t threads_per_block = 1024;
-    size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
-    calculate_psi_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, T, d_mean_mole_weight, d_psi);
+    calculate_psi_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_thread, offset, T, d_mean_mole_weight, d_psi);
     TICK_END_EVENT(calculate_psi_kernel);
 }
 
-void dfThermo::calculateRhoGPU(const double *p, const double *psi, double *rho)
+void dfThermo::calculateRhoGPU(int num_thread, const double *p, const double *psi, double *rho, int offset)
 {
     TICK_INIT_EVENT;
     size_t threads_per_block = 1024;
-    size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
+    size_t blocks_per_grid = (num_thread + threads_per_block - 1) / threads_per_block;
     TICK_START_EVENT;
-    calculate_rho_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, p, psi, rho);
+    calculate_rho_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, offset, p, psi, rho);
     TICK_END_EVENT(calculate_rho_kernel);
 }
 
-void dfThermo::calculateViscosityGPU(const double *T, double *viscosity)
+void dfThermo::calculateViscosityGPU(int num_thread, int num_total, const double *T, const double *mole_fraction, 
+        const double *T_poly, double *species_viscosities, double *viscosity, int offset)
 {
-    calculateTPolyGPU(T);
-
-    TICK_INIT_EVENT;
     size_t threads_per_block = 1024;
-    size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
-    calculate_viscosity_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_species, 
-            d_T_poly, T, d_mole_fraction, d_species_viscosities, viscosity);
-    TICK_END_EVENT(calculate_viscosity_kernel);
+    size_t blocks_per_grid = (num_thread + threads_per_block - 1) / threads_per_block;
+
+    calculate_viscosity_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_thread, num_total, num_species, offset, 
+            T_poly, T, mole_fraction, species_viscosities, viscosity);
 }
 
-void dfThermo::calculateThermoConductivityGPU(const double *T, const double *d_mass_fraction, double *thermal_conductivity)
+void dfThermo::calculateThermoConductivityGPU(int num_thread, int num_total, const double *T, const double *T_poly,
+        const double *d_y, const double *mole_fraction, double *species_thermal_conductivities,
+        double *thermal_conductivity, int offset)
 {
     TICK_INIT_EVENT;
     size_t threads_per_block = 1024;
-    size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
+    size_t blocks_per_grid = (num_thread + threads_per_block - 1) / threads_per_block;
     TICK_START_EVENT;
-    calculate_thermoConductivity_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_species, 
-            d_nasa_coeffs, d_mass_fraction, d_T_poly, T, d_mole_fraction,
-            d_species_thermal_conductivities, thermal_conductivity);
+    calculate_thermoConductivity_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_thread, num_total, num_species, 
+            offset, d_nasa_coeffs, d_y, T_poly, T, mole_fraction, species_thermal_conductivities, thermal_conductivity);
     TICK_END_EVENT(calculate_thermoConductivity_kernel);
 }
 
-void dfThermo::calculateTemperatureGPU(const double *T_init, const double *target_h, double *T, const double *d_mass_fraction, double atol, 
-            double rtol, int max_iter)
+void dfThermo::calculateTemperatureGPU(int num_thread, int num_total, const double *T_init, const double *target_h, double *T, 
+        const double *d_mass_fraction, int offset, double atol, double rtol, int max_iter)
 {
     TICK_INIT_EVENT;
     size_t threads_per_block = 1024;
-    size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
+    size_t blocks_per_grid = (num_thread + threads_per_block - 1) / threads_per_block;
 
     TICK_START_EVENT;
-    calculate_temperature_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_species, 
+    calculate_temperature_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_thread, num_total, num_species, offset,
             T_init, target_h, d_mass_fraction, T, atol, rtol, max_iter);
     TICK_END_EVENT(calculate_temperature_kernel);
 }
 
-void dfThermo::calculateEnthalpyGPU(int num, const double *T, double *enthalpy, const double *d_mass_fraction, int offset)
+void dfThermo::calculateEnthalpyGPU(int num_thread, const double *T, double *enthalpy, const double *d_mass_fraction, int offset)
 {
     size_t threads_per_block = 1024;
-    size_t blocks_per_grid = (num + threads_per_block - 1) / threads_per_block;
+    size_t blocks_per_grid = (num_thread + threads_per_block - 1) / threads_per_block;
 
-    calculate_enthalpy_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num, offset, num_cells, num_species, 
+    calculate_enthalpy_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_thread, offset, num_cells, num_species, 
             T, d_mass_fraction, enthalpy);
 }
 
@@ -448,12 +489,68 @@ void dfThermo::updateEnergy()
     // }
 }
 
+void dfThermo::correctThermo()
+{
+    setMassFraction(dataBase_.d_y, dataBase_.d_boundary_y);
+    // internal field
+    calculateTemperatureGPU(dataBase_.num_cells, dataBase_.num_cells, dataBase_.d_T, dataBase_.d_he, dataBase_.d_T, dataBase_.d_y); // calculate temperature
+    calculateTPolyGPU(dataBase_.num_cells, dataBase_.d_T, d_T_poly); // calculate T_poly
+    calculatePsiGPU(dataBase_.num_cells, dataBase_.d_T, dataBase_.d_thermo_psi); // calculate psi
+    calculateRhoGPU(dataBase_.num_cells, dataBase_.d_p, dataBase_.d_thermo_psi, dataBase_.d_rho); // calculate rho
+    calculateViscosityGPU(dataBase_.num_cells, dataBase_.num_cells, dataBase_.d_T, d_mole_fraction, 
+            d_T_poly, d_species_viscosities, dataBase_.d_mu); // calculate viscosity
+    calculateThermoConductivityGPU(dataBase_.num_cells, dataBase_.num_cells, dataBase_.d_T, d_T_poly, dataBase_.d_y, d_mole_fraction, 
+            d_species_thermal_conductivities, dataBase_.d_thermo_alpha); // calculate thermal conductivity
+    // boundary field
+    int offset = 0;
+    for (int i = 0; i < dataBase_.num_patches; i++) {
+        if (dataBase_.patch_type_T[i] == boundaryConditions::fixedValue) {
+            calculateTPolyGPU(dataBase_.patch_size[i], dataBase_.d_boundary_T, d_boundary_T_poly, offset);
+            calculateEnthalpyGPU(dataBase_.patch_size[i], dataBase_.d_boundary_T, dataBase_.d_boundary_he, 
+                    dataBase_.d_boundary_y, offset);
+            calculatePsiGPU(dataBase_.patch_size[i], dataBase_.d_boundary_T, dataBase_.d_boundary_thermo_psi, offset);
+            calculateRhoGPU(dataBase_.patch_size[i], dataBase_.d_boundary_p, dataBase_.d_boundary_thermo_psi, dataBase_.d_boundary_rho, offset);
+            calculateViscosityGPU(dataBase_.patch_size[i], dataBase_.num_boundary_surfaces, dataBase_.d_boundary_T, d_boundary_mole_fraction,
+                    d_boundary_T_poly, d_boundary_species_viscosities, dataBase_.d_boundary_mu, offset);
+            calculateThermoConductivityGPU(dataBase_.patch_size[i], dataBase_.num_boundary_surfaces, dataBase_.d_boundary_T, d_boundary_T_poly, 
+                    dataBase_.d_boundary_y, d_boundary_mole_fraction, d_boundary_species_thermal_conductivities, dataBase_.d_boundary_thermo_alpha, offset);
+        } else {
+            calculateTemperatureGPU(dataBase_.patch_size[i], dataBase_.patch_size[i], dataBase_.d_boundary_T, dataBase_.d_boundary_he, 
+                    dataBase_.d_boundary_T, dataBase_.d_boundary_y, offset);
+            calculateTPolyGPU(dataBase_.patch_size[i], dataBase_.d_boundary_T, d_boundary_T_poly, offset);
+            calculatePsiGPU(dataBase_.patch_size[i], dataBase_.d_boundary_T, dataBase_.d_boundary_thermo_psi, offset);
+            calculateRhoGPU(dataBase_.patch_size[i], dataBase_.d_boundary_p, dataBase_.d_boundary_thermo_psi, dataBase_.d_boundary_rho, offset);
+            calculateViscosityGPU(dataBase_.patch_size[i], dataBase_.patch_size[i], dataBase_.d_boundary_T, d_boundary_mole_fraction,
+                    d_boundary_T_poly, d_boundary_species_viscosities, dataBase_.d_boundary_mu, offset);
+            calculateThermoConductivityGPU(dataBase_.patch_size[i], dataBase_.patch_size[i], dataBase_.d_boundary_T, d_boundary_T_poly,
+                    dataBase_.d_boundary_y, d_boundary_mole_fraction, d_boundary_species_thermal_conductivities, dataBase_.d_boundary_thermo_alpha, offset);
+        }
+        if (dataBase_.patch_type_T[i] == boundaryConditions::processor) {
+            offset += 2 * dataBase_.patch_size[i];
+        } else {
+            offset += dataBase_.patch_size[i];
+        }
+    }
+}
+
+void dfThermo::calculateEnergyGradient(int num_thread, int num_cells, int num_species, 
+        int num_boundary_surfaces, int bou_offset, int gradient_offset, const int *face2Cells, 
+        const double *T, const double *p, const double *y, const double *boundary_delta_coeffs,
+        const double *boundary_p, const double *boundary_y, double *boundary_thermo_gradient)
+{
+    size_t threads_per_block = 256;
+    size_t blocks_per_grid = (num_thread + threads_per_block - 1) / threads_per_block;
+
+    calculate_energy_gradient_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_thread, num_cells, num_species, num_boundary_surfaces,
+            bou_offset, gradient_offset, face2Cells, T, p, y, boundary_p, boundary_y, boundary_delta_coeffs, boundary_thermo_gradient);
+}
+
 void dfThermo::compareThermoConductivity(const double *d_thermal_conductivity, const double *thermal_conductivity, 
         bool printFlag)
 {
     std::vector<double> h_thermal_conductivity(num_cells);
     checkCudaErrors(cudaMemcpy(h_thermal_conductivity.data(), d_thermal_conductivity, sizeof(double) * num_cells, cudaMemcpyDeviceToHost));
-    printf("compare thermal_conductivity\n");
+    fprintf(stderr, "check thermal_conductivity\n");
     checkVectorEqual(num_cells, thermal_conductivity, h_thermal_conductivity.data(), 1e-14, printFlag);
 }
 
@@ -461,7 +558,7 @@ void dfThermo::compareViscosity(const double *d_viscosity, const double *viscosi
 {
     std::vector<double> h_viscosity(num_cells);
     checkCudaErrors(cudaMemcpy(h_viscosity.data(), d_viscosity, sizeof(double) * num_cells, cudaMemcpyDeviceToHost));
-    printf("compare viscosity\n");
+    fprintf(stderr, "check viscosity\n");
     checkVectorEqual(num_cells, viscosity, h_viscosity.data(), 1e-14, printFlag);
 }
 
@@ -469,6 +566,6 @@ void dfThermo::compareHe(const double *he)
 {
     std::vector<double> h_he(num_cells);
     checkCudaErrors(cudaMemcpy(h_he.data(), dataBase_.d_he, sizeof(double) * num_cells, cudaMemcpyDeviceToHost));
-    printf("compare he\n");
-    checkVectorEqual(num_cells, he, h_he.data(), 1e-14, true);
+    fprintf(stderr, "check he\n");
+    checkVectorEqual(num_cells, he, h_he.data(), 1e-14, false);
 }

@@ -4,10 +4,12 @@
 #include <amgx_c.h>
 #include "dfMatrixDataBase.H"
 #include "dfMatrixOpBase.H"
+#include "dfThermo.H"
 
 class dfEEqn
 {
     dfMatrixDataBase &dataBase_;
+    dfThermo &thermo_;
 
     // cuda resource
     // one graph for one eqn before using self-developed solver
@@ -36,6 +38,7 @@ class dfEEqn
     // gradient
     double *d_boundary_heGradient = nullptr;
     double *h_boundary_heGradient = nullptr;
+    int num_gradientEnergy_boundary_surfaces = 0;
     // boundary coeff fields
     double *d_value_internal_coeffs = nullptr;
 	double *d_value_boundary_coeffs= nullptr;
@@ -60,8 +63,8 @@ class dfEEqn
 
 public:
     // constructor
-    dfEEqn(dfMatrixDataBase &dataBase)
-        : dataBase_(dataBase) {}
+    dfEEqn(dfMatrixDataBase &dataBase, dfThermo & thermo)
+        : dataBase_(dataBase), thermo_(thermo) {}
 
 	// destructor
 	~dfEEqn(){
@@ -90,6 +93,12 @@ public:
     void preProcess(const double *h_he, const double *h_k, const double *h_k_old, const double *h_dpdt, const double *h_boundary_k, const double *h_boundary_heGradient);
 	void process();
 	void postProcess(double *h_he, double *h_boundary_he);
+
+    void eeqn_calculate_energy_gradient(dfThermo& GPUThermo, int num_cells, int num_species, 
+            int num_boundary_surfaces, const int *face2Cells, double *T, double *p, double *y,
+            int num_patches, const int *patch_size, const int *patch_type,
+            const double *boundary_delta_coeffs, const double *boundary_p, const double* boundary_y, 
+            double *boundary_thermo_gradient);
 
     void solve();
     void compareResult(const double *lower, const double *upper, const double *diag, const double *source, const double *internal_coeffs, const double *boundary_coeffs, bool printFlag);

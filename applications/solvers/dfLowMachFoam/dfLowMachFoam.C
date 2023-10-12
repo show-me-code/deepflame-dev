@@ -82,6 +82,7 @@ Description
 
 #include "upwind.H"
 #include "GenFvMatrix.H"
+#include "CanteraMixture.H"
 #endif
 
 #ifdef TIME
@@ -202,11 +203,9 @@ int main(int argc, char *argv[])
     createGPUEEqn(CanteraTorchProperties, thermo.he(), K);
     createGPUpEqn(CanteraTorchProperties, p, U);
     createGPURhoEqn(rho, phi);
-    // createGPUThermo(CanteraTorchProperties, T, thermo.he());
-    DEBUG_TRACE;
 
-    // volScalarField& he = thermo.he();
-    // thermo_GPU.compareHe(&he[0]);
+    const volScalarField& mu = thermo.mu();
+    createGPUThermo(CanteraTorchProperties, T, thermo.he(), psi, thermo.alpha(), mu);
 #endif
 
     end1 = std::clock();
