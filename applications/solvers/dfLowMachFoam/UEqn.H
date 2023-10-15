@@ -199,7 +199,8 @@
 #if defined DEBUG_
     // UEqn.relax();
     UEqn.solve();
-    // K = 0.5*magSqr(U);
+    K.oldTime();
+    K = 0.5*magSqr(U);
     // checkResult
     // TODO: for temp, now we compare ldu, finally we compare csr
     std::vector<double> h_internal_coeffs(dfDataBase.num_boundary_surfaces * 3);
@@ -245,11 +246,11 @@
     }
     
     if (!mpi_init_flag || rank == 0) {
-        UEqn_GPU.compareResult(&UEqn.lower()[0], &UEqn.upper()[0], &UEqn.diag()[0], &UEqn.source()[0][0],
-            h_internal_coeffs.data(), h_boundary_coeffs.data(), 
-            // &gradU[0][0], h_boundary_gradU,
-            printFlag);
-        // UEqn_GPU.compareU(&U[0][0], h_boundary_u_tmp, printFlag);
+        // UEqn_GPU.compareResult(&UEqn.lower()[0], &UEqn.upper()[0], &UEqn.diag()[0], &UEqn.source()[0][0],
+        //     h_internal_coeffs.data(), h_boundary_coeffs.data(), 
+        //     // &gradU[0][0], h_boundary_gradU,
+        //     true);
+        UEqn_GPU.compareU(&U[0][0], h_boundary_u_tmp, printFlag);
     }
     DEBUG_TRACE;
 #endif

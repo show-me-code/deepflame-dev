@@ -16,13 +16,22 @@ void field_add_vector(cudaStream_t stream,
         int num_cells, const double *input1, const double *input2, double *output,
         int num_boundary_surfaces, const double *boundary_input1, const double *boundary_input2, double *boundary_output, double sign = 1.);
 
+void field_add_vector(cudaStream_t stream,
+        int num_cells, const double *input1, const double *input2, double *output, double sign = 1.);
+
 void field_multiply_scalar(cudaStream_t stream,
         int num_cells, const double *input1, const double *input2, double *output,
         int num_boundary_surfaces, const double *boundary_input1, const double *boundary_input2, double *boundary_output);
 
+void vector_half_mag_square(cudaStream_t stream, int num_cells, const double *vec_input, double *scalar_output,
+        int num_boundary_surfaces, const double *boundary_vec_input, double *boundary_scalar_output);
+
 void scalar_field_multiply_vector_field(cudaStream_t stream,
         int num_cells, const double *input1, const double *input2, double *output,
         int num_boundary_surfaces, const double *boundary_input1, const double *boundary_input2, double *boundary_output, double sign = 1.);
+
+void scalar_field_multiply_vector_field(cudaStream_t stream,
+        int num_cells, const double *input1, const double *input2, double *output, double sign = 1.);
 
 void fvc_to_source_vector(cudaStream_t stream, int num_cells, const double *volume, const double *fvc_output, double *source);
 
@@ -55,9 +64,10 @@ void correct_boundary_conditions_processor_scalar(cudaStream_t stream, ncclComm_
         const double *vf, const int *boundary_cell_face, double *vf_boundary);
 
 void correct_boundary_conditions_scalar(cudaStream_t stream, ncclComm_t comm,
-        const int *peer, int num_boundary_surfaces, int num_patches,
-        const int *patch_size, const int *patch_type,
-        const int *boundary_cell_face, const double *vf, double *boundary_vf);
+        const int *neighbor_peer, int num_boundary_surfaces, int num_patches,
+        const int *patch_size, const int *patch_type, const double *boundary_delta_coeffs, 
+        const int *boundary_cell_face, const double *vf, double *boundary_vf,
+        const double *thermo_gradient = nullptr);
 
 void correct_boundary_conditions_vector(cudaStream_t stream, ncclComm_t comm,
         const int *neighbor_peer, int num_boundary_surfaces, int num_cells, int num_patches,
@@ -174,6 +184,13 @@ void fvc_grad_cell_scalar(cudaStream_t stream, int num_cells, int num_surfaces, 
         const double *weight, const double *Sf, const double *vf, double *output, // end for internal
         int num_patches, const int *patch_size, const int *patch_type, const double *boundary_weight,
         const int *boundary_cell_face, const double *boundary_vf, const double *boundary_Sf, const double *volume, double sign = 1.);
+
+void fvc_grad_cell_scalar(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces, 
+        const int *lowerAddr, const int *upperAddr, 
+        const double *weight, const double *Sf, const double *vf, double *output, // end for internal
+        int num_patches, const int *patch_size, const int *patch_type, const double *boundary_weight,
+        const int *boundary_cell_face, const double *boundary_vf, const double *boundary_Sf, const double *volume, 
+        bool dividVol, double sign = 1.);
 
 void fvc_grad_cell_scalar_withBC(cudaStream_t stream, ncclComm_t comm, const int *neighbor_peer,
         int num_cells, int num_surfaces, int num_boundary_surfaces,

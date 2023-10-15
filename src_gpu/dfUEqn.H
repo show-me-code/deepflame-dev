@@ -120,8 +120,8 @@ public:
     void H(double *Psi);
     void getrAU(cudaStream_t stream, ncclComm_t comm, int num_cells, int num_surfaces, int num_boundary_surfaces, 
         const int *neighbor_peer, int num_patches, const int *patch_size, const int *patch_type,
-        const int *boundary_cell_face, const double *internal_coeffs, const double *volume, const double *diag, 
-        double *rAU, double *boundary_rAU);
+        const int *boundary_cell_face, const double *boundary_delta_coeffs, const double *internal_coeffs, const double *volume, 
+        const double *diag, double *rAU, double *boundary_rAU);
     void UEqnGetHbyA(cudaStream_t stream, ncclComm_t comm, const int *neighbor_peer, 
         int num_cells, int num_surfaces, int num_boundary_surfaces, 
         const int *lowerAddr, const int *upperAddr, const double *volume,

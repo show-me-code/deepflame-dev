@@ -470,7 +470,8 @@ void dfUEqn::process() {
                 dataBase_.d_boundary_face_cell, dataBase_.d_boundary_p, dataBase_.d_boundary_sf, dataBase_.d_volume, -1.);
         getrAU(dataBase_.stream, dataBase_.nccl_comm, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, 
                 dataBase_.neighbProcNo.data(), dataBase_.num_patches, dataBase_.patch_size.data(), dataBase_.patch_type_extropolated.data(),
-                dataBase_.d_boundary_face_cell, d_internal_coeffs, dataBase_.d_volume, d_diag, dataBase_.d_rAU, dataBase_.d_boundary_rAU);
+                dataBase_.d_boundary_face_cell, dataBase_.d_boundary_delta_coeffs, d_internal_coeffs, dataBase_.d_volume, d_diag, 
+                dataBase_.d_rAU, dataBase_.d_boundary_rAU);
 // #ifndef DEBUG_CHECK_LDU   
         ueqn_ldu_to_csr(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, dataBase_.num_Nz,
             dataBase_.d_boundary_face_cell, dataBase_.d_ldu_to_csr_index, dataBase_.d_diag_to_csr_index, 
@@ -498,6 +499,9 @@ void dfUEqn::process() {
     correct_boundary_conditions_vector(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(), dataBase_.num_boundary_surfaces, 
             dataBase_.num_cells, dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(), dataBase_.d_boundary_face_cell,
             dataBase_.d_u, dataBase_.d_boundary_u);
+    vector_half_mag_square(dataBase_.stream, dataBase_.num_cells, dataBase_.d_u, dataBase_.d_k, dataBase_.num_boundary_surfaces, 
+            dataBase_.d_boundary_u, dataBase_.d_boundary_k);
+
     checkCudaErrors(cudaEventRecord(stop,0));
     checkCudaErrors(cudaEventSynchronize(start));
     checkCudaErrors(cudaEventSynchronize(stop));
@@ -573,8 +577,8 @@ void dfUEqn::A(double *Psi) {
 
 void dfUEqn::getrAU(cudaStream_t stream, ncclComm_t comm, int num_cells, int num_surfaces, int num_boundary_surfaces, 
         const int *neighbor_peer, int num_patches, const int *patch_size, const int *patch_type,
-        const int *boundary_cell_face, const double *internal_coeffs, const double *volume, const double *diag, 
-        double *rAU, double *boundary_rAU)
+        const int *boundary_cell_face, const double *boundary_delta_coeffs, const double *internal_coeffs, const double *volume, 
+        const double *diag, double *rAU, double *boundary_rAU)
 {
     checkCudaErrors(cudaMemcpyAsync(rAU, diag, num_cells * sizeof(double), cudaMemcpyDeviceToDevice, stream));
 
@@ -586,7 +590,7 @@ void dfUEqn::getrAU(cudaStream_t stream, ncclComm_t comm, int num_cells, int num
     blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
     divide_cell_volume_scalar_reverse<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, volume, rAU);
 
-    correct_boundary_conditions_scalar(stream, comm, neighbor_peer, num_boundary_surfaces, num_patches, patch_size, patch_type, 
+    correct_boundary_conditions_scalar(stream, comm, neighbor_peer, num_boundary_surfaces, num_patches, patch_size, patch_type, boundary_delta_coeffs,
             boundary_cell_face, rAU, boundary_rAU);
 }
 
@@ -922,4 +926,7 @@ void dfUEqn::comparerAU(const double *rAU, const double *boundary_rAU, bool prin
     checkVectorEqual(dataBase_.num_cells, rAU, h_rAU, 1e-10, printFlag);
     fprintf(stderr, "check h_boundary_rAU\n");
     checkVectorEqual(dataBase_.num_boundary_surfaces, boundary_rAU, h_boundary_rAU, 1e-10, printFlag);
+
+    delete h_rAU;
+    delete h_boundary_rAU;
 }

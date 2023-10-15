@@ -439,18 +439,18 @@ void dfMatrixDataBase::createNonConstantFieldsBoundary() {
 
 void dfMatrixDataBase::preTimeStep(const double *u_old, const double *boundary_u_old, const double *p_old, const double *boundary_p_old) {
     checkCudaErrors(cudaMemcpyAsync(d_rho_old, d_rho, cell_value_bytes, cudaMemcpyDeviceToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_phi_old, d_phi, surface_value_bytes, cudaMemcpyDeviceToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_rho_old, d_boundary_rho, boundary_surface_value_bytes, cudaMemcpyDeviceToDevice, stream));
+    
+    checkCudaErrors(cudaMemcpyAsync(d_phi_old, d_phi, surface_value_bytes, cudaMemcpyDeviceToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_phi_old, d_boundary_phi, boundary_surface_value_bytes, cudaMemcpyDeviceToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_rho_old, d_rho, cell_value_bytes, cudaMemcpyDeviceToDevice, stream));
+
     checkCudaErrors(cudaMemcpyAsync(d_u_old, d_u, cell_value_vec_bytes, cudaMemcpyDeviceToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_boundary_u_old, d_boundary_u, boundary_surface_value_vec_bytes, cudaMemcpyDeviceToDevice, stream));
     
-    // permute_vector_h2d(stream, num_cells, d_u_old_host_order, d_u_old);
-    // permute_vector_h2d(stream, num_boundary_surfaces, d_boundary_u_old_host_order, d_boundary_u_old);
+    checkCudaErrors(cudaMemcpyAsync(d_k_old, d_k, cell_value_bytes, cudaMemcpyDeviceToDevice, stream));
 
-    checkCudaErrors(cudaMemcpyAsync(d_p_old, p_old, cell_value_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_boundary_p_old, boundary_p_old, boundary_surface_value_bytes, cudaMemcpyHostToDevice, stream));
+    checkCudaErrors(cudaMemcpyAsync(d_p_old, d_p, cell_value_bytes, cudaMemcpyDeviceToDevice, stream));
+    checkCudaErrors(cudaMemcpyAsync(d_boundary_p_old, d_boundary_p, boundary_surface_value_bytes, cudaMemcpyDeviceToDevice, stream));
 }
 
 void dfMatrixDataBase::postTimeStep() {}

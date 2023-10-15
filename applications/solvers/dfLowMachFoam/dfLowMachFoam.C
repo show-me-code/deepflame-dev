@@ -205,7 +205,8 @@ int main(int argc, char *argv[])
     createGPURhoEqn(rho, phi);
 
     const volScalarField& mu = thermo.mu();
-    createGPUThermo(CanteraTorchProperties, T, thermo.he(), psi, thermo.alpha(), mu);
+    const volScalarField& alpha = thermo.alpha();
+    createGPUThermo(CanteraTorchProperties, T, thermo.he(), psi, alpha, mu, K, dpdt);
 #endif
 
     end1 = std::clock();
@@ -300,7 +301,84 @@ int main(int argc, char *argv[])
 
                 start = std::clock();
                 chemistry->correctThermo();
+                thermo_GPU.correctThermo();
                 end = std::clock();
+
+                // check correctThermo
+                double *h_boundary_T_tmp = new double[dfDataBase.num_boundary_surfaces];
+                double *h_boundary_he_tmp = new double[dfDataBase.num_boundary_surfaces];
+                double *h_boundary_mu_tmp = new double[dfDataBase.num_boundary_surfaces];
+                double *h_boundary_rho_tmp = new double[dfDataBase.num_boundary_surfaces];
+                double *h_boundary_thermo_alpha_tmp = new double[dfDataBase.num_boundary_surfaces];    
+                double *h_boundary_thermo_psi_tmp = new double[dfDataBase.num_boundary_surfaces];
+                offset = 0;
+                forAll(T.boundaryField(), patchi)
+                {
+                    const fvPatchScalarField& patchHe = thermo.he().boundaryField()[patchi];
+                    const fvPatchScalarField& patchMu = mu.boundaryField()[patchi];
+                    const fvPatchScalarField& patchPsi = psi.boundaryField()[patchi];
+                    const fvPatchScalarField& patchAlpha = alpha.boundaryField()[patchi];
+                    const fvPatchScalarField& patchRho = thermo.rho()().boundaryField()[patchi];
+                    const fvPatchScalarField& patchT = T.boundaryField()[patchi];
+
+                    int patchsize = patchT.size();
+                    if (patchT.type() == "processor") {
+                        memcpy(h_boundary_T_tmp + offset, &patchT[0], patchsize * sizeof(double));
+                        scalarField patchTInternal = 
+                                dynamic_cast<const processorFvPatchField<scalar>&>(patchT).patchInternalField()();
+                        memcpy(h_boundary_T_tmp + offset + patchsize, &patchTInternal[0], patchsize * sizeof(double));
+
+                        memcpy(h_boundary_he_tmp + offset, &patchHe[0], patchsize * sizeof(double));
+                        scalarField patchHeInternal = 
+                                dynamic_cast<const processorFvPatchField<scalar>&>(patchHe).patchInternalField()();
+                        memcpy(h_boundary_he_tmp + offset + patchsize, &patchHeInternal[0], patchsize * sizeof(double));
+
+                        memcpy(h_boundary_thermo_psi_tmp + offset, &patchPsi[0], patchsize * sizeof(double));
+                        scalarField patchPsiInternal = 
+                                dynamic_cast<const processorFvPatchField<scalar>&>(patchPsi).patchInternalField()();
+                        memcpy(h_boundary_thermo_psi_tmp + offset + patchsize, &patchPsiInternal[0], patchsize * sizeof(double));
+
+                        memcpy(h_boundary_thermo_alpha_tmp + offset, &patchAlpha[0], patchsize * sizeof(double));
+                        scalarField patchAlphaInternal = 
+                                dynamic_cast<const processorFvPatchField<scalar>&>(patchAlpha).patchInternalField()();
+                        memcpy(h_boundary_thermo_alpha_tmp + offset + patchsize, &patchAlphaInternal[0], patchsize * sizeof(double));
+
+                        memcpy(h_boundary_mu_tmp + offset, &patchMu[0], patchsize * sizeof(double));
+                        scalarField patchMuInternal = 
+                                dynamic_cast<const processorFvPatchField<scalar>&>(patchMu).patchInternalField()();
+                        memcpy(h_boundary_mu_tmp + offset + patchsize, &patchMuInternal[0], patchsize * sizeof(double));
+
+                        memcpy(h_boundary_rho_tmp + offset, &patchRho[0], patchsize * sizeof(double));
+                        scalarField patchRhoInternal = 
+                                dynamic_cast<const processorFvPatchField<scalar>&>(patchRho).patchInternalField()();
+                        memcpy(h_boundary_rho_tmp + offset + patchsize, &patchRhoInternal[0], patchsize * sizeof(double));
+
+                        offset += patchsize * 2;
+                    } else {
+                        memcpy(h_boundary_T_tmp + offset, &patchT[0], patchsize * sizeof(double));
+                        memcpy(h_boundary_he_tmp + offset, &patchHe[0], patchsize * sizeof(double));
+                        memcpy(h_boundary_thermo_psi_tmp + offset, &patchPsi[0], patchsize * sizeof(double));
+                        memcpy(h_boundary_thermo_alpha_tmp + offset, &patchAlpha[0], patchsize * sizeof(double));
+                        memcpy(h_boundary_mu_tmp + offset, &patchMu[0], patchsize * sizeof(double));
+                        memcpy(h_boundary_rho_tmp + offset, &patchRho[0], patchsize * sizeof(double));
+
+                        offset += patchsize;
+                    }
+                }
+                bool printFlag = false;
+                thermo_GPU.compareT(&T[0], h_boundary_T_tmp, printFlag);
+                // thermo_GPU.compareHe(&thermo.he()[0], h_boundary_he_tmp, printFlag);
+                // thermo_GPU.comparePsi(&psi[0], h_boundary_thermo_psi_tmp, printFlag);
+                // thermo_GPU.compareAlpha(&alpha[0], h_boundary_thermo_alpha_tmp, printFlag);
+                // thermo_GPU.compareMu(&mu[0], h_boundary_mu_tmp, printFlag);
+                // thermo_GPU.compareRho(&thermo.rho()()[0], h_boundary_rho_tmp, printFlag);
+
+                delete h_boundary_T_tmp;
+                delete h_boundary_he_tmp;
+                delete h_boundary_thermo_psi_tmp;
+                delete h_boundary_thermo_alpha_tmp;
+                delete h_boundary_mu_tmp;
+                delete h_boundary_rho_tmp;
 
                 #ifdef GPUSolverNew_
                 double *h_boundary_thermo_psi = new double[dfDataBase.num_boundary_surfaces];
@@ -360,6 +438,29 @@ int main(int argc, char *argv[])
         double loop_time = double(loop_end - loop_start) / double(CLOCKS_PER_SEC);
 
         rho = thermo.rho();
+
+        thermo_GPU.updateRho();
+
+        // double *h_rho_p = dfDataBase.getFieldPointer("rho", location::cpu, position::internal);
+        // double *h_boundary_rho_p = dfDataBase.getFieldPointer("rho", location::cpu, position::boundary);
+        // offset = 0;
+        // forAll(rho.boundaryField(), patchi)
+        // {
+        //     const fvPatchScalarField& patchRho = rho.boundaryField()[patchi];
+        //     int patchsize = patchRho.size();
+        //     if (patchRho.type() == "processor") {
+        //         memcpy(h_boundary_rho_p + offset, &patchRho[0], patchsize * sizeof(double));
+        //         scalarField patchRhoInternal = 
+        //                 dynamic_cast<const processorFvPatchField<scalar>&>(patchRho).patchInternalField()();
+        //         memcpy(h_boundary_rho_p + offset + patchsize, &patchRhoInternal[0], patchsize * sizeof(double));
+        //         offset += patchsize * 2;
+        //     } else {
+        //         memcpy(h_boundary_rho_p + offset, &patchRho[0], patchsize * sizeof(double));
+        //         offset += patchsize;
+        //     }
+        // }
+        // memcpy(h_rho_p, &rho[0], dfDataBase.cell_value_bytes);
+        // rhoEqn_GPU.correctPsi(h_rho_p, h_boundary_rho_p);
 
 #ifdef GPUSolverNew_
         dfDataBase.postTimeStep();
