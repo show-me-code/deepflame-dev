@@ -673,3 +673,33 @@ void dfThermo::compareAlpha(const double *alpha, const double *boundary_alpha, b
     delete h_alpha;
     delete h_boundary_alpha;
 }
+
+void dfThermo::correctHe(const double *he, const double *boundary_he)
+{
+    checkCudaErrors(cudaMemcpy(dataBase_.d_he, he, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(dataBase_.d_boundary_he, boundary_he, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice));
+}
+
+void dfThermo::correctRho(const double *rho, const double *boundary_rho)
+{
+    checkCudaErrors(cudaMemcpy(dataBase_.d_rho, rho, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(dataBase_.d_boundary_rho, boundary_rho, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice));
+}
+
+void dfThermo::correctPsi(const double *psi, const double *boundary_psi)
+{
+    checkCudaErrors(cudaMemcpy(dataBase_.d_thermo_psi, psi, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(dataBase_.d_boundary_thermo_psi, boundary_psi, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice));
+}
+
+void dfThermo::correctMu(const double *mu, const double *boundary_mu)
+{
+    checkCudaErrors(cudaMemcpy(dataBase_.d_mu, mu, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(dataBase_.d_boundary_mu, boundary_mu, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice));
+}
+
+void dfThermo::correctAlpha(const double *alpha, const double *boundary_alpha)
+{
+    checkCudaErrors(cudaMemcpy(dataBase_.d_thermo_alpha, alpha, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(dataBase_.d_boundary_thermo_alpha, boundary_alpha, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice));
+}

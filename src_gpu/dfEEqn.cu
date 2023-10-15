@@ -173,13 +173,13 @@ void dfEEqn::process() {
             dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_hDiff_corr_flux, d_source,
             dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_he.data(), dataBase_.d_boundary_face_cell,
             dataBase_.d_boundary_weight, dataBase_.d_boundary_hDiff_corr_flux, dataBase_.d_boundary_sf, dataBase_.d_volume);
-    fvc_to_source_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.d_volume, d_dpdt, d_source);
+    fvc_to_source_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.d_volume, dataBase_.d_dpdt, d_source);
     fvc_to_source_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.d_volume, dataBase_.d_diff_alphaD, d_source, -1);
-#ifndef DEBUG_CHECK_LDU
+// #ifndef DEBUG_CHECK_LDU
     ldu_to_csr_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
             dataBase_.num_Nz, dataBase_.d_boundary_face_cell,dataBase_.d_ldu_to_csr_index, dataBase_.num_patches,
             dataBase_.patch_size.data(), patch_type_he.data(), d_ldu, d_source, d_internal_coeffs, d_boundary_coeffs, d_A);
-#endif
+// #endif
 // #ifndef TIME_GPU
 //         checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph));
 //         checkCudaErrors(cudaGraphInstantiate(&graph_instance, graph, NULL, NULL, 0));
@@ -195,9 +195,9 @@ void dfEEqn::process() {
     fprintf(stderr, "eeqn assembly time:%f(ms)\n",time_elapsed);
 
     checkCudaErrors(cudaEventRecord(start,0));
-#ifndef DEBUG_CHECK_LDU
+// #ifndef DEBUG_CHECK_LDU
     solve();
-#endif
+// #endif
     correct_boundary_conditions_scalar(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
             dataBase_.num_boundary_surfaces, dataBase_.num_patches, dataBase_.patch_size.data(),
             patch_type_he.data(), dataBase_.d_boundary_delta_coeffs, dataBase_.d_boundary_face_cell,
