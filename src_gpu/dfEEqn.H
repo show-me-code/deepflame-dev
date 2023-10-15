@@ -33,7 +33,7 @@ class dfEEqn
     // dpdt
     double *d_dpdt = nullptr;
     double *h_dpdt = nullptr;
-
+    
     // non-constant fields - boundary
     // gradient
     double *d_boundary_heGradient = nullptr;
@@ -102,7 +102,7 @@ public:
 
     void solve();
     void compareResult(const double *lower, const double *upper, const double *diag, const double *source, const double *internal_coeffs, const double *boundary_coeffs, bool printFlag);
-
+    void compareHe(const double *he, const double *boundary_he, bool printFlag);
     void sync();
 
 };

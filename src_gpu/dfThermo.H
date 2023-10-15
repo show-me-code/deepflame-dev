@@ -58,23 +58,25 @@ public:
     // public member functions
     void setConstantValue(std::string mechanism_file, int num_cells, int num_species);
     void setConstantFields(const std::vector<int> patch_type);
-    void initNonConstantFields(double *h_T, double *h_he, double *h_psi, double *h_alpha, double *h_mu,
-            double *h_boundary_T, double *h_boundary_he, double *h_boundary_psi, double *h_boundary_alpha, double *h_boundary_mu);
+    void initNonConstantFields(const double *h_T, const double *h_he, const double *h_psi, const double *h_alpha, 
+            const double *h_mu, const double *h_k, const double *h_dpdt, const double *h_boundary_T, const double *h_boundary_he, 
+            const double *h_boundary_psi, const double *h_boundary_alpha, const double *h_boundary_mu, const double *h_boundary_k);
 
     // set mass fraction
     void setMassFraction(const double *d_y, const double *d_boundary_y);
 
     // *** GPU functions ***
-    void calculateTPolyGPU(int num_thread, const double *T, double *T_poly, int offset = 0);
-    void calculatePsiGPU(int num_thread, const double *T, double *psi, int offset = 0);
-    void calculateRhoGPU(int num_thread, const double *p, const double *psi, double *rho, int offset = 0);
-    void calculateViscosityGPU(int num_thread, int num_total, const double *T, const double *mole_fraction, 
+    void calculateTPolyGPU(int threads_per_block, int num_thread, int num_total, const double *T, double *T_poly, int offset = 0);
+    void calculatePsiGPU(int threads_per_block, int num_thread, const double *T, const double *mean_mole_weight, 
+            double *d_psi, int offset = 0);
+    void calculateRhoGPU(int thread_per_block, int num_thread, const double *p, const double *psi, double *rho, int offset = 0);
+    void calculateViscosityGPU(int thread_per_block, int num_thread, int num_total, const double *T, const double *mole_fraction, 
             const double *T_poly, double *species_viscosities, double *viscosity, int offset = 0);
-    void calculateThermoConductivityGPU(int num_thread, int num_total, const double *T, const double *T_poly,
+    void calculateThermoConductivityGPU(int thread_per_block, int num_thread, int num_total, const double *T, const double *T_poly,
             const double *d_y, const double *mole_fraction, double *species_thermal_conductivities,
             double *thermal_conductivity, int offset = 0);
-    void calculateEnthalpyGPU(int num_thread, const double *T, double *enthalpy, const double *d_mass_fraction, int offset = 0);
-    void calculateTemperatureGPU(int num_thread, int num_total, const double *T_init, const double *target_h, 
+    void calculateEnthalpyGPU(int thread_per_block, int num_thread, const double *T, double *enthalpy, const double *d_mass_fraction, int offset = 0);
+    void calculateTemperatureGPU(int thread_per_block, int num_thread, int num_total, const double *T_init, const double *target_h, 
             double *T, const double *d_mass_fraction, int offset = 0,
             double atol = 1e-7, double rtol = 1e-7, int max_iter = 20);
     
@@ -83,16 +85,19 @@ public:
             const double *T, const double *p, const double *y, const double *boundary_delta_coeffs,
             const double *boundary_p, const double *boundary_y, double *boundary_thermo_gradient);
     
-    void compareThermoConductivity(const double *d_thermal_conductivity, const double *thermal_conductivity,
-            bool printFlag);
-    void compareViscosity(const double *d_viscosity, const double *viscosity, bool printFlag);
-    void compareHe(const double *he);
+    void compareT(const double *T, const double *boundary_T, bool printFlag);
+    void compareRho(const double *rho, const double *boundary_rho, bool printFlag);
+    void comparePsi(const double *psi, const double *boundary_psi, bool printFlag);
+    void compareMu(const double *mu, const double *boundary_mu, bool printFlag);
+    void compareAlpha(const double *alpha, const double *boundary_alpha, bool printFlag);
+    void compareHe(const double *he, const double *boundary_he, bool printFlag);
 
     void sync();
 
     // outer API
     void updateEnergy();
     void correctThermo();
+    void updateRho();
 
     // getter functions
 };

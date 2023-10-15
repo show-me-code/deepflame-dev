@@ -517,7 +517,8 @@ void createGPUpEqn(const IOdictionary& CanteraTorchProperties, volScalarField& p
 }
 
 void createGPUThermo(const IOdictionary& CanteraTorchProperties, volScalarField& T, volScalarField& he, 
-        const volScalarField& psi, const volScalarField& alpha, const volScalarField& mu) {
+        const volScalarField& psi, const volScalarField& alpha, const volScalarField& mu,
+        const volScalarField& K, const volScalarField& dpdt) {
     DEBUG_TRACE;
     // initialize dfThermo
     string mechanismFile;
@@ -529,23 +530,12 @@ void createGPUThermo(const IOdictionary& CanteraTorchProperties, volScalarField&
 
     // thermal variables in dataBase
     // TODO: note that h_he & h_boundary_he are transfered to GPU in EEqn_GPU, too. We should delete one of them.
-    double *h_T = new double[dfDataBase.num_cells];
-    double *h_he = new double[dfDataBase.num_cells];
-    double *h_thermo_psi = new double[dfDataBase.num_cells];
-    double *h_thermo_alpha = new double[dfDataBase.num_cells];
-    double *h_mu = new double[dfDataBase.num_cells];
-
     double *h_boundary_T = new double[dfDataBase.num_boundary_surfaces];
     double *h_boundary_he = new double[dfDataBase.num_boundary_surfaces];
     double *h_boundary_thermo_psi = new double[dfDataBase.num_boundary_surfaces];
     double *h_boundary_thermo_alpha = new double[dfDataBase.num_boundary_surfaces];
     double *h_boundary_mu = new double[dfDataBase.num_boundary_surfaces];
-
-    memcpy(h_T, &T[0], dfDataBase.cell_value_bytes);
-    memcpy(h_he, &he[0], dfDataBase.cell_value_bytes);
-    memcpy(h_thermo_psi, &psi[0], dfDataBase.cell_value_bytes);
-    memcpy(h_thermo_alpha, &alpha[0], dfDataBase.cell_value_bytes);
-    memcpy(h_mu, &mu[0], dfDataBase.cell_value_bytes);
+    double *h_boundary_k = new double[dfDataBase.num_boundary_surfaces];
 
     // initialize thermo boundary
     std::vector<int> patch_type_T(dfDataBase.num_patches);
@@ -558,6 +548,7 @@ void createGPUThermo(const IOdictionary& CanteraTorchProperties, volScalarField&
         const fvPatchScalarField& patchPsi = psi.boundaryField()[patchi];
         const fvPatchScalarField& patchAlpha = alpha.boundaryField()[patchi];
         const fvPatchScalarField& patchMu = mu.boundaryField()[patchi];
+        const fvPatchScalarField& patchK = K.boundaryField()[patchi];
 
         int patchsize = patchT.size();
         if (patchT.type() == "processor") {
@@ -586,6 +577,11 @@ void createGPUThermo(const IOdictionary& CanteraTorchProperties, volScalarField&
                     dynamic_cast<const processorFvPatchField<scalar>&>(patchMu).patchInternalField()();
             memcpy(h_boundary_mu + offset + patchsize, &patchMuInternal[0], patchsize * sizeof(double));
 
+            memcpy(h_boundary_k + offset, &patchK[0], patchsize * sizeof(double));
+            scalarField patchKInternal = 
+                    dynamic_cast<const processorFvPatchField<scalar>&>(patchK).patchInternalField()();
+            memcpy(h_boundary_k + offset + patchsize, &patchKInternal[0], patchsize * sizeof(double));
+
             offset += patchsize * 2;
         } else {
             memcpy(h_boundary_T + offset, &patchT[0], patchsize * sizeof(double));
@@ -593,16 +589,15 @@ void createGPUThermo(const IOdictionary& CanteraTorchProperties, volScalarField&
             memcpy(h_boundary_thermo_psi + offset, &patchPsi[0], patchsize * sizeof(double));
             memcpy(h_boundary_thermo_alpha + offset, &patchAlpha[0], patchsize * sizeof(double));
             memcpy(h_boundary_mu + offset, &patchMu[0], patchsize * sizeof(double));
+            memcpy(h_boundary_k + offset, &patchK[0], patchsize * sizeof(double));
 
             offset += patchsize;
         }
     }
     thermo_GPU.setConstantFields(patch_type_T);
-    thermo_GPU.initNonConstantFields(h_T, h_he, h_thermo_psi, h_thermo_alpha, h_mu, 
-            h_boundary_T, h_boundary_he, h_boundary_thermo_psi, h_boundary_thermo_alpha, h_boundary_mu);
+    thermo_GPU.initNonConstantFields(&T[0], &he[0], &psi[0], &alpha[0], &mu[0], &K[0], &dpdt[0],
+            h_boundary_T, h_boundary_he, h_boundary_thermo_psi, h_boundary_thermo_alpha, h_boundary_mu, h_boundary_k);
 
-    delete h_T;
-    delete h_he;
     delete h_boundary_T;
     delete h_boundary_he;
 }

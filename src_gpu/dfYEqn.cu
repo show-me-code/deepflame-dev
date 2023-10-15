@@ -656,7 +656,7 @@ void dfYEqn::postProcess(double *h_y, double *h_boundary_y) {
     for (int s = 0; s < dataBase_.num_species; s++) {
         correct_boundary_conditions_scalar(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
                 dataBase_.num_boundary_surfaces, dataBase_.num_patches, dataBase_.patch_size.data(),
-                patch_type.data(), dataBase_.d_boundary_face_cell,
+                patch_type.data(), dataBase_.d_boundary_delta_coeffs, dataBase_.d_boundary_face_cell,
                 dataBase_.d_y + dataBase_.num_cells * s, dataBase_.d_boundary_y + dataBase_.num_boundary_surfaces * s);
     }
 

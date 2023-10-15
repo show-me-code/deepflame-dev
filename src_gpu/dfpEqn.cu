@@ -409,7 +409,8 @@ void dfpEqn::process() {
     solve();
     correct_boundary_conditions_scalar(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
             dataBase_.num_boundary_surfaces, dataBase_.num_patches, dataBase_.patch_size.data(), 
-            patch_type_p.data(), dataBase_.d_boundary_face_cell, dataBase_.d_p, dataBase_.d_boundary_p);
+            patch_type_p.data(), dataBase_.d_boundary_delta_coeffs,
+            dataBase_.d_boundary_face_cell, dataBase_.d_p, dataBase_.d_boundary_p);
 }
 void dfpEqn::postProcess() {
     // update phi
@@ -423,20 +424,18 @@ void dfpEqn::postProcess() {
     // correct U
     checkCudaErrors(cudaMemsetAsync(dataBase_.d_u, 0., dataBase_.cell_value_vec_bytes, dataBase_.stream));
     // TODO: may do not need to calculate boundary fields
-    fvc_grad_cell_scalar_withBC(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
-            dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
-            dataBase_.d_owner, dataBase_.d_neighbor, dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_p, dataBase_.d_u, 
+    fvc_grad_cell_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
+            dataBase_.d_owner, dataBase_.d_neighbor, 
+            dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_p, dataBase_.d_u, 
             dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_p.data(), dataBase_.d_boundary_weight,
-            dataBase_.d_boundary_face_cell, dataBase_.d_boundary_p, dataBase_.d_boundary_sf, dataBase_.d_volume, 
-            dataBase_.d_boundary_mag_sf, dataBase_.d_boundary_u, dataBase_.d_boundary_delta_coeffs);
-    scalar_field_multiply_vector_field(dataBase_.stream, dataBase_.num_cells, dataBase_.d_rAU, dataBase_.d_u, dataBase_.d_u,
-            dataBase_.num_boundary_surfaces, dataBase_.d_boundary_rAU, dataBase_.d_boundary_u, dataBase_.d_boundary_u);
-    field_add_vector(dataBase_.stream, dataBase_.num_cells, dataBase_.d_HbyA, dataBase_.d_u, dataBase_.d_u,
-            dataBase_.num_boundary_surfaces, dataBase_.d_boundary_HbyA, dataBase_.d_boundary_u, dataBase_.d_boundary_u, -1.);
+            dataBase_.d_boundary_face_cell, dataBase_.d_boundary_p, dataBase_.d_boundary_sf, dataBase_.d_volume, true);
+    scalar_field_multiply_vector_field(dataBase_.stream, dataBase_.num_cells, dataBase_.d_rAU, dataBase_.d_u, dataBase_.d_u);
+    field_add_vector(dataBase_.stream, dataBase_.num_cells, dataBase_.d_HbyA, dataBase_.d_u, dataBase_.d_u, -1.);
     correct_boundary_conditions_vector(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(), dataBase_.num_boundary_surfaces, 
             dataBase_.num_cells, dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_U.data(), dataBase_.d_boundary_face_cell,
             dataBase_.d_u, dataBase_.d_boundary_u);
-
+    vector_half_mag_square(dataBase_.stream, dataBase_.num_cells, dataBase_.d_u, dataBase_.d_k, dataBase_.num_boundary_surfaces, 
+            dataBase_.d_boundary_u, dataBase_.d_boundary_k);
     // calculate dpdt
     fvc_ddt_scalar_field(dataBase_.stream, dataBase_.num_cells, dataBase_.rdelta_t, dataBase_.d_p, dataBase_.d_p_old, dataBase_.d_volume, dataBase_.d_dpdt, 1.);
 }
@@ -505,8 +504,9 @@ void dfpEqn::getphiHbyA(cudaStream_t stream, int num_cells, int num_surfaces, in
             get_phiCorr_boundary_kernel_processor<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset,
                     boundary_Sf, boundary_velocity_old, boundary_rho_old, boundary_phi_old, boundary_weight, boundary_output);
             offset += 2 * patch_size[i];
-            continue;
         } else {
+            get_phiCorr_boundary_kernel_zeroGradient<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset,
+                    boundary_Sf, boundary_velocity_old, boundary_rho_old, boundary_phi_old, boundary_output);
             offset += patch_size[i];
         }
     }
@@ -539,7 +539,7 @@ void dfpEqn::getphiHbyA(cudaStream_t stream, int num_cells, int num_surfaces, in
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         if (patch_type[i] == boundaryConditions::extrapolated) {
             multi_fvc_flux_fvc_intepolate_boundary_kernel_zeroGradient<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset, 
-                    boundary_HbyA, boundary_Sf, boundary_rho, boundary_output, sign);
+                    boundary_Sf, boundary_HbyA, boundary_rho, boundary_output, sign);
         } else if (patch_type[i] == boundaryConditions::processor) {
             multi_fvc_flux_fvc_intepolate_boundary_kernel_processor<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset, 
                     boundary_Sf, boundary_HbyA, boundary_weight, boundary_rho, boundary_output, sign);
@@ -567,6 +567,18 @@ void dfpEqn::sync()
 void dfpEqn::solve()
 {
     sync();
+
+    // double *h_A_csr = new double[dataBase_.num_Nz];
+    // checkCudaErrors(cudaMemcpy(h_A_csr, d_A, dataBase_.csr_value_bytes, cudaMemcpyDeviceToHost));
+    // for (int i = 0; i < dataBase_.num_Nz; i++)
+    //     fprintf(stderr, "h_A_csr[%d]: %.10lf\n", i, h_A_csr[i]);
+    // delete[] h_A_csr;
+
+    // double *h_b = new double[dataBase_.num_cells];
+    // checkCudaErrors(cudaMemcpy(h_b, d_source, dataBase_.cell_value_bytes, cudaMemcpyDeviceToHost));
+    // for (int i = 0; i < dataBase_.num_cells; i++)
+    //     fprintf(stderr, "h_b[%d]: %.10lf\n", i, h_b[i]);
+    // delete[] h_b;
 
     if (num_iteration == 0)                                     // first interation
     {
@@ -655,21 +667,31 @@ void dfpEqn::comparep(const double *p, const double *boundary_p, bool printFlag)
 void dfpEqn::compareU(const double *U, const double *boundary_U, bool printFlag)
 {
     double *h_u = new double[dataBase_.num_cells * 3];
+    double *h_u_ref = new double[dataBase_.num_cells * 3];
     double *h_boundary_u = new double[dataBase_.num_boundary_surfaces * 3];
+    double *h_boundary_u_ref = new double[dataBase_.num_boundary_surfaces * 3];
 
-    double *d_permute_u, *d_boundary_permute_u;
-    checkCudaErrors(cudaMalloc((void**)&d_permute_u, dataBase_.csr_value_vec_bytes));
-    checkCudaErrors(cudaMalloc((void**)&d_boundary_permute_u, dataBase_.boundary_surface_value_vec_bytes));
-    permute_vector_d2h(dataBase_.stream, dataBase_.num_cells, dataBase_.d_u, d_permute_u);
-    permute_vector_d2h(dataBase_.stream, dataBase_.num_cells, dataBase_.d_boundary_u, d_boundary_permute_u);
-    sync();
-    checkCudaErrors(cudaMemcpy(h_u, d_permute_u, dataBase_.csr_value_vec_bytes, cudaMemcpyDeviceToHost));
-    checkCudaErrors(cudaMemcpy(h_boundary_u, d_boundary_permute_u, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyDeviceToHost));
+    // permute
+    for (int i = 0; i < dataBase_.num_cells; i++)
+    {
+        h_u_ref[dataBase_.num_cells * 0 + i] = U[i * 3 + 0];
+        h_u_ref[dataBase_.num_cells * 1 + i] = U[i * 3 + 1];
+        h_u_ref[dataBase_.num_cells * 2 + i] = U[i * 3 + 2];
+    }
+    for (int i = 0; i < dataBase_.num_boundary_surfaces; i++)
+    {
+        h_boundary_u_ref[dataBase_.num_boundary_surfaces * 0 + i] = boundary_U[i * 3 + 0];
+        h_boundary_u_ref[dataBase_.num_boundary_surfaces * 1 + i] = boundary_U[i * 3 + 1];
+        h_boundary_u_ref[dataBase_.num_boundary_surfaces * 2 + i] = boundary_U[i * 3 + 2];
+    }
+    checkCudaErrors(cudaMemcpy(h_u, dataBase_.d_u, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToHost));
+    checkCudaErrors(cudaMemcpy(h_boundary_u, dataBase_.d_boundary_u, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyDeviceToHost));
 
+    // check result
     fprintf(stderr, "check h_u\n");
-    checkVectorEqual(dataBase_.num_cells * 3, U, h_u, 1e-10, printFlag);
-    // fprintf(stderr, "check h_boundary_U\n");
-    // checkVectorEqual(dataBase_.num_boundary_surfaces, boundary_U, h_boundary_u, 1e-10, printFlag);
+    checkVectorEqual(dataBase_.num_cells * 3, h_u_ref, h_u, 1e-10, printFlag);
+    fprintf(stderr, "check h_boundary_u\n");
+    checkVectorEqual(dataBase_.num_boundary_surfaces * 3, h_boundary_u_ref, h_boundary_u, 1e-10, printFlag);
 }
 
 void dfpEqn::comparedpdt(const double *dpdt, bool printFlag)

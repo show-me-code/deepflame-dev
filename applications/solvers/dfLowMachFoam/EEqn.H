@@ -174,27 +174,7 @@
     DEBUG_TRACE;
 
     // copy h_he to he(cpu)
-    memcpy(&he[0], h_he, dfDataBase.cell_value_bytes);
-
-    // copy h_boundary_he to he(cpu)
-    offset = 0;
-    forAll(he.boundaryField(), patchi) {
-        const fvPatchScalarField& const_patchHe = he.boundaryField()[patchi];
-        fvPatchScalarField& patchHe = const_cast<fvPatchScalarField&>(const_patchHe);
-        int patchsize = patchHe.size();
-        if (patchHe.type() == "processor") {
-            const scalarField const_patchHeInternal =
-                dynamic_cast<const processorFvPatchField<scalar>&>(patchHe).patchInternalField()();
-            scalarField patchHeInternal = const_cast<scalarField&>(const_patchHeInternal);
-            memcpy(&patchHe[0], h_boundary_he + offset, patchsize * sizeof(double));
-            memcpy(&patchHeInternal[0], h_boundary_he + offset + patchsize, patchsize * sizeof(double));
-            offset += patchsize * 2;
-        } else {
-            memcpy(&patchHe[0], h_boundary_he + offset, patchsize * sizeof(double));
-            offset += patchsize;
-        }
-    }
-    DEBUG_TRACE;
+    // memcpy(&he[0], h_he, dfDataBase.cell_value_bytes);
 
     //DEBUG_TRACE;
     //he.correctBoundaryConditions();
@@ -223,7 +203,7 @@
         )
     );
     // EEqn.relax();
-    // EEqn.solve("ha");
+    EEqn.solve("ha");
     // checkResult
     // TODO: for temp, now we compare ldu, finally we compare csr
     std::vector<double> h_internal_coeffs(dfDataBase.num_boundary_surfaces);
@@ -248,17 +228,38 @@
             offset += patchSize;
         }
     }
+
+    double *h_boundary_he_tmp = new double[dfDataBase.num_boundary_surfaces];
+    offset = 0;
+    forAll(he.boundaryField(), patchi)
+    {
+        const fvPatchScalarField& patchHe = he.boundaryField()[patchi];
+        int patchSize = patchHe.size();
+        if (patchHe.type() == "processor") {
+            const scalarField& patchHeInternal = dynamic_cast<const processorFvPatchField<scalar>&>(patchHe).patchInternalField()();
+            memcpy(h_boundary_he_tmp + offset, &patchHe[0], patchSize * sizeof(double));
+            memcpy(h_boundary_he_tmp + offset + patchSize, &patchHeInternal[0], patchSize * sizeof(double));
+            offset += patchSize * 2;
+        } else {
+            memcpy(h_boundary_he_tmp + offset, &patchHe[0], patchSize * sizeof(double));
+            offset += patchSize;
+        }
+    }
+
     bool printFlag = false;
     int rank = -1;
     if (mpi_init_flag) {
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     }
     if (!mpi_init_flag || rank == 0) {
-		DEBUG_TRACE;
-		EEqn_GPU.compareResult(&EEqn.lower()[0], &EEqn.upper()[0], &EEqn.diag()[0], &EEqn.source()[0],
-				h_internal_coeffs.data(), h_boundary_coeffs.data(), printFlag);
-		DEBUG_TRACE;
+		// DEBUG_TRACE;
+		// EEqn_GPU.compareResult(&EEqn.lower()[0], &EEqn.upper()[0], &EEqn.diag()[0], &EEqn.source()[0],
+		// 		h_internal_coeffs.data(), h_boundary_coeffs.data(), printFlag);
+		// DEBUG_TRACE;
+        // EEqn_GPU.compareHe(&he[0], h_boundary_he_tmp, printFlag);
     }
+
+    delete h_boundary_he_tmp;
 
 #endif
 
