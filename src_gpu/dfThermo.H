@@ -92,6 +92,12 @@ public:
     void compareAlpha(const double *alpha, const double *boundary_alpha, bool printFlag);
     void compareHe(const double *he, const double *boundary_he, bool printFlag);
 
+    void correctHe(const double *he, const double *boundary_he);
+    void correctPsi(const double *psi, const double *boundary_psi);
+    void correctAlpha(const double *alpha, const double *boundary_alpha);
+    void correctMu(const double *mu, const double *boundary_mu);
+    void correctRho(const double *rho, const double *boundary_rho);
+
     void sync();
 
     // outer API
