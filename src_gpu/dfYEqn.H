@@ -93,12 +93,7 @@ public:
         : dataBase_(dataBase) {}
 
 	// 析构函数
-	~dfYEqn(){
-        if (graph_created) {
-            checkCudaErrors(cudaGraphExecDestroy(graph_instance));
-            checkCudaErrors(cudaGraphDestroy(graph));
-        }
-    }
+	~dfYEqn(){}
 
 	// 成员函数
 
@@ -113,6 +108,8 @@ public:
 	void createNonConstantLduAndCsrFields();
 	void initNonConstantFieldsInternal(const double *y);
 	void initNonConstantFieldsBoundary(const double *boundary_y);
+
+    void cleanCudaResources();
 
 	// 方程运行
     void preProcess(const double *h_rhoD, const double *h_boundary_rhoD,

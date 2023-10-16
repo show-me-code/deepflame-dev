@@ -395,6 +395,13 @@ void dfYEqn::initNonConstantFieldsBoundary(const double *boundary_y) {
     //}
 }
 
+void dfYEqn::cleanCudaResources() {
+    if (graph_created) {
+        checkCudaErrors(cudaGraphExecDestroy(graph_instance));
+        checkCudaErrors(cudaGraphDestroy(graph));
+    }
+}
+
 void dfYEqn::preProcess(const double *h_rhoD, const double *h_boundary_rhoD,
         const double *h_hai, const double *h_boundary_hai,
         const double *h_mut_sct, const double *h_boundary_mut_sct) {

@@ -318,6 +318,8 @@ __global__ void add_psip_rho_kernel(int num_thread, int offset, const double *p,
     rho[startIndex] += p[startIndex] * psi[startIndex] - psip0[startIndex];
 }
 
+void dfThermo::cleanCudaResources() {}
+
 void dfThermo::setConstantValue(std::string mechanism_file, int num_cells, int num_species)
 {
     this->mechanism_file = mechanism_file;

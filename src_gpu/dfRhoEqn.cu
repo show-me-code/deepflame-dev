@@ -21,6 +21,13 @@ void dfRhoEqn::initNonConstantFields(const double *rho, const double *phi,
     checkCudaErrors(cudaMemcpy(dataBase_.d_boundary_phi, boundary_phi, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice));
 }
 
+void dfRhoEqn::cleanCudaResources() {
+    if (graph_created) {
+        checkCudaErrors(cudaGraphExecDestroy(graph_instance));
+        checkCudaErrors(cudaGraphDestroy(graph));
+    }
+}
+
 void dfRhoEqn::preProcess()
 {
 }

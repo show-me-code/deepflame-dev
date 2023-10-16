@@ -69,14 +69,7 @@ public:
         : dataBase_(dataBase) {}
 
 	// destructor
-	~dfpEqn(){
-        if (graph_created) {
-            checkCudaErrors(cudaGraphExecDestroy(graph_instance_pre));
-            checkCudaErrors(cudaGraphExecDestroy(graph_instance_post));
-            checkCudaErrors(cudaGraphDestroy(graph_pre));
-            checkCudaErrors(cudaGraphDestroy(graph_post));
-        }
-    }
+	  ~dfpEqn(){}
 
 	// member function
 
@@ -92,6 +85,8 @@ public:
 	void createNonConstantLduAndCsrFields();
 	// dfUEqn has no internal non-constant fields to be init
 	//void initNonConstantFieldsInternal(xxx);
+
+    void cleanCudaResources();
 
 	// run equation
 	void preProcess(double *h_phi, double *h_boundary_phi);

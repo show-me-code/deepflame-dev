@@ -68,14 +68,7 @@ public:
         : dataBase_(dataBase), thermo_(thermo) {}
 
 	// destructor
-	~dfEEqn(){
-        if (graph_created) {
-            checkCudaErrors(cudaGraphExecDestroy(graph_instance_pre));
-            checkCudaErrors(cudaGraphExecDestroy(graph_instance_post));
-            checkCudaErrors(cudaGraphDestroy(graph_pre));
-            checkCudaErrors(cudaGraphDestroy(graph_post));
-        }
-    }
+	~dfEEqn(){}
 
     // member function
 
@@ -89,6 +82,8 @@ public:
     void createNonConstantFieldsBoundary();
     void createNonConstantLduAndCsrFields();
     void initNonConstantFields(const double *he, const double *boundary_he);
+
+    void cleanCudaResources();
 
     // run equation
     // volScalarField diffAlphaD, volVectorField hDiffCorrFlux, 
