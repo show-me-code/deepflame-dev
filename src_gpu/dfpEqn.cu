@@ -363,6 +363,18 @@ void dfpEqn::correctP(const double *h_p, double *h_boundary_p) {
 
 void dfpEqn::process() {
 
+    float time_elapsed=0;
+    cudaEvent_t start,stop;
+    checkCudaErrors(cudaEventCreate(&start));
+    checkCudaErrors(cudaEventCreate(&stop));
+    checkCudaErrors(cudaEventRecord(start,0));
+
+#ifndef TIME_GPU
+    if(!graph_created) {
+        DEBUG_TRACE;
+        checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
+#endif
+
     checkCudaErrors(cudaMemsetAsync(d_ldu, 0, dataBase_.csr_value_bytes, dataBase_.stream)); // d_ldu contains d_lower, d_diag, and d_upper
     checkCudaErrors(cudaMemsetAsync(d_source, 0, dataBase_.cell_value_bytes, dataBase_.stream));
     checkCudaErrors(cudaMemsetAsync(d_internal_coeffs, 0, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
@@ -413,7 +425,29 @@ void dfpEqn::process() {
             dataBase_.num_Nz, dataBase_.d_boundary_face_cell, dataBase_.d_ldu_to_csr_index,
             dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_p.data(),
             d_ldu, d_source, d_internal_coeffs, d_boundary_coeffs, d_A);
+
+#ifndef TIME_GPU
+        checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph_pre));
+        checkCudaErrors(cudaGraphInstantiate(&graph_instance_pre, graph_pre, NULL, NULL, 0));
+        graph_created = true;
+    }
+    DEBUG_TRACE;
+    checkCudaErrors(cudaGraphLaunch(graph_instance_pre, dataBase_.stream));
+#endif
+    checkCudaErrors(cudaEventRecord(stop,0));
+    checkCudaErrors(cudaEventSynchronize(start));
+    checkCudaErrors(cudaEventSynchronize(stop));
+    checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
+    fprintf(stderr, "peqn assembly time:%f(ms)\n",time_elapsed);
+    
+    checkCudaErrors(cudaEventRecord(start,0));
     solve();
+    checkCudaErrors(cudaEventRecord(stop,0));
+    checkCudaErrors(cudaEventSynchronize(start));
+    checkCudaErrors(cudaEventSynchronize(stop));
+    checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
+    fprintf(stderr, "peqn solve time:%f(ms)\n",time_elapsed);
+
     correct_boundary_conditions_scalar(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
             dataBase_.num_boundary_surfaces, dataBase_.num_patches, dataBase_.patch_size.data(), 
             patch_type_p.data(), dataBase_.d_boundary_delta_coeffs,

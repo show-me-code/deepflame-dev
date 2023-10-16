@@ -1,21 +1,18 @@
-//#undef GPUSolverNew_
-//#define CPUSolver_
-hDiffCorrFlux = Zero;
-diffAlphaD = Zero;
-sumYDiffError = Zero;
+#if defined GPUSolverNew_ && defined DEBUG_
+    hDiffCorrFlux = Zero;
+    diffAlphaD = Zero;
+    sumYDiffError = Zero;
 
-tmp<fv::convectionScheme<scalar>> mvConvection
-(
-    fv::convectionScheme<scalar>::New
+    tmp<fv::convectionScheme<scalar>> mvConvection
     (
-        mesh,
-        fields,
-        phi,
-        mesh.divScheme("div(phi,Yi_h)")
-    )
-);
-#if defined GPUSolverNew_
-#if defined DEBUG_
+        fv::convectionScheme<scalar>::New
+        (
+            mesh,
+            fields,
+            phi,
+            mesh.divScheme("div(phi,Yi_h)")
+        )
+    );
     //randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(0)));
     //randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(1)));
     //randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(2)));
@@ -24,115 +21,14 @@ tmp<fv::convectionScheme<scalar>> mvConvection
     //randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(5)));
     //randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(6)));
 #endif
-#endif
 
-#ifdef GPUSolver_
-    start1 = std::clock();
-    UEqn_GPU.solve();
-    end1 = std::clock();
-    time_monitor_UEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
-    time_monitor_UEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
-
-    start1 = std::clock();
-    std::vector<double*> Y_old(Y.size()), boundary_Y(Y.size()), boundary_hai(Y.size()), boundary_rhoD(Y.size());
-    std::vector<const double*> hai(Y.size()), rhoD(Y.size());
-    for (size_t i = 0; i < Y.size(); ++i)
-    {
-        volScalarField& Yi = Y[i];
-        Yi.oldTime();
-        Y_old[i] = &Yi.oldTime()[0];
-        if (updateBoundaryFields)
-        {
-            cudaMallocHost(&boundary_Y[i], num_boundary_faces*sizeof(double));
-        }
-        const volScalarField& haii = chemistry->hai(i);
-        const volScalarField& rhoDi = chemistry->rhoD(i);
-        // hai[i] = &haii[0];
-        rhoD[i] = &rhoDi[0];
-        // cudaMallocHost(&boundary_hai[i], num_boundary_faces*sizeof(double));
-        cudaMallocHost(&boundary_rhoD[i], num_boundary_faces*sizeof(double));
-        int offset = 0;
-        forAll(Yi.boundaryField(), patchi)
-        {
-            const scalarField& patchYi = Yi.boundaryField()[patchi];
-            // const scalarField& patchHaii = haii.boundaryField()[patchi];
-            const scalarField& patchRhoDi = rhoDi.boundaryField()[patchi];
-            int patchSize = patchYi.size();
-
-            if (updateBoundaryFields)
-            {
-                memcpy(boundary_Y[i] + offset, &patchYi[0], patchSize*sizeof(double));
-            }
-            // memcpy(boundary_hai[i] + offset, &patchHaii[0], patchSize*sizeof(double));
-            memcpy(boundary_rhoD[i] + offset, &patchRhoDi[0], patchSize*sizeof(double));
-            offset += patchSize;
-        }
-        // if (i == 5)
-        // {
-        //     Info << "rhoD_CPU" << rhoDi << endl;
-        // }
-        
-    }
-    // Info << "rhoD from nuEff\n" << nuEff * rho / 0.7 << endl;
-    updateBoundaryFields = false;
-    volScalarField mut_sct = turbulence->mut().ref()/Sct;
-    double *boundary_mutsct = nullptr;
-    cudaMallocHost(&boundary_mutsct, num_boundary_faces*sizeof(double));
-    int offset = 0;
-    forAll(p.boundaryField(), patchi)
-    {
-        const scalarField& patchMut_sct = mut_sct.boundaryField()[patchi];
-        int patchSize = patchMut_sct.size();
-        memcpy(boundary_mutsct + offset, &patchMut_sct[0], patchSize*sizeof(double));
-        offset += patchSize;
-
-        // debug
-        // const fvsPatchScalarField& pw = mesh.surfaceInterpolation::weights().boundaryField()[patchi];
-        // Field<scalar> valueInternalCoeffs = Y[5].boundaryField()[patchi].valueInternalCoeffs(pw);
-        // Field<scalar> valueBoundaryCoeffs = Y[5].boundaryField()[patchi].valueBoundaryCoeffs(pw);
-        // Field<scalar> gradientInternalCoeffs = Y[5].boundaryField()[patchi].gradientInternalCoeffs();
-        // Field<scalar> gradientBoundaryCoeffs = Y[5].boundaryField()[patchi].gradientBoundaryCoeffs();
-        // Info << "valueInternalCoeffs\n" << valueInternalCoeffs << endl;
-        // Info << "valueBoundaryCoeffs\n" << valueBoundaryCoeffs << endl;
-        // Info << "gradientInternalCoeffs\n" << gradientInternalCoeffs << endl;
-        // Info << "gradientBoundaryCoeffs\n" << gradientBoundaryCoeffs << endl;
-    }
-    end1 = std::clock();
-    time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
-    time_monitor_YEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
-    time_monitor_YEqn_mtxAssembly_CPU_prepare += double(end1 - start1) / double(CLOCKS_PER_SEC);
-    //fprintf(stderr, "time_monitor_YEqn_mtxAssembly_CPU_prepare: %lf\n", time_monitor_YEqn_mtxAssembly_CPU_prepare);
-
-    start1 = std::clock();
-    YEqn_GPU.initializeTimeStep();
-    YEqn_GPU.upwindWeight();
-    YEqn_GPU.fvm_laplacian_and_sumYDiffError_diffAlphaD_hDiffCorrFlux(Y_old, boundary_Y,
-            hai, boundary_hai, rhoD, boundary_rhoD, &mut_sct[0], boundary_mutsct, &thermo.alpha()[0]);
-    YEqn_GPU.fvm_ddt();
-    YEqn_GPU.fvm_div_phi();
-    YEqn_GPU.fvm_div_phiUc();
-    YEqn_GPU.sync();
-    // YEqn_GPU.checkValue(true, "of_output_H2.txt");
-    end1 = std::clock();
-    time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
-    time_monitor_YEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
-    time_monitor_YEqn_mtxAssembly_GPU_run += double(end1 - start1) / double(CLOCKS_PER_SEC);
-    //fprintf(stderr, "time_monitor_YEqn_mtxAssembly_GPU_run: %lf\n", time_monitor_YEqn_mtxAssembly_GPU_run);
-
-    start1 = std::clock();
-    YEqn_GPU.solve();
-    end1 = std::clock();
-    time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
-    time_monitor_YEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
-#elif defined GPUSolverNew_
+#ifdef GPUSolverNew_
 #if defined DEBUG_
     forAll(Y, i)
     {
         sumYDiffError += chemistry->rhoD(i)*fvc::grad(Y[i]);
     }
     const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
-#else
-    // do nothing
 #endif
 #else // should only for CPUSolver
     start1 = std::clock();
@@ -165,27 +61,54 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
         time_monitor_chem += processingTime.count();
     }
 
-#ifdef GPUSolver_
-    start1 = std::clock();
-    forAll(Y, i)
-    {
-        volScalarField& Yi = Y[i];
-        YEqn_GPU.updatePsi(&Yi[0], i);
-        Yi.correctBoundaryConditions();
-    } 
-    YEqn_GPU.correctBoundaryConditions();
-    end1 = std::clock();
-    time_monitor_YEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
-    time_monitor_YEqn_correctBC += double(end1 - start1) / double(CLOCKS_PER_SEC);
-#elif defined GPUSolverNew_
+#ifdef GPUSolverNew_
 #if defined DEBUG_
     // run CPU
+    volScalarField Yt(0.0*Y[0]);
+    int speciesIndex = 0;
     forAll(Y, i)
     {
         volScalarField& Yi = Y[i];
         hDiffCorrFlux += chemistry->hai(i)*(chemistry->rhoD(i)*fvc::grad(Yi) - Yi*sumYDiffError);
         diffAlphaD += fvc::laplacian(thermo.alpha()*chemistry->hai(i), Yi);
+        if (i != inertIndex)
+        {
+            start1 = std::clock();
+            tmp<volScalarField> DEff = chemistry->rhoD(i) + turbulence->mut()/Sct;
+
+            fvScalarMatrix YiEqn
+            (
+                fvm::ddt(rho, Yi)
+            +
+                (
+                    turbName == "laminar"
+                    ?  (mvConvection->fvmDiv(phi, Yi) + mvConvection->fvmDiv(phiUc, Yi))
+                    :   mvConvection->fvmDiv(phi, Yi)
+                )
+            ==
+                (
+                    splitting
+                    ?   fvm::laplacian(DEff(), Yi)
+                    :  (fvm::laplacian(DEff(), Yi) + combustion->R(Yi))
+                    )
+            );
+            
+            end1 = std::clock();
+            time_monitor_YEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
+            // YiEqn.relax();
+
+            start1 = std::clock();
+            YiEqn.solve("Yi");
+            end1 = std::clock();
+            time_monitor_YEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
+
+            Yi.max(0.0);
+            Yt += Yi;
+            ++speciesIndex;
+        }
     }
+    Y[inertIndex] = scalar(1) - Yt;
+    Y[inertIndex].max(0.0);
 
     int specie_index = 0;
 
@@ -203,98 +126,11 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
         );
     // YiEqn.relax();
     // YiEqn.solve("Yi");
-    Y[specie_index].max(0.0);
+    // Y[specie_index].max(0.0);
 #endif
 
-    TICK_START;
-    // run GPU
-    // preProcess
-    // preparing rhoD, hai, mut_sct used by YEqn_GPU.preProcess()
-    double *h_rhoD = YEqn_GPU.getFieldPointer("rhoD", location::cpu, position::internal);
-    double *h_boundary_rhoD = YEqn_GPU.getFieldPointer("rhoD", location::cpu, position::boundary);
-    // UnityLewis
-    double *h_hai = YEqn_GPU.getFieldPointer("hai", location::cpu, position::internal);
-    double *h_boundary_hai = YEqn_GPU.getFieldPointer("hai", location::cpu, position::boundary);
-    for (size_t i = 0; i < Y.size(); ++i)
-    {
-        const volScalarField& rhoDi = chemistry->rhoD(i);
-        memcpy(h_rhoD + dfDataBase.num_cells * i, &rhoDi[0], dfDataBase.num_cells * sizeof(double));
-        // UnityLewis
-        const volScalarField& haii = chemistry->hai(i);
-        memcpy(h_hai + dfDataBase.num_cells * i, &haii[0], dfDataBase.num_cells * sizeof(double));
-        int offset = 0;
-        forAll(rhoDi.boundaryField(), patchi)
-        {
-            const fvPatchScalarField& patchRhoDi = rhoDi.boundaryField()[patchi];
-            const fvPatchScalarField& patchHaii = haii.boundaryField()[patchi];
-            int patchSize = patchRhoDi.size();
-
-            if (patchRhoDi.type() == "processor") {
-                int rank = dynamic_cast<const processorFvPatchField<scalar>&>(patchRhoDi).rank();
-                if (dynamic_cast<const processorFvPatchField<scalar>&>(patchRhoDi).doTransform()) {
-                    Info << "rank = " << rank << ", rhoD transform = true" << endl;
-                } else {
-                    Info << "rank = " << rank << ", rhoD transform = false" << endl;
-                }
-
-                scalarField patchRhoDiInternal = dynamic_cast<const processorFvPatchField<scalar>&>(patchRhoDi).patchInternalField()();
-                memcpy(h_boundary_rhoD + dfDataBase.num_boundary_surfaces * i + offset, &patchRhoDi[0], patchSize * sizeof(double));
-                memcpy(h_boundary_rhoD + dfDataBase.num_boundary_surfaces * i + offset + patchSize,
-                    &patchRhoDiInternal[0], patchSize * sizeof(double));
-
-                // UnityLewis
-                scalarField patchHaiiInternal = dynamic_cast<const processorFvPatchField<scalar>&>(patchHaii).patchInternalField()();
-                memcpy(h_boundary_hai + dfDataBase.num_boundary_surfaces * i + offset, &patchHaii[0], patchSize*sizeof(double));
-                memcpy(h_boundary_hai + dfDataBase.num_boundary_surfaces * i + offset + patchSize,
-                    &patchHaiiInternal[0], patchSize*sizeof(double));
-
-                offset += patchSize * 2;
-            } else {
-                memcpy(h_boundary_rhoD + dfDataBase.num_boundary_surfaces * i + offset, &patchRhoDi[0], patchSize * sizeof(double));
-                memcpy(h_boundary_hai + dfDataBase.num_boundary_surfaces * i + offset, &patchHaii[0], patchSize*sizeof(double));
-                offset += patchSize;
-            }
-        }
-    }
-    // UnityLewis
-    volScalarField mut_sct = turbulence->mut().ref() / Sct;
-    double *h_mut_sct = YEqn_GPU.getFieldPointer("mut_sct", location::cpu, position::internal);
-    double *h_boundary_mut_sct = YEqn_GPU.getFieldPointer("mut_sct", location::cpu, position::boundary);
-    memcpy(h_mut_sct, &mut_sct[0], dfDataBase.num_cells * sizeof(double));
-    int offset = 0;
-    forAll(mut_sct.boundaryField(), patchi)
-    {
-        const fvPatchScalarField& patchMutSct = mut_sct.boundaryField()[patchi];
-        int patchSize = patchMutSct.size();
-        if (patchMutSct.type() == "processor") {
-            int rank = dynamic_cast<const processorFvPatchField<scalar>&>(patchMutSct).rank();
-            if (dynamic_cast<const processorFvPatchField<scalar>&>(patchMutSct).doTransform()) {
-                Info << "rank = " << rank << ", mut_sct transform = true" << endl;
-            } else {
-                Info << "rank = " << rank << ", mut_sct transform = false" << endl;
-            }
-            scalarField patchMutSctInternal = dynamic_cast<const processorFvPatchField<scalar>&>(patchMutSct).patchInternalField()();
-            memcpy(h_boundary_mut_sct + offset, &patchMutSct[0], patchSize*sizeof(double));
-            memcpy(h_boundary_mut_sct + offset + patchSize,
-                    &patchMutSctInternal[0], patchSize*sizeof(double));
-            offset += patchSize * 2;
-        } else {
-            memcpy(h_boundary_mut_sct + offset, &patchMutSct[0], patchSize*sizeof(double));
-            offset += patchSize;
-        }
-    }
-    TICK_STOP(prepare on CPU);
-
-    TICK_START;
-    YEqn_GPU.preProcess(h_rhoD, h_boundary_rhoD, h_hai, h_boundary_hai, h_mut_sct, h_boundary_mut_sct);
-    TICK_STOP(prepare on GPU);
-
-    DEBUG_TRACE;
-    TICK_START;
     // process
     YEqn_GPU.process();
-    TICK_STOP(process on GPU);
-    DEBUG_TRACE;
 
 #if defined DEBUG_
     std::vector<double> h_boundary_diffAlphaD;
@@ -344,11 +180,11 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
         }
     }
     DEBUG_TRACE;
-    YEqn_GPU.comparediffAlphaD(&diffAlphaD[0], h_boundary_diffAlphaD.data(), false);
-    YEqn_GPU.comparegradyi(&grad_yi[0][0], h_boundary_grad_yi.data(), specie_index, false);
-    YEqn_GPU.comparesumYDiffError(&sumYDiffError[0][0], h_boundary_sumYDiffError.data(), false);
-    YEqn_GPU.comparehDiffCorrFlux(&hDiffCorrFlux[0][0], h_boundary_hDiffCorrFlux.data(), false);
-    YEqn_GPU.comparephiUc(&phiUc[0], h_boundary_phiUc.data(), false);
+    // YEqn_GPU.comparediffAlphaD(&diffAlphaD[0], h_boundary_diffAlphaD.data(), false);
+    // YEqn_GPU.comparegradyi(&grad_yi[0][0], h_boundary_grad_yi.data(), specie_index, false);
+    // YEqn_GPU.comparesumYDiffError(&sumYDiffError[0][0], h_boundary_sumYDiffError.data(), false);
+    // YEqn_GPU.comparehDiffCorrFlux(&hDiffCorrFlux[0][0], h_boundary_hDiffCorrFlux.data(), false);
+    // YEqn_GPU.comparephiUc(&phiUc[0], h_boundary_phiUc.data(), false);
     DEBUG_TRACE;
 
     // checkResult
@@ -386,8 +222,8 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     }
     if (!mpi_init_flag || rank == 0) {
-        YEqn_GPU.compareResult(&YiEqn.lower()[0], &YiEqn.upper()[0], &YiEqn.diag()[0], &YiEqn.source()[0],
-                yeqn_h_internal_coeffs.data(), yeqn_h_boundary_coeffs.data(), printFlag);
+        // YEqn_GPU.compareResult(&YiEqn.lower()[0], &YiEqn.upper()[0], &YiEqn.diag()[0], &YiEqn.source()[0],
+        //         yeqn_h_internal_coeffs.data(), yeqn_h_boundary_coeffs.data(), printFlag);
     }
 
     DEBUG_TRACE;
@@ -399,41 +235,19 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
     // postProcess
     double *h_y = dfDataBase.getFieldPointer("y", location::cpu, position::internal);
     double *h_boundary_y = dfDataBase.getFieldPointer("y", location::cpu, position::boundary);
-    YEqn_GPU.postProcess(h_y, h_boundary_y);
+    // YEqn_GPU.postProcess(h_y, h_boundary_y);
     TICK_STOP(postProcess on GPU);
     DEBUG_TRACE;
 
     // copy h_y to Y(cpu)
-    offset = 0;
-    forAll(Y, i)
-    {
-        volScalarField& Yi = Y[i];
-        memcpy(&Yi[0], h_y + offset, Yi.size() * sizeof(double));
-        offset += Yi.size();
-    }
-
-    // copy h_boundary_y to Y(cpu)
-    offset = 0;
-    forAll(Y, i)
-    {
-        volScalarField& Yi = Y[i];
-        forAll(Yi.boundaryField(), patchi) {
-            const fvPatchScalarField& const_patchYi = Yi.boundaryField()[patchi];
-            fvPatchScalarField& patchYi = const_cast<fvPatchScalarField&>(const_patchYi);
-            int patchsize = patchYi.size();
-            if (patchYi.type() == "processor") {
-                const scalarField const_patchYiInternal =
-                    dynamic_cast<const processorFvPatchField<scalar>&>(patchYi).patchInternalField()();
-                scalarField patchYiInternal = const_cast<scalarField&>(const_patchYiInternal);
-                memcpy(&patchYi[0], h_boundary_y + offset, patchsize * sizeof(double));
-                memcpy(&patchYiInternal[0], h_boundary_y + offset + patchsize, patchsize * sizeof(double));
-                offset += patchsize * 2;
-            } else {
-                memcpy(&patchYi[0], h_boundary_y + offset, patchsize * sizeof(double));
-                offset += patchsize;
-            }
-        }
-    }
+    // offset = 0;
+    // forAll(Y, i)
+    // {
+    //     volScalarField& Yi = Y[i];
+    //     memcpy(&Yi[0], h_y + offset, Yi.size() * sizeof(double));
+    //     offset += Yi.size();
+    //     Yi.correctBoundaryConditions();
+    // }
     DEBUG_TRACE;
 
     fflush(stderr);
@@ -489,5 +303,3 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
     time_monitor_YEqn += double(end2 - start2) / double(CLOCKS_PER_SEC);
 #endif
 }
-// #undef CPUSolver_
-// #define GPUSolverNew_

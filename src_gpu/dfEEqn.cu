@@ -71,6 +71,7 @@ void dfEEqn::createNonConstantLduAndCsrFields() {
     d_lower = d_ldu;
     d_diag = d_ldu + dataBase_.num_surfaces;
     d_upper = d_ldu + dataBase_.num_cells + dataBase_.num_surfaces;
+    d_extern = d_ldu + dataBase_.num_cells + 2 * dataBase_.num_surfaces;
 #ifndef STREAM_ALLOCATOR
     checkCudaErrors(cudaMalloc((void**)&d_source, dataBase_.cell_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_internal_coeffs, dataBase_.boundary_surface_value_bytes));
@@ -105,11 +106,11 @@ void dfEEqn::process() {
     checkCudaErrors(cudaEventCreate(&stop));
     checkCudaErrors(cudaEventRecord(start,0));
 
-// #ifndef TIME_GPU
-//     if(!graph_created) {
-//         DEBUG_TRACE;
-//         checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
-// #endif
+#ifndef TIME_GPU
+    if(!graph_created) {
+        DEBUG_TRACE;
+        checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
+#endif
 
 #ifdef STREAM_ALLOCATOR
     // thermophysical fields
@@ -182,19 +183,18 @@ void dfEEqn::process() {
             dataBase_.d_boundary_weight, dataBase_.d_boundary_hDiff_corr_flux, dataBase_.d_boundary_sf, dataBase_.d_volume);
     fvc_to_source_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.d_volume, dataBase_.d_dpdt, d_source);
     fvc_to_source_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.d_volume, dataBase_.d_diff_alphaD, d_source, -1);
-// #ifndef DEBUG_CHECK_LDU
+#ifndef DEBUG_CHECK_LDU
     ldu_to_csr_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
-            dataBase_.num_Nz, dataBase_.d_boundary_face_cell,dataBase_.d_ldu_to_csr_index, dataBase_.num_patches,
+            dataBase_.num_Nz, dataBase_.d_boundary_face_cell, dataBase_.d_ldu_to_csr_index, dataBase_.num_patches,
             dataBase_.patch_size.data(), patch_type_he.data(), d_ldu, d_source, d_internal_coeffs, d_boundary_coeffs, d_A);
-// #endif
-// #ifndef TIME_GPU
-//         checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph));
-//         checkCudaErrors(cudaGraphInstantiate(&graph_instance, graph, NULL, NULL, 0));
-//         graph_created = true;
-//     }
-//     DEBUG_TRACE;
-//     checkCudaErrors(cudaGraphLaunch(graph_instance, dataBase_.stream));
-// #endif
+#endif
+#ifndef TIME_GPU
+        checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph_pre));
+        checkCudaErrors(cudaGraphInstantiate(&graph_instance_pre, graph_pre, NULL, NULL, 0));
+    }
+    DEBUG_TRACE;
+    checkCudaErrors(cudaGraphLaunch(graph_instance_pre, dataBase_.stream));
+#endif
     checkCudaErrors(cudaEventRecord(stop,0));
     checkCudaErrors(cudaEventSynchronize(start));
     checkCudaErrors(cudaEventSynchronize(stop));
@@ -202,19 +202,39 @@ void dfEEqn::process() {
     fprintf(stderr, "eeqn assembly time:%f(ms)\n",time_elapsed);
 
     checkCudaErrors(cudaEventRecord(start,0));
-// #ifndef DEBUG_CHECK_LDU
+#ifndef DEBUG_CHECK_LDU
     solve();
-// #endif
-    correct_boundary_conditions_scalar(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
-            dataBase_.num_boundary_surfaces, dataBase_.num_patches, dataBase_.patch_size.data(),
-            patch_type_he.data(), dataBase_.d_boundary_delta_coeffs, dataBase_.d_boundary_face_cell,
-            dataBase_.d_he, dataBase_.d_boundary_he, d_boundary_heGradient);
+#endif
+    checkCudaErrors(cudaEventRecord(stop,0));
+    checkCudaErrors(cudaEventSynchronize(start));
+    checkCudaErrors(cudaEventSynchronize(stop));
+    checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
+    fprintf(stderr, "eeqn solve time:%f(ms)\n",time_elapsed);
+
+    checkCudaErrors(cudaEventRecord(start,0));
+#ifndef TIME_GPU
+    if(!graph_created) {
+        checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
+#endif
+
+        correct_boundary_conditions_scalar(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
+                dataBase_.num_boundary_surfaces, dataBase_.num_patches, dataBase_.patch_size.data(),
+                patch_type_he.data(), dataBase_.d_boundary_delta_coeffs, dataBase_.d_boundary_face_cell,
+                dataBase_.d_he, dataBase_.d_boundary_he, d_boundary_heGradient);
+
+#ifndef TIME_GPU
+        checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph_post));
+        checkCudaErrors(cudaGraphInstantiate(&graph_instance_post, graph_post, NULL, NULL, 0));
+        graph_created = true;
+    }
+    checkCudaErrors(cudaGraphLaunch(graph_instance_post, dataBase_.stream));
+#endif
 
     checkCudaErrors(cudaEventRecord(stop,0));
     checkCudaErrors(cudaEventSynchronize(start));
     checkCudaErrors(cudaEventSynchronize(stop));
     checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
-    fprintf(stderr, "eeqn solve time: %f(ms)\n",time_elapsed);
+    fprintf(stderr, "eeqn post process time: %f(ms)\n",time_elapsed);
 }
 
 void dfEEqn::eeqn_calculate_energy_gradient(dfThermo& GPUThermo, int num_cells, int num_species, 

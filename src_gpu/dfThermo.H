@@ -47,6 +47,7 @@ public:
     double *d_T_poly, *d_boundary_T_poly;
     double *d_species_viscosities, *d_boundary_species_viscosities;
     double *d_species_thermal_conductivities, *d_boundary_species_thermal_conductivities;
+    double *d_psip0, *d_boundary_psip0;
 
     // constructor
     dfThermo(dfMatrixDataBase &dataBase)
@@ -81,12 +82,14 @@ public:
     void calculateTemperatureGPU(int thread_per_block, int num_thread, int num_total, const double *T_init, const double *target_h, 
             double *T, const double *d_mass_fraction, int offset = 0,
             double atol = 1e-7, double rtol = 1e-7, int max_iter = 20);
-    
     void calculateEnergyGradient(int num_thread, int num_cells, int num_species, 
             int num_boundary_surfaces, int bou_offset, int gradient_offset, const int *face2Cells, 
             const double *T, const double *p, const double *y, const double *boundary_delta_coeffs,
             const double *boundary_p, const double *boundary_y, double *boundary_thermo_gradient);
-    
+    void setPsip0(int thread_per_block, int num_thread, const double *p, const double *psi, double *psip0, int offset = 0);
+    void addPsipRho(int thread_per_block, int num_thread, const double *p, const double *psi, const double *psip0, 
+            double *rho, int offset = 0);
+
     void compareT(const double *T, const double *boundary_T, bool printFlag);
     void compareRho(const double *rho, const double *boundary_rho, bool printFlag);
     void comparePsi(const double *psi, const double *boundary_psi, bool printFlag);
@@ -106,6 +109,8 @@ public:
     void updateEnergy();
     void correctThermo();
     void updateRho();
+    void psip0();
+    void correctPsipRho();
 
     // getter functions
 };
