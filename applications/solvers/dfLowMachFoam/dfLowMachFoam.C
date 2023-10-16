@@ -606,6 +606,13 @@ int main(int argc, char *argv[])
 
 #ifdef GPUSolverNew_
     // clean cuda resources before main() exit.
+    // the destruct order should be reversed from the creation order
+    pEqn_GPU.cleanCudaResources();
+    EEqn_GPU.cleanCudaResources();
+    YEqn_GPU.cleanCudaResources();
+    UEqn_GPU.cleanCudaResources();
+    rhoEqn_GPU.cleanCudaResources();
+    thermo_GPU.cleanCudaResources();
     dfDataBase.cleanCudaResources();
 #endif
 

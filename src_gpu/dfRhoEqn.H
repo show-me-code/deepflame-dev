@@ -27,12 +27,7 @@ public:
         : dataBase_(dataBase) {}
 
 	// destructor
-	~dfRhoEqn(){
-        if (graph_created) {
-            checkCudaErrors(cudaGraphExecDestroy(graph_instance));
-            checkCudaErrors(cudaGraphDestroy(graph));
-        }
-    }
+	~dfRhoEqn(){}
 
     // member function
 
@@ -44,6 +39,8 @@ public:
 
     // getter function
     double* getFieldPointer(const char* fieldAlias, location loc, position pos);
+
+    void cleanCudaResources();
 
     // run equations
     void preProcess();

@@ -55,6 +55,8 @@ public:
     // destructor
     ~dfThermo(){};
 
+    void cleanCudaResources();
+
     // public member functions
     void setConstantValue(std::string mechanism_file, int num_cells, int num_species);
     void setConstantFields(const std::vector<int> patch_type);

@@ -88,12 +88,7 @@ public:
         : dataBase_(dataBase) {}
 
 	// destructor
-	~dfUEqn(){
-        if (graph_created) {
-            checkCudaErrors(cudaGraphExecDestroy(graph_instance));
-            checkCudaErrors(cudaGraphDestroy(graph));
-        }
-    }
+	~dfUEqn(){}
 
 	// member function
 
@@ -109,6 +104,8 @@ public:
 	// dfUEqn has no internal non-constant fields to be init
 	void initNonConstantFieldsInternal(const double *u, const double *boundary_u);
 	void initNonConstantFieldsBoundary();
+
+    void cleanCudaResources();
 
 	// run equation
     void preProcessForRhoEqn(const double *h_rho, const double *h_phi, const double *h_boundary_phi);
