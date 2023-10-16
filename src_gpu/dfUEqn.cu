@@ -355,6 +355,13 @@ void dfUEqn::initNonConstantFieldsBoundary() {
     // );
 }
 
+void dfUEqn::cleanCudaResources() {
+    if (graph_created) {
+        checkCudaErrors(cudaGraphExecDestroy(graph_instance));
+        checkCudaErrors(cudaGraphDestroy(graph));
+    }
+}
+
 void dfUEqn::preProcessForRhoEqn(const double *h_rho, const double *h_phi, const double *h_boundary_phi) {
   checkCudaErrors(cudaMemcpyAsync(dataBase_.d_rho, h_rho, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
   checkCudaErrors(cudaMemcpyAsync(dataBase_.d_phi, h_phi, dataBase_.surface_value_bytes, cudaMemcpyHostToDevice, dataBase_.stream));

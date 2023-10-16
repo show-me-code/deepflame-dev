@@ -296,6 +296,9 @@ __global__ void calculate_enthalpy_kernel(int num_thread, int offset, int num_ce
     enthalpy[startIndex] = calculate_enthalpy_device_kernel(num_cells, num_species, startIndex, T[startIndex], mass_fraction);
 }
 
+void dfThermo::cleanCudaResources() {
+}
+
 void dfThermo::setConstantValue(std::string mechanism_file, int num_cells, int num_species)
 {
     this->mechanism_file = mechanism_file;

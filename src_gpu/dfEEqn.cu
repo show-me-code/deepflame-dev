@@ -86,6 +86,13 @@ void dfEEqn::initNonConstantFields(const double *he, const double *boundary_he)
     checkCudaErrors(cudaMemcpyAsync(dataBase_.d_boundary_he, boundary_he, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice));
 }
 
+void dfEEqn::cleanCudaResources() {
+    if (graph_created) {
+        checkCudaErrors(cudaGraphExecDestroy(graph_instance));
+        checkCudaErrors(cudaGraphDestroy(graph));
+    }
+}
+
 void dfEEqn::preProcess(const double *h_he, const double *h_k, const double *h_k_old, const double *h_dpdt, const double *h_boundary_k, const double *h_boundary_heGradient)
 {
 }
