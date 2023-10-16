@@ -13,8 +13,8 @@ class dfEEqn
 
     // cuda resource
     // one graph for one eqn before using self-developed solver
-    cudaGraph_t graph;
-    cudaGraphExec_t graph_instance;
+    cudaGraph_t graph_pre, graph_post;
+    cudaGraphExec_t graph_instance_pre, graph_instance_post;
     bool graph_created=false;
 
 	// constant values -- basic
@@ -49,6 +49,7 @@ class dfEEqn
     double *d_ldu = nullptr;
 	double *d_lower = nullptr;
 	double *d_upper = nullptr;
+    double *d_extern = nullptr;
 	double *d_diag = nullptr;
 	double *d_source = nullptr;
 	double *d_internal_coeffs = nullptr;
@@ -69,8 +70,10 @@ public:
 	// destructor
 	~dfEEqn(){
         if (graph_created) {
-            checkCudaErrors(cudaGraphExecDestroy(graph_instance));
-            checkCudaErrors(cudaGraphDestroy(graph));
+            checkCudaErrors(cudaGraphExecDestroy(graph_instance_pre));
+            checkCudaErrors(cudaGraphExecDestroy(graph_instance_post));
+            checkCudaErrors(cudaGraphDestroy(graph_pre));
+            checkCudaErrors(cudaGraphDestroy(graph_post));
         }
     }
 

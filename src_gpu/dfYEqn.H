@@ -75,6 +75,7 @@ private:
 	double *d_lower = nullptr;
 	double *d_upper = nullptr;
 	double *d_diag = nullptr;
+    double *d_extern = nullptr;
 	double *d_source = nullptr;
 	double *d_internal_coeffs = nullptr;
 	double *d_boundary_coeffs = nullptr;

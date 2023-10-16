@@ -2,7 +2,7 @@
 #include <cuda_runtime.h>
 #include <nccl.h>
 // #define TIME_GPU
-#define DEBUG_CHECK_LDU
+// #define DEBUG_CHECK_LDU
 
 // tools
 void permute_vector_d2h(cudaStream_t stream, int num_cells, const double *input, double *output);

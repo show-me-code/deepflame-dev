@@ -21,7 +21,6 @@ extern int myRank;
 #define DEBUG_
 
 #ifdef DEBUG_
-   //#define DEBUG_TRACE fprintf(stderr, "%s %d\n", __FILE__, __LINE__);
    #define DEBUG_TRACE fprintf(stderr, "myRank[%d] %s %d\n", myRank, __FILE__, __LINE__);
 #else
    #define DEBUG_TRACE
@@ -284,7 +283,7 @@ struct dfMatrixDataBase
     void initNonConstantFieldsInternal();
     void initNonConstantFieldsBoundary();
 
-    void preTimeStep(const double *u_old, const double *boundary_u_old, const double *p_old, const double *boundary_p_old);
+    void preTimeStep();
     void postTimeStep();
 
     // getter

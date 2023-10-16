@@ -12,8 +12,8 @@ private:
 
     // cuda resource
     // one graph for one eqn before using self-developed solver
-    cudaGraph_t graph;
-    cudaGraphExec_t graph_instance;
+    cudaGraph_t graph_pre, graph_post;
+    cudaGraphExec_t graph_instance_pre, graph_instance_post;
     bool graph_created=false;
 
 	// constant values -- basic
@@ -71,8 +71,10 @@ public:
 	// destructor
 	~dfpEqn(){
         if (graph_created) {
-            checkCudaErrors(cudaGraphExecDestroy(graph_instance));
-            checkCudaErrors(cudaGraphDestroy(graph));
+            checkCudaErrors(cudaGraphExecDestroy(graph_instance_pre));
+            checkCudaErrors(cudaGraphExecDestroy(graph_instance_post));
+            checkCudaErrors(cudaGraphDestroy(graph_pre));
+            checkCudaErrors(cudaGraphDestroy(graph_post));
         }
     }
 

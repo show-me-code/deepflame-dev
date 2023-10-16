@@ -296,6 +296,28 @@ __global__ void calculate_enthalpy_kernel(int num_thread, int offset, int num_ce
     enthalpy[startIndex] = calculate_enthalpy_device_kernel(num_cells, num_species, startIndex, T[startIndex], mass_fraction);
 }
 
+__global__ void calculate_psip0_kernel(int num_thread, int offset, const double *p, const double *psi, double *psip0)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_thread)
+        return;
+    
+    int startIndex = index + offset;
+    
+    psip0[startIndex] = p[startIndex] * psi[startIndex];
+}
+
+__global__ void add_psip_rho_kernel(int num_thread, int offset, const double *p, const double *psi, const double *psip0, double *rho)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_thread)
+        return;
+    
+    int startIndex = index + offset;
+
+    rho[startIndex] += p[startIndex] * psi[startIndex] - psip0[startIndex];
+}
+
 void dfThermo::setConstantValue(std::string mechanism_file, int num_cells, int num_species)
 {
     this->mechanism_file = mechanism_file;
@@ -347,6 +369,10 @@ void dfThermo::setConstantValue(std::string mechanism_file, int num_cells, int n
     checkCudaErrors(cudaMalloc((void**)&d_boundary_species_viscosities, sizeof(double) * num_species * dataBase_.num_boundary_surfaces));
     checkCudaErrors(cudaMalloc((void**)&d_species_thermal_conductivities, sizeof(double) * num_species * num_cells));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_species_thermal_conductivities, sizeof(double) * num_species * dataBase_.num_boundary_surfaces));
+    
+    checkCudaErrors(cudaMalloc((void**)&d_psip0, sizeof(double) * num_cells));
+    checkCudaErrors(cudaMalloc((void**)&d_boundary_psip0, sizeof(double) * dataBase_.num_boundary_surfaces));
+
     std::cout << "dfThermo initialized" << std::endl;
 }
 
@@ -439,10 +465,12 @@ void dfThermo::calculateRhoGPU(int threads_per_block, int num_thread, const doub
 void dfThermo::calculateViscosityGPU(int threads_per_block, int num_thread, int num_total, const double *T, const double *mole_fraction, 
         const double *T_poly, double *species_viscosities, double *viscosity, int offset)
 {
+    TICK_INIT_EVENT;
     size_t blocks_per_grid = (num_thread + threads_per_block - 1) / threads_per_block;
-
+    TICK_START_EVENT;
     calculate_viscosity_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_thread, num_total, num_species, offset, 
             T_poly, T, mole_fraction, species_viscosities, viscosity);
+    TICK_END_EVENT(calculate_viscosity_kernel);
 }
 
 void dfThermo::calculateThermoConductivityGPU(int threads_per_block, int num_thread, int num_total, const double *T, 
@@ -496,7 +524,7 @@ void dfThermo::correctThermo()
 {
     setMassFraction(dataBase_.d_y, dataBase_.d_boundary_y);
     // internal field
-    int cell_thread = 1024, boundary_thread = 32;
+    int cell_thread = 512, boundary_thread = 32;
     calculateTemperatureGPU(cell_thread, dataBase_.num_cells, dataBase_.num_cells, dataBase_.d_T, dataBase_.d_he, dataBase_.d_T, dataBase_.d_y); // calculate temperature
     calculateTPolyGPU(cell_thread, dataBase_.num_cells, dataBase_.num_cells, dataBase_.d_T, d_T_poly); // calculate T_poly
     calculatePsiGPU(cell_thread, dataBase_.num_cells, dataBase_.d_T, d_mean_mole_weight, dataBase_.d_thermo_psi); // calculate psi
@@ -560,6 +588,22 @@ void dfThermo::updateRho()
             dataBase_.d_boundary_thermo_psi, dataBase_.d_boundary_rho);
 }
 
+void dfThermo::psip0()
+{
+    int num_thread = 1024;
+    setPsip0(num_thread, dataBase_.num_cells, dataBase_.d_p, dataBase_.d_thermo_psi, d_psip0);
+    setPsip0(num_thread, dataBase_.num_boundary_surfaces, dataBase_.d_boundary_p, 
+            dataBase_.d_boundary_thermo_psi, d_boundary_psip0);
+}
+
+void dfThermo::correctPsipRho()
+{
+    int num_thread = 1024;
+    addPsipRho(num_thread, dataBase_.num_cells, dataBase_.d_p, dataBase_.d_thermo_psi, d_psip0, dataBase_.d_rho);
+    addPsipRho(num_thread, dataBase_.num_boundary_surfaces, dataBase_.d_boundary_p, 
+            dataBase_.d_boundary_thermo_psi, d_boundary_psip0, dataBase_.d_boundary_rho);
+}
+
 void dfThermo::calculateEnergyGradient(int num_thread, int num_cells, int num_species, 
         int num_boundary_surfaces, int bou_offset, int gradient_offset, const int *face2Cells, 
         const double *T, const double *p, const double *y, const double *boundary_delta_coeffs,
@@ -570,6 +614,21 @@ void dfThermo::calculateEnergyGradient(int num_thread, int num_cells, int num_sp
 
     calculate_energy_gradient_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_thread, num_cells, num_species, num_boundary_surfaces,
             bou_offset, gradient_offset, face2Cells, T, p, y, boundary_p, boundary_y, boundary_delta_coeffs, boundary_thermo_gradient);
+}
+
+void dfThermo::setPsip0(int thread_per_block, int num_thread, const double *p, const double *psi, double *psip0, int offset)
+{
+    size_t blocks_per_grid = (num_thread + thread_per_block - 1) / thread_per_block;
+    
+    calculate_psip0_kernel<<<blocks_per_grid, thread_per_block, 0, stream>>>(num_thread, offset, p, psi, psip0);
+}
+
+void dfThermo::addPsipRho(int thread_per_block, int num_thread, const double *p, const double *psi, const double *psip0, 
+        double *rho, int offset)
+{
+    size_t blocks_per_grid = (num_thread + thread_per_block - 1) / thread_per_block;
+    
+    add_psip_rho_kernel<<<blocks_per_grid, thread_per_block, 0, stream>>>(num_thread, offset, p, psi, psip0, rho);
 }
 
 void dfThermo::compareT(const double *T, const double *boundary_T, bool printFlag)

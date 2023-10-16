@@ -374,11 +374,11 @@ void dfUEqn::process() {
     checkCudaErrors(cudaEventCreate(&stop));
     checkCudaErrors(cudaEventRecord(start,0));
 
-// #ifndef TIME_GPU
-//     if(!graph_created) {
-//         DEBUG_TRACE;
-//         checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
-// #endif
+#ifndef TIME_GPU
+    if(!graph_created) {
+        DEBUG_TRACE;
+        checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
+#endif
 
 #ifdef STREAM_ALLOCATOR
         // thermophysical fields
@@ -472,20 +472,19 @@ void dfUEqn::process() {
                 dataBase_.neighbProcNo.data(), dataBase_.num_patches, dataBase_.patch_size.data(), dataBase_.patch_type_extropolated.data(),
                 dataBase_.d_boundary_face_cell, dataBase_.d_boundary_delta_coeffs, d_internal_coeffs, dataBase_.d_volume, d_diag, 
                 dataBase_.d_rAU, dataBase_.d_boundary_rAU);
-// #ifndef DEBUG_CHECK_LDU   
+#ifndef DEBUG_CHECK_LDU   
         ueqn_ldu_to_csr(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, dataBase_.num_Nz,
             dataBase_.d_boundary_face_cell, dataBase_.d_ldu_to_csr_index, dataBase_.d_diag_to_csr_index, 
             dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(), 
             d_ldu, d_extern, d_source, d_internal_coeffs, d_boundary_coeffs, d_A, d_b);
-// #endif
-// #ifndef TIME_GPU
-//         checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph));
-//         checkCudaErrors(cudaGraphInstantiate(&graph_instance, graph, NULL, NULL, 0));
-//         graph_created = true;
-//     }
-//     DEBUG_TRACE;
-//     checkCudaErrors(cudaGraphLaunch(graph_instance, dataBase_.stream));
-// #endif
+#endif
+#ifndef TIME_GPU
+        checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph_pre));
+        checkCudaErrors(cudaGraphInstantiate(&graph_instance_pre, graph_pre, NULL, NULL, 0));
+    }
+    DEBUG_TRACE;
+    checkCudaErrors(cudaGraphLaunch(graph_instance_pre, dataBase_.stream));
+#endif
     checkCudaErrors(cudaEventRecord(stop,0));
     checkCudaErrors(cudaEventSynchronize(start));
     checkCudaErrors(cudaEventSynchronize(stop));
@@ -493,20 +492,40 @@ void dfUEqn::process() {
     fprintf(stderr, "ueqn assembly time:%f(ms)\n",time_elapsed);
 
     checkCudaErrors(cudaEventRecord(start,0));
-// #ifndef DEBUG_CHECK_LDU
+#ifndef DEBUG_CHECK_LDU
     solve();
-// #endif
-    correct_boundary_conditions_vector(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(), dataBase_.num_boundary_surfaces, 
-            dataBase_.num_cells, dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(), dataBase_.d_boundary_face_cell,
-            dataBase_.d_u, dataBase_.d_boundary_u);
-    vector_half_mag_square(dataBase_.stream, dataBase_.num_cells, dataBase_.d_u, dataBase_.d_k, dataBase_.num_boundary_surfaces, 
-            dataBase_.d_boundary_u, dataBase_.d_boundary_k);
-
+#endif
     checkCudaErrors(cudaEventRecord(stop,0));
     checkCudaErrors(cudaEventSynchronize(start));
     checkCudaErrors(cudaEventSynchronize(stop));
     checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
     fprintf(stderr, "ueqn solve time:%f(ms)\n",time_elapsed);
+
+    checkCudaErrors(cudaEventRecord(start,0));
+#ifndef TIME_GPU
+    if(!graph_created) {
+        checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
+#endif
+
+        correct_boundary_conditions_vector(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(), dataBase_.num_boundary_surfaces, 
+                dataBase_.num_cells, dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(), dataBase_.d_boundary_face_cell,
+                dataBase_.d_u, dataBase_.d_boundary_u);
+        vector_half_mag_square(dataBase_.stream, dataBase_.num_cells, dataBase_.d_u, dataBase_.d_k, dataBase_.num_boundary_surfaces, 
+                dataBase_.d_boundary_u, dataBase_.d_boundary_k);
+
+#ifndef TIME_GPU
+        checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph_post));
+        checkCudaErrors(cudaGraphInstantiate(&graph_instance_post, graph_post, NULL, NULL, 0));
+        graph_created = true;
+    }
+    checkCudaErrors(cudaGraphLaunch(graph_instance_post, dataBase_.stream));
+#endif
+    
+    checkCudaErrors(cudaEventRecord(stop,0));
+    checkCudaErrors(cudaEventSynchronize(start));
+    checkCudaErrors(cudaEventSynchronize(stop));
+    checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
+    fprintf(stderr, "ueqn post process time:%f(ms)\n",time_elapsed);
 }
 
 void dfUEqn::sync()
