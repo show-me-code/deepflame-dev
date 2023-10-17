@@ -1,4 +1,5 @@
-#if defined GPUSolverNew_ && defined DEBUG_
+#ifdef GPUSolverNew_
+#if defined DEBUG_
     hDiffCorrFlux = Zero;
     diffAlphaD = Zero;
     sumYDiffError = Zero;
@@ -20,10 +21,7 @@
     //randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(4)));
     //randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(5)));
     //randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(6)));
-#endif
 
-#ifdef GPUSolverNew_
-#if defined DEBUG_
     forAll(Y, i)
     {
         sumYDiffError += chemistry->rhoD(i)*fvc::grad(Y[i]);
@@ -31,6 +29,21 @@
     const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
 #endif
 #else // should only for CPUSolver
+    hDiffCorrFlux = Zero;
+    diffAlphaD = Zero;
+    sumYDiffError = Zero;
+
+    tmp<fv::convectionScheme<scalar>> mvConvection
+    (
+        fv::convectionScheme<scalar>::New
+        (
+            mesh,
+            fields,
+            phi,
+            mesh.divScheme("div(phi,Yi_h)")
+        )
+    );
+
     start1 = std::clock();
     forAll(Y, i)
     {
@@ -131,6 +144,7 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
 
     // process
     YEqn_GPU.process();
+    YEqn_GPU.sync();
 
 #if defined DEBUG_
     std::vector<double> h_boundary_diffAlphaD;
@@ -152,7 +166,6 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
         const fvPatchVectorField& patchsumYDiffError = sumYDiffError.boundaryField()[patchi];
         const fvPatchVectorField& patchhDiffCorrFlux = hDiffCorrFlux.boundaryField()[patchi];
         const fvsPatchScalarField& patchphiUc = phiUc.boundaryField()[patchi];
-        //fprintf(stderr, "myRank[%d] patchphiUc type: %s\n", myRank, patchphiUc.type().c_str());
         int patchSize = patchdiffAlphaD.size();
         if (patchdiffAlphaD.type() == "processor") {
             scalarField patchdiffAlphaDInternal = dynamic_cast<const processorFvPatchField<scalar>&>(patchdiffAlphaD).patchInternalField()();
@@ -231,12 +244,10 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
     // DEBUG_TRACE;
 #endif
 
-    TICK_START;
     // postProcess
     double *h_y = dfDataBase.getFieldPointer("y", location::cpu, position::internal);
     double *h_boundary_y = dfDataBase.getFieldPointer("y", location::cpu, position::boundary);
     // YEqn_GPU.postProcess(h_y, h_boundary_y);
-    TICK_STOP(postProcess on GPU);
     DEBUG_TRACE;
 
     // copy h_y to Y(cpu)
@@ -284,7 +295,7 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
             
             end1 = std::clock();
             time_monitor_YEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
-            YiEqn.relax();
+            // YiEqn.relax();
 
             start1 = std::clock();
             YiEqn.solve("Yi");

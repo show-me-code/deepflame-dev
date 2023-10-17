@@ -118,6 +118,7 @@ public:
 	void process();
     void postProcess(double *h_y, double *h_boundary_y);
     void solve(int solverIndex);
+    void sync();
 
     // 方程特化版离散函数
     void yeqn_compute_thermo_alpha(cudaStream_t stream,

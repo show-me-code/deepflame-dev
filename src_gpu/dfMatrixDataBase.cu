@@ -219,15 +219,15 @@ void dfMatrixDataBase::setConstantIndexes(const int *owner, const int *neighbor,
     }
 
     checkCudaErrors(cudaMalloc((void**)&d_ldu_to_csr_index, csr_col_index_bytes));
-    checkCudaErrors(cudaMalloc((void**)&d_diag_to_csr_index, cell_value_bytes));
-    checkCudaErrors(cudaMemcpyAsync(d_ldu_to_csr_index, lduCSRIndex.data(), csr_col_index_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_diag_to_csr_index, diagCSRIndex.data(), cell_value_bytes, cudaMemcpyHostToDevice, stream));
+    checkCudaErrors(cudaMalloc((void**)&d_diag_to_csr_index, cell_index_bytes));
+    checkCudaErrors(cudaMemcpy(d_ldu_to_csr_index, lduCSRIndex.data(), csr_col_index_bytes, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(d_diag_to_csr_index, diagCSRIndex.data(), cell_index_bytes, cudaMemcpyHostToDevice));
 
     // build d_csr_row_index, d_csr_col_index
     checkCudaErrors(cudaMalloc((void**)&d_csr_row_index, csr_row_index_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_csr_col_index, csr_col_index_bytes));
-    checkCudaErrors(cudaMemcpyAsync(d_csr_row_index, CSRRowIndex.data(), csr_row_index_bytes, cudaMemcpyHostToDevice, stream));
-    checkCudaErrors(cudaMemcpyAsync(d_csr_col_index, CSRColIndex.data(), csr_col_index_bytes, cudaMemcpyHostToDevice, stream));
+    checkCudaErrors(cudaMemcpy(d_csr_row_index, CSRRowIndex.data(), csr_row_index_bytes, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(d_csr_col_index, CSRColIndex.data(), csr_col_index_bytes, cudaMemcpyHostToDevice));
 }
 
 void dfMatrixDataBase::createConstantFieldsInternal() {

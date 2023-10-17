@@ -29,8 +29,6 @@ Description
 
 \*---------------------------------------------------------------------------*/
 #ifdef GPUSolverNew_
-    rho.oldTime();
-
     double *h_rho = dfDataBase.getFieldPointer("rho", location::cpu, position::internal);
     double *h_boundary_rho = dfDataBase.getFieldPointer("rho", location::cpu, position::boundary);
 
@@ -40,7 +38,7 @@ Description
     TICK_STOP(GPU process time);
 
     // rhoEqn_GPU.postProcess(h_rho);
-    rho.oldTime();
+    // rho.oldTime();
     // memcpy(&rho[0], h_rho, dfDataBase.cell_value_bytes);
     // rho.correctBoundaryConditions();
 
@@ -65,7 +63,7 @@ Description
     //     rhoEqn_GPU.compareResult(&rhoEqn.diag()[0], &rhoEqn.source()[0], false);
     // }
 
-    int offset = 0;
+    offset = 0;
     forAll(rho.boundaryField(), patchi)
     {
         const fvPatchScalarField& patchRho = rho.boundaryField()[patchi];

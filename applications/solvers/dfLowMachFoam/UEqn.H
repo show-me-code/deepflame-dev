@@ -19,7 +19,7 @@
     volTensorField gradU = fvc::grad(U);
 
     double *h_boundary_gradU = new double[dfDataBase.num_boundary_surfaces * 9];
-    int offset = 0;
+    offset = 0;
     forAll(U.boundaryField(), patchi)
     {
         const fvPatchTensorField& patchGradU = gradU.boundaryField()[patchi];
@@ -139,7 +139,7 @@
     if (pimple.momentumPredictor())
     {
         solve(UEqn);
-
+        K.oldTime();
         K = 0.5*magSqr(U);
     }
     end1 = std::clock();

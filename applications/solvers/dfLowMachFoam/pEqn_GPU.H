@@ -92,8 +92,6 @@ UEqn_GPU.sync();
     delete h_boundary_phiHbyA;
 #endif
 
-pEqn_GPU.postProcess();
-
 #if defined DEBUG_
     fvScalarMatrix pDDtEqn
     (
@@ -153,7 +151,7 @@ pEqn_GPU.postProcess();
     }
     // pEqn_GPU.correctP(&p[0], h_boundary_p);
     if (!mpi_init_flag || rank == 0) {
-        pEqn_GPU.comparep(&p[0], h_boundary_p, false);
+        // pEqn_GPU.comparep(&p[0], h_boundary_p, false);
     }
     delete h_boundary_p;
 
@@ -181,7 +179,7 @@ pEqn_GPU.postProcess();
 thermo_GPU.correctPsipRho();
 
 #include "rhoEqn.H"
-#include "compressibleContinuityErrs.H" // TODO: implement this func in future
+// #include "compressibleContinuityErrs.H" // TODO: implement this func in future
 
 #if defined DEBUG_
 

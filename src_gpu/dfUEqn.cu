@@ -357,8 +357,10 @@ void dfUEqn::initNonConstantFieldsBoundary() {
 
 void dfUEqn::cleanCudaResources() {
     if (graph_created) {
-        checkCudaErrors(cudaGraphExecDestroy(graph_instance));
-        checkCudaErrors(cudaGraphDestroy(graph));
+        checkCudaErrors(cudaGraphExecDestroy(graph_instance_pre));
+        checkCudaErrors(cudaGraphExecDestroy(graph_instance_post));
+        checkCudaErrors(cudaGraphDestroy(graph_pre));
+        checkCudaErrors(cudaGraphDestroy(graph_post));
     }
 }
 
@@ -532,7 +534,7 @@ void dfUEqn::process() {
     checkCudaErrors(cudaEventSynchronize(start));
     checkCudaErrors(cudaEventSynchronize(stop));
     checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
-    fprintf(stderr, "ueqn post process time:%f(ms)\n",time_elapsed);
+    fprintf(stderr, "ueqn post process time:%f(ms)\n\n",time_elapsed);
 }
 
 void dfUEqn::sync()

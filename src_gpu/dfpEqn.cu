@@ -341,8 +341,10 @@ void dfpEqn::initNonConstantFields(const double *p, const double *boundary_p){
 
 void dfpEqn::cleanCudaResources() {
     if (graph_created) {
-        checkCudaErrors(cudaGraphExecDestroy(graph_instance));
-        checkCudaErrors(cudaGraphDestroy(graph));
+        checkCudaErrors(cudaGraphExecDestroy(graph_instance_pre));
+        checkCudaErrors(cudaGraphExecDestroy(graph_instance_post));
+        checkCudaErrors(cudaGraphDestroy(graph_pre));
+        checkCudaErrors(cudaGraphDestroy(graph_post));
     }
 }
 
@@ -429,7 +431,6 @@ void dfpEqn::process() {
 #ifndef TIME_GPU
         checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph_pre));
         checkCudaErrors(cudaGraphInstantiate(&graph_instance_pre, graph_pre, NULL, NULL, 0));
-        graph_created = true;
     }
     DEBUG_TRACE;
     checkCudaErrors(cudaGraphLaunch(graph_instance_pre, dataBase_.stream));
@@ -448,12 +449,16 @@ void dfpEqn::process() {
     checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
     fprintf(stderr, "peqn solve time:%f(ms)\n",time_elapsed);
 
+    checkCudaErrors(cudaEventRecord(start,0));
+#ifndef TIME_GPU
+    if(!graph_created) {
+        checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
+#endif
+    
     correct_boundary_conditions_scalar(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
             dataBase_.num_boundary_surfaces, dataBase_.num_patches, dataBase_.patch_size.data(), 
             patch_type_p.data(), dataBase_.d_boundary_delta_coeffs,
             dataBase_.d_boundary_face_cell, dataBase_.d_p, dataBase_.d_boundary_p);
-}
-void dfpEqn::postProcess() {
     // update phi
     fvMtx_flux(dataBase_.stream, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, dataBase_.d_owner, dataBase_.d_neighbor, 
             d_lower, d_upper, dataBase_.d_p, d_flux,
@@ -461,7 +466,6 @@ void dfpEqn::postProcess() {
             dataBase_.d_boundary_face_cell, d_internal_coeffs, d_boundary_coeffs, dataBase_.d_boundary_p, d_boundary_flux);
     field_add_scalar(dataBase_.stream, dataBase_.num_surfaces, d_phiHbyA, d_flux, dataBase_.d_phi, 
             dataBase_.num_boundary_surfaces, d_boundary_phiHbyA, d_boundary_flux, dataBase_.d_boundary_phi);
-
     // correct U
     checkCudaErrors(cudaMemsetAsync(dataBase_.d_u, 0., dataBase_.cell_value_vec_bytes, dataBase_.stream));
     // TODO: may do not need to calculate boundary fields
@@ -479,7 +483,22 @@ void dfpEqn::postProcess() {
             dataBase_.d_boundary_u, dataBase_.d_boundary_k);
     // calculate dpdt
     fvc_ddt_scalar_field(dataBase_.stream, dataBase_.num_cells, dataBase_.rdelta_t, dataBase_.d_p, dataBase_.d_p_old, dataBase_.d_volume, dataBase_.d_dpdt, 1.);
+
+    #ifndef TIME_GPU
+        checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph_post));
+        checkCudaErrors(cudaGraphInstantiate(&graph_instance_post, graph_post, NULL, NULL, 0));
+        graph_created = true;
+    }
+    checkCudaErrors(cudaGraphLaunch(graph_instance_post, dataBase_.stream));
+#endif
+    
+    checkCudaErrors(cudaEventRecord(stop,0));
+    checkCudaErrors(cudaEventSynchronize(start));
+    checkCudaErrors(cudaEventSynchronize(stop));
+    checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
+    fprintf(stderr, "peqn post process time:%f(ms)\n\n",time_elapsed);
 }
+void dfpEqn::postProcess() {}
 
 void dfpEqn::getFlux()
 {
