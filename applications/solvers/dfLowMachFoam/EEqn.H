@@ -5,6 +5,7 @@
     double *h_boundary_he = dfDataBase.getFieldPointer("he", location::cpu, position::boundary);
 
     EEqn_GPU.process();
+    EEqn_GPU.sync();
     // EEqn_GPU.postProcess(h_he, h_boundary_he);
 
     // copy h_he to he(cpu)
@@ -124,7 +125,7 @@
     time_monitor_EEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);
     time_monitor_EEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
 
-    EEqn.relax();
+    // EEqn.relax();
     start1 = std::clock();
     EEqn.solve("ha");
     end1 = std::clock();

@@ -62,28 +62,33 @@ Description
 
 #define GPUSolverNew_
 #define TIME
-#define DEBUG_ // if application open DEBUG_, srg_gpu should also open DEBUG_
+// #define DEBUG_ // if application open DEBUG_, srg_gpu should also open DEBUG_
+
+#include "dfMatrixDataBase.H"
 
 #ifdef GPUSolverNew_
-#include "dfUEqn.H"
-#include "dfYEqn.H"
-#include "dfRhoEqn.H"
-#include "dfEEqn.H"
-#include "dfpEqn.H"
-#include "dfMatrixDataBase.H"
-#include "dfMatrixOpBase.H"
-#include "dfNcclBase.H"
-#include "dfThermo.H"
-#include <cuda_runtime.h>
-#include <thread>
+    #include "dfUEqn.H"
+    #include "dfYEqn.H"
+    #include "dfRhoEqn.H"
+    #include "dfEEqn.H"
+    #include "dfpEqn.H"
+    #include "dfMatrixOpBase.H"
+    #include "dfNcclBase.H"
+    #include "dfThermo.H"
+    #include <cuda_runtime.h>
+    #include <thread>
 
-#include "processorFvPatchField.H"
-#include "createGPUSolver.H"
+    #include "processorFvPatchField.H"
+    #include "createGPUSolver.H"
 
-#include "upwind.H"
-#include "GenFvMatrix.H"
-#include "CanteraMixture.H"
+    #include "upwind.H"
+    #include "GenFvMatrix.H"
+    #include "CanteraMixture.H"
+#else
+    int myRank = 0;
 #endif
+
+int offset;
 
 #ifdef TIME
     #define TICK_START \
@@ -285,10 +290,10 @@ int main(int argc, char *argv[])
                 end = std::clock();
                 time_monitor_E += double(end - start) / double(CLOCKS_PER_SEC);
 
+            start = std::clock();
             #ifdef GPUSolverNew_
                 thermo_GPU.correctThermo();
-                end = std::clock();
-                time_monitor_chemistry_correctThermo += double(end - start) / double(CLOCKS_PER_SEC);
+                thermo_GPU.sync();
             #if defined DEBUG_
                 // check correctThermo
                 chemistry->correctThermo(); // reference
@@ -376,11 +381,34 @@ int main(int argc, char *argv[])
             #else
                 chemistry->correctThermo();
             #endif
+            end = std::clock();
+            time_monitor_chemistry_correctThermo += double(end - start) / double(CLOCKS_PER_SEC);
             }
             else
             {
                 combustion->correct();
             }
+            // update T for debug
+            #ifdef GPUSolverNew_
+            double *h_T_tmp = new double[dfDataBase.num_cells];
+            double *h_boundary_T_tmp = new double[dfDataBase.num_boundary_surfaces];
+            thermo_GPU.updateCPUT(h_T_tmp, h_boundary_T_tmp);
+
+            memcpy(&T[0], h_T_tmp, T.size() * sizeof(double));
+            offset = 0;
+            forAll(T.boundaryField(), patchi) {
+                const fvPatchScalarField& const_patchT = T.boundaryField()[patchi];
+                fvPatchScalarField& patchT = const_cast<fvPatchScalarField&>(const_patchT);
+                int patchsize = patchT.size();
+                if (patchT.type() == "processor") {
+                    memcpy(&patchT[0], h_boundary_T_tmp + offset, patchsize * sizeof(double));
+                    offset += patchsize * 2;
+                } else {
+                    memcpy(&patchT[0], h_boundary_T_tmp + offset, patchsize * sizeof(double));
+                    offset += patchsize;
+                }
+            }
+            #endif
 
             Info<< "min/max(T) = " << min(T).value() << ", " << max(T).value() << endl;
 

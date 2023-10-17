@@ -597,7 +597,7 @@ void dfYEqn::process() {
     checkCudaErrors(cudaEventSynchronize(start));
     checkCudaErrors(cudaEventSynchronize(stop));
     checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
-    fprintf(stderr, "yeqn process time: %f(ms)\n",time_elapsed);
+    fprintf(stderr, "yeqn process time: %f(ms)\n\n",time_elapsed);
 }
 
 void dfYEqn::solve(int solverIndex) {
@@ -658,6 +658,10 @@ void dfYEqn::postProcess(double *h_y, double *h_boundary_y) {
     // copy y to host
     checkCudaErrors(cudaMemcpyAsync(h_y, dataBase_.d_y, dataBase_.cell_value_bytes * dataBase_.num_species, cudaMemcpyDeviceToHost, dataBase_.stream));
     checkCudaErrors(cudaMemcpyAsync(h_boundary_y, dataBase_.d_boundary_y, dataBase_.boundary_surface_value_bytes * dataBase_.num_species, cudaMemcpyDeviceToHost, dataBase_.stream));
+    checkCudaErrors(cudaStreamSynchronize(dataBase_.stream));
+}
+
+void dfYEqn::sync() {
     checkCudaErrors(cudaStreamSynchronize(dataBase_.stream));
 }
 

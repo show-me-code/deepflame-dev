@@ -89,6 +89,7 @@ public:
     void setPsip0(int thread_per_block, int num_thread, const double *p, const double *psi, double *psip0, int offset = 0);
     void addPsipRho(int thread_per_block, int num_thread, const double *p, const double *psi, const double *psip0, 
             double *rho, int offset = 0);
+    void updateCPUT(double *h_T, double *h_boundary_T);
 
     void compareT(const double *T, const double *boundary_T, bool printFlag);
     void compareRho(const double *rho, const double *boundary_rho, bool printFlag);

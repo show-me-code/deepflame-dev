@@ -6,21 +6,27 @@
 #include <cstring>
 #include "device_launch_parameters.h"
 
-#define TICK_INIT_EVENT \
-    float time_elapsed_kernel=0;\
-    cudaEvent_t start_kernel, stop_kernel;\
-    checkCudaErrors(cudaEventCreate(&start_kernel));\
-    checkCudaErrors(cudaEventCreate(&stop_kernel));
+#ifdef TIME_GPU
+    #define TICK_INIT_EVENT \
+        float time_elapsed_kernel=0;\
+        cudaEvent_t start_kernel, stop_kernel;\
+        checkCudaErrors(cudaEventCreate(&start_kernel));\
+        checkCudaErrors(cudaEventCreate(&stop_kernel));
 
-#define TICK_START_EVENT \
-    checkCudaErrors(cudaEventRecord(start_kernel,0));
+    #define TICK_START_EVENT \
+        checkCudaErrors(cudaEventRecord(start_kernel,0));
 
-#define TICK_END_EVENT(prefix) \
-    checkCudaErrors(cudaEventRecord(stop_kernel,0));\
-    checkCudaErrors(cudaEventSynchronize(start_kernel));\
-    checkCudaErrors(cudaEventSynchronize(stop_kernel));\
-    checkCudaErrors(cudaEventElapsedTime(&time_elapsed_kernel,start_kernel,stop_kernel));\
-    printf("try %s 执行时间：%lf(ms)\n", #prefix, time_elapsed_kernel);
+    #define TICK_END_EVENT(prefix) \
+        checkCudaErrors(cudaEventRecord(stop_kernel,0));\
+        checkCudaErrors(cudaEventSynchronize(start_kernel));\
+        checkCudaErrors(cudaEventSynchronize(stop_kernel));\
+        checkCudaErrors(cudaEventElapsedTime(&time_elapsed_kernel,start_kernel,stop_kernel));\
+        printf("try %s 执行时间：%lf(ms)\n", #prefix, time_elapsed_kernel);
+#else
+    #define TICK_INIT_EVENT
+    #define TICK_START_EVENT
+    #define TICK_END_EVENT(prefix)
+#endif
 
 #define GAS_CANSTANT 8314.46261815324
 #define SQRT8 2.8284271247461903
@@ -631,6 +637,13 @@ void dfThermo::addPsipRho(int thread_per_block, int num_thread, const double *p,
     size_t blocks_per_grid = (num_thread + thread_per_block - 1) / thread_per_block;
     
     add_psip_rho_kernel<<<blocks_per_grid, thread_per_block, 0, stream>>>(num_thread, offset, p, psi, psip0, rho);
+}
+
+void dfThermo::updateCPUT(double *h_T, double *h_boundary_T)
+{
+    checkCudaErrors(cudaMemcpyAsync(h_T, dataBase_.d_T, dataBase_.cell_value_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
+    checkCudaErrors(cudaMemcpyAsync(h_boundary_T, dataBase_.d_boundary_T, dataBase_.boundary_surface_value_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
+    sync();
 }
 
 void dfThermo::compareT(const double *T, const double *boundary_T, bool printFlag)

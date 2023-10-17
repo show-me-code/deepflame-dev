@@ -18,9 +18,9 @@
 
 extern int myRank;
 
-#define DEBUG_
+// #define GPU_DEBUG_
 
-#ifdef DEBUG_
+#ifdef GPU_DEBUG_
    #define DEBUG_TRACE fprintf(stderr, "myRank[%d] %s %d\n", myRank, __FILE__, __LINE__);
 #else
    #define DEBUG_TRACE

@@ -89,8 +89,10 @@ void dfEEqn::initNonConstantFields(const double *he, const double *boundary_he)
 
 void dfEEqn::cleanCudaResources() {
     if (graph_created) {
-        checkCudaErrors(cudaGraphExecDestroy(graph_instance));
-        checkCudaErrors(cudaGraphDestroy(graph));
+        checkCudaErrors(cudaGraphExecDestroy(graph_instance_pre));
+        checkCudaErrors(cudaGraphExecDestroy(graph_instance_post));
+        checkCudaErrors(cudaGraphDestroy(graph_pre));
+        checkCudaErrors(cudaGraphDestroy(graph_post));
     }
 }
 
@@ -234,7 +236,7 @@ void dfEEqn::process() {
     checkCudaErrors(cudaEventSynchronize(start));
     checkCudaErrors(cudaEventSynchronize(stop));
     checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
-    fprintf(stderr, "eeqn post process time: %f(ms)\n",time_elapsed);
+    fprintf(stderr, "eeqn post process time: %f(ms)\n\n",time_elapsed);
 }
 
 void dfEEqn::eeqn_calculate_energy_gradient(dfThermo& GPUThermo, int num_cells, int num_species, 
