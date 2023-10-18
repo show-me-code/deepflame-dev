@@ -439,6 +439,7 @@ void dfpEqn::process() {
     checkCudaErrors(cudaEventSynchronize(start));
     checkCudaErrors(cudaEventSynchronize(stop));
     checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
+    if(!mpi_init_flag || myRank == 0)
     fprintf(stderr, "peqn assembly time:%f(ms)\n",time_elapsed);
     
     checkCudaErrors(cudaEventRecord(start,0));
@@ -447,6 +448,7 @@ void dfpEqn::process() {
     checkCudaErrors(cudaEventSynchronize(start));
     checkCudaErrors(cudaEventSynchronize(stop));
     checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
+    if(!mpi_init_flag || myRank == 0)
     fprintf(stderr, "peqn solve time:%f(ms)\n",time_elapsed);
 
     checkCudaErrors(cudaEventRecord(start,0));
@@ -496,6 +498,7 @@ void dfpEqn::process() {
     checkCudaErrors(cudaEventSynchronize(start));
     checkCudaErrors(cudaEventSynchronize(stop));
     checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
+    if(!mpi_init_flag || myRank == 0)
     fprintf(stderr, "peqn post process time:%f(ms)\n\n",time_elapsed);
 }
 void dfpEqn::postProcess() {}

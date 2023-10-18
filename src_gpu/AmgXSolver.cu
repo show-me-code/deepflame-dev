@@ -14,6 +14,7 @@
 #include <numeric>
 #include <limits>
 #include <mpi.h>
+#include "dfMatrixDataBase.H"
 
 // initialize AmgXSolver::count to 0
 int AmgXSolver::count = 0;
@@ -327,6 +328,7 @@ void AmgXSolver::solve(
     getResidual(0, irnorm);
     getIters(nIters);
     getResidual(nIters, rnorm);
+    if (!isMPIEnabled || myRank == 0)
     printf("Initial residual = %.10lf, Final residual = %.5e, No Iterations %d\n", irnorm, rnorm, nIters);
 
 }

@@ -17,6 +17,7 @@
 #include <unordered_map>
 
 extern int myRank;
+extern int mpi_init_flag;
 
 // #define GPU_DEBUG_
 

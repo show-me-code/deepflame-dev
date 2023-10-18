@@ -21,7 +21,7 @@ static void getHostName(char* hostname, int maxlen) {
 }
 
 void ncclInit(MPI_Comm mpi_comm, ncclComm_t& nccl_comm, ncclUniqueId& nccl_id,
-        int *pnRanks, int *pmyRank, int *plocalRank)
+        int *pnRanks, int *pmyRank, int *plocalRank, int *p_mpi_init_flag)
 {
     // check mpi initialized
     int mpi_init_flag;
@@ -61,6 +61,7 @@ void ncclInit(MPI_Comm mpi_comm, ncclComm_t& nccl_comm, ncclUniqueId& nccl_id,
     *pnRanks = nRanks;
     *pmyRank = myRank;
     *plocalRank = localRank;
+    *p_mpi_init_flag = mpi_init_flag;
 }
 
 void ncclDestroy(ncclComm_t nccl_comm)

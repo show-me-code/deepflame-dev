@@ -2,7 +2,7 @@
 
 ncclUniqueId nccl_id;
 ncclComm_t nccl_comm;
-int nRanks, myRank, localRank = 0;
+int nRanks, myRank, localRank, mpi_init_flag = 0;
 
 dfMatrixDataBase dfDataBase;
 dfThermo thermo_GPU(dfDataBase);
@@ -96,7 +96,7 @@ void randomInitField(T& field) {
 #endif
 
 void initNccl() {
-    ncclInit(PstreamGlobals::MPI_COMM_FOAM, nccl_comm, nccl_id, &nRanks, &myRank, &localRank);
+    ncclInit(PstreamGlobals::MPI_COMM_FOAM, nccl_comm, nccl_id, &nRanks, &myRank, &localRank, &mpi_init_flag);
 }
 
 void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {

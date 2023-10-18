@@ -498,6 +498,7 @@ void dfUEqn::process() {
     checkCudaErrors(cudaEventSynchronize(start));
     checkCudaErrors(cudaEventSynchronize(stop));
     checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
+    if(!mpi_init_flag || myRank == 0)
     fprintf(stderr, "ueqn assembly time:%f(ms)\n",time_elapsed);
 
     checkCudaErrors(cudaEventRecord(start,0));
@@ -508,6 +509,7 @@ void dfUEqn::process() {
     checkCudaErrors(cudaEventSynchronize(start));
     checkCudaErrors(cudaEventSynchronize(stop));
     checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
+    if(!mpi_init_flag || myRank == 0)
     fprintf(stderr, "ueqn solve time:%f(ms)\n",time_elapsed);
 
     checkCudaErrors(cudaEventRecord(start,0));
@@ -534,6 +536,7 @@ void dfUEqn::process() {
     checkCudaErrors(cudaEventSynchronize(start));
     checkCudaErrors(cudaEventSynchronize(stop));
     checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
+    if(!mpi_init_flag || myRank == 0)
     fprintf(stderr, "ueqn post process time:%f(ms)\n\n",time_elapsed);
 }
 
