@@ -15,7 +15,8 @@ void constructBoundarySelectorPerPatch(int *patchTypeSelector, const std::string
         {"coupled", coupled},
         {"cyclic", cyclic},
         {"processor", processor},
-        {"extrapolated", extrapolated}
+        {"extrapolated", extrapolated},
+        {"fixedEnergy", fixedEnergy}
     };
     auto iter = BCMap.find(patchTypeStr);
     if (iter != BCMap.end()) {
@@ -68,6 +69,11 @@ void constructBoundarySelectorPerPatch(int *patchTypeSelector, const std::string
         case extrapolated:
         {
             *patchTypeSelector = 8;
+            break;
+        }
+        case fixedEnergy:
+        {
+            *patchTypeSelector = 9;
             break;
         }
     }
