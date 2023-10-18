@@ -1,6 +1,7 @@
 #pragma once
 #include <cuda_runtime.h>
 #include <nccl.h>
+#include "dfThermo.H"
 // #define TIME_GPU
 // #define DEBUG_CHECK_LDU
 
@@ -67,7 +68,8 @@ void correct_boundary_conditions_scalar(cudaStream_t stream, ncclComm_t comm,
         const int *neighbor_peer, int num_boundary_surfaces, int num_patches,
         const int *patch_size, const int *patch_type, const double *boundary_delta_coeffs, 
         const int *boundary_cell_face, const double *vf, double *boundary_vf,
-        const double *thermo_gradient = nullptr);
+        const double *boundary_T = nullptr, const double *boundary_y = nullptr,
+        const double *thermo_gradient = nullptr, dfThermo *GPUThermo = nullptr);
 
 void correct_boundary_conditions_vector(cudaStream_t stream, ncclComm_t comm,
         const int *neighbor_peer, int num_boundary_surfaces, int num_cells, int num_patches,

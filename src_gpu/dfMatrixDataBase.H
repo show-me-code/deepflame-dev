@@ -17,6 +17,7 @@
 #include <unordered_map>
 
 extern int myRank;
+extern int mpi_init_flag;
 
 // #define GPU_DEBUG_
 
@@ -77,7 +78,8 @@ enum boundaryConditions{
     calculated,
     cyclic,
     processor,
-    extrapolated
+    extrapolated,
+    fixedEnergy
 };
 
 void constructBoundarySelectorPerPatch(int *patchTypeSelector, const std::string& patchTypeStr);

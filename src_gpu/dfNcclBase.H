@@ -26,7 +26,7 @@
 } while(0)
 
 void ncclInit(MPI_Comm mpi_comm, ncclComm_t& nccl_comm, ncclUniqueId& nccl_id,
-		int *nRanks, int *myRank, int *localRank);
+		int *nRanks, int *myRank, int *localRank, int *mpi_init_flag);
 
 void ncclDestroy(ncclComm_t nccl_comm);
 

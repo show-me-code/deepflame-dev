@@ -80,6 +80,7 @@ void dfRhoEqn::process()
     checkCudaErrors(cudaEventSynchronize(start));
     checkCudaErrors(cudaEventSynchronize(stop));
     checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
+    if(!mpi_init_flag || myRank == 0)
     fprintf(stderr, "rhoEqn process time:%f(ms)\n\n",time_elapsed);
 }
 

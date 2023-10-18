@@ -60,13 +60,14 @@ Description
 #include "basicThermo.H"
 #include "CombustionModel.H"
 
-#define GPUSolverNew_
+// #define GPUSolverNew_
 #define TIME
-// #define DEBUG_ // if application open DEBUG_, srg_gpu should also open DEBUG_
+// #define DEBUG_ 
 
 #include "dfMatrixDataBase.H"
 
 #ifdef GPUSolverNew_
+    #include "AmgXSolver.H"
     #include "dfUEqn.H"
     #include "dfYEqn.H"
     #include "dfRhoEqn.H"
@@ -85,7 +86,8 @@ Description
     #include "GenFvMatrix.H"
     #include "CanteraMixture.H"
 #else
-    int myRank = 0;
+    int myRank = -1;
+    int mpi_init_flag = 0;
 #endif
 
 int offset;
