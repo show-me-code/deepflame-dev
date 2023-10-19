@@ -11,6 +11,7 @@ private:
 	dfMatrixDataBase &dataBase_;
 
     // cuda resource
+    cudaStream_t stream;
     // one graph for one eqn before using self-developed solver
     cudaGraph_t graph;
     cudaGraphExec_t graph_instance;

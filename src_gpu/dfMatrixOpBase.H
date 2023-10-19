@@ -1,8 +1,62 @@
 #pragma once
 #include <cuda_runtime.h>
 #include <nccl.h>
-// #define TIME_GPU
-// #define DEBUG_CHECK_LDU
+
+#ifndef USE_GRAPH
+    #define USE_GRAPH
+#endif
+
+#ifndef TIME_GPU
+    #define TIME_GPU
+    #if (defined TIME_GPU) && (defined USE_GRAPH)
+        #undef USE_GRAPH
+    #endif
+#endif
+
+extern int myRank;
+extern __global__ void warmup();
+
+#ifdef TIME_GPU
+    #define WARM_UP \
+        warmup<<<10, 1024, 0, stream>>>();
+
+    #define TICK_INIT_EVENT \
+        float time_elapsed_kernel=0;\
+        cudaEvent_t start_kernel, stop_kernel;\
+        checkCudaErrors(cudaEventCreate(&start_kernel));\
+        checkCudaErrors(cudaEventCreate(&stop_kernel));
+
+    #define TICK_START_EVENT \
+        checkCudaErrors(cudaEventRecord(start_kernel,stream));
+
+    #define TICK_END_EVENT(prefix) \
+        checkCudaErrors(cudaEventRecord(stop_kernel,stream));\
+        checkCudaErrors(cudaEventSynchronize(start_kernel));\
+        checkCudaErrors(cudaEventSynchronize(stop_kernel));\
+        checkCudaErrors(cudaEventElapsedTime(&time_elapsed_kernel,start_kernel,stop_kernel));\
+        fprintf(stderr, "rank[%d], name: %s, time: %lf(ms)\n", myRank, #prefix, time_elapsed_kernel);
+
+/*
+    // the usage description:
+    // if you want to profile the first kernel, please use WARM_UP before TICK_INIT_EVENT.
+    // otherwise there is no need to use WARM_UP
+    WARM_UP;
+    // init event
+    TICK_INIT_EVENT;
+    // start event
+    TICK_START_EVENT;
+    // call your kernel, or kernels, or wrapper functions, e.g.:
+    my_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num, input, output);
+    // end event with your specified name string, e.g.:
+    TICK_END_EVENT(my_kernel);
+*/
+
+#else
+    #define WARM_UP
+    #define TICK_INIT_EVENT
+    #define TICK_START_EVENT
+    #define TICK_END_EVENT(prefix)
+#endif
 
 // tools
 void permute_vector_d2h(cudaStream_t stream, int num_cells, const double *input, double *output);
@@ -247,3 +301,4 @@ void fvMtx_flux(cudaStream_t stream, int num_surfaces, int num_boundary_surfaces
 
 void solve_explicit_scalar(cudaStream_t stream, int num_cells, const double *diag, const double *source,
         double *psi);
+

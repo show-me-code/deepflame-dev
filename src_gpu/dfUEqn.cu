@@ -265,6 +265,7 @@ __global__ void ueqn_divide_cell_volume_vec(int num_cells, const double* volume,
 }
 
 void dfUEqn::setConstantValues(const std::string &mode_string, const std::string &setting_path) {
+  this->stream = dataBase_.stream;
   this->mode_string = mode_string;
   this->setting_path = setting_path;
   UxSolver = new AmgXSolver(mode_string, setting_path, dataBase_.localRank);
@@ -356,10 +357,12 @@ void dfUEqn::initNonConstantFieldsBoundary() {
 }
 
 void dfUEqn::cleanCudaResources() {
-    if (graph_created) {
+    if (pre_graph_created) {
         checkCudaErrors(cudaGraphExecDestroy(graph_instance_pre));
-        checkCudaErrors(cudaGraphExecDestroy(graph_instance_post));
         checkCudaErrors(cudaGraphDestroy(graph_pre));
+    }
+    if (post_graph_created) {
+        checkCudaErrors(cudaGraphExecDestroy(graph_instance_post));
         checkCudaErrors(cudaGraphDestroy(graph_post));
     }
 }
@@ -376,15 +379,10 @@ void dfUEqn::preProcess(const double *h_u, const double *h_boundary_u, const dou
 }
 
 void dfUEqn::process() {
-    //使用event计算时间
-    float time_elapsed=0;
-    cudaEvent_t start,stop;
-    checkCudaErrors(cudaEventCreate(&start));
-    checkCudaErrors(cudaEventCreate(&stop));
-    checkCudaErrors(cudaEventRecord(start,0));
-
-#ifndef TIME_GPU
-    if(!graph_created) {
+    TICK_INIT_EVENT;
+    TICK_START_EVENT;
+#ifdef USE_GRAPH
+    if(!pre_graph_created) {
         DEBUG_TRACE;
         checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
 #endif
@@ -487,54 +485,72 @@ void dfUEqn::process() {
             dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(), 
             d_ldu, d_extern, d_source, d_internal_coeffs, d_boundary_coeffs, d_A, d_b);
 #endif
-#ifndef TIME_GPU
+#ifdef USE_GRAPH
         checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph_pre));
         checkCudaErrors(cudaGraphInstantiate(&graph_instance_pre, graph_pre, NULL, NULL, 0));
+        pre_graph_created = true;
     }
     DEBUG_TRACE;
     checkCudaErrors(cudaGraphLaunch(graph_instance_pre, dataBase_.stream));
 #endif
-    checkCudaErrors(cudaEventRecord(stop,0));
-    checkCudaErrors(cudaEventSynchronize(start));
-    checkCudaErrors(cudaEventSynchronize(stop));
-    checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
-    fprintf(stderr, "ueqn assembly time:%f(ms)\n",time_elapsed);
+    TICK_END_EVENT(UEqn assembly);
 
-    checkCudaErrors(cudaEventRecord(start,0));
+    TICK_START_EVENT;
 #ifndef DEBUG_CHECK_LDU
     solve();
 #endif
-    checkCudaErrors(cudaEventRecord(stop,0));
-    checkCudaErrors(cudaEventSynchronize(start));
-    checkCudaErrors(cudaEventSynchronize(stop));
-    checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
-    fprintf(stderr, "ueqn solve time:%f(ms)\n",time_elapsed);
+    TICK_END_EVENT(UEqn solve);
 
-    checkCudaErrors(cudaEventRecord(start,0));
-#ifndef TIME_GPU
-    if(!graph_created) {
+    TICK_START_EVENT;
+#ifdef USE_GRAPH
+    if(!post_graph_created) {
         checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
 #endif
 
-        correct_boundary_conditions_vector(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(), dataBase_.num_boundary_surfaces, 
+        correct_boundary_conditions_vector(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
+                dataBase_.num_boundary_surfaces, 
                 dataBase_.num_cells, dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(), dataBase_.d_boundary_face_cell,
                 dataBase_.d_u, dataBase_.d_boundary_u);
         vector_half_mag_square(dataBase_.stream, dataBase_.num_cells, dataBase_.d_u, dataBase_.d_k, dataBase_.num_boundary_surfaces, 
                 dataBase_.d_boundary_u, dataBase_.d_boundary_k);
+    
+        // copy u and boundary_u to host
+        permute_vector_d2h(dataBase_.stream, dataBase_.num_cells, dataBase_.d_u, d_u_host_order);
+        checkCudaErrors(cudaMemcpyAsync(dataBase_.h_u, d_u_host_order, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
 
-#ifndef TIME_GPU
+#ifdef STREAM_ALLOCATOR
+        // free
+        // thermophysical fields
+        checkCudaErrors(cudaFreeAsync(d_nu_eff, dataBase_.stream));
+        // intermediate fields
+        checkCudaErrors(cudaFreeAsync(d_grad_u, dataBase_.stream));
+        checkCudaErrors(cudaFreeAsync(d_rho_nueff, dataBase_.stream));
+        checkCudaErrors(cudaFreeAsync(d_fvc_output, dataBase_.stream));
+    
+        // thermophysical fields
+        checkCudaErrors(cudaFreeAsync(d_boundary_nu_eff, dataBase_.stream));
+        // intermediate fields
+        checkCudaErrors(cudaFreeAsync(d_boundary_grad_u, dataBase_.stream));
+        checkCudaErrors(cudaFreeAsync(d_boundary_rho_nueff, dataBase_.stream));
+        // boundary coeff fields
+        checkCudaErrors(cudaFreeAsync(d_value_internal_coeffs, dataBase_.stream));
+        checkCudaErrors(cudaFreeAsync(d_value_boundary_coeffs, dataBase_.stream));
+        checkCudaErrors(cudaFreeAsync(d_gradient_internal_coeffs, dataBase_.stream));
+        checkCudaErrors(cudaFreeAsync(d_gradient_boundary_coeffs, dataBase_.stream));
+    
+        checkCudaErrors(cudaFreeAsync(d_A, dataBase_.stream));
+        checkCudaErrors(cudaFreeAsync(d_b, dataBase_.stream));
+#endif
+
+#ifdef USE_GRAPH
         checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph_post));
         checkCudaErrors(cudaGraphInstantiate(&graph_instance_post, graph_post, NULL, NULL, 0));
-        graph_created = true;
+        post_graph_created = true;
     }
     checkCudaErrors(cudaGraphLaunch(graph_instance_post, dataBase_.stream));
 #endif
-    
-    checkCudaErrors(cudaEventRecord(stop,0));
-    checkCudaErrors(cudaEventSynchronize(start));
-    checkCudaErrors(cudaEventSynchronize(stop));
-    checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
-    fprintf(stderr, "ueqn post process time:%f(ms)\n\n",time_elapsed);
+    TICK_END_EVENT(UEqn post process);
+    sync();
 }
 
 void dfUEqn::sync()
@@ -543,7 +559,7 @@ void dfUEqn::sync()
 }
 
 void dfUEqn::solve() {
-    sync();
+    sync(); // TODO need remove
 
     if (num_iteration == 0)                                     // first interation
     {
@@ -564,35 +580,7 @@ void dfUEqn::solve() {
     num_iteration++;
 }
 
-void dfUEqn::postProcess(double *h_u) {
-    permute_vector_d2h(dataBase_.stream, dataBase_.num_cells, dataBase_.d_u, d_u_host_order);
-    checkCudaErrors(cudaMemcpyAsync(h_u, d_u_host_order, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
-    checkCudaErrors(cudaStreamSynchronize(dataBase_.stream));
-
-#ifdef STREAM_ALLOCATOR
-    // free
-    // thermophysical fields
-    checkCudaErrors(cudaFreeAsync(d_nu_eff, dataBase_.stream));
-    // intermediate fields
-    checkCudaErrors(cudaFreeAsync(d_grad_u, dataBase_.stream));
-    checkCudaErrors(cudaFreeAsync(d_rho_nueff, dataBase_.stream));
-    checkCudaErrors(cudaFreeAsync(d_fvc_output, dataBase_.stream));
-
-    // thermophysical fields
-    checkCudaErrors(cudaFreeAsync(d_boundary_nu_eff, dataBase_.stream));
-    // intermediate fields
-    checkCudaErrors(cudaFreeAsync(d_boundary_grad_u, dataBase_.stream));
-    checkCudaErrors(cudaFreeAsync(d_boundary_rho_nueff, dataBase_.stream));
-    // boundary coeff fields
-    checkCudaErrors(cudaFreeAsync(d_value_internal_coeffs, dataBase_.stream));
-    checkCudaErrors(cudaFreeAsync(d_value_boundary_coeffs, dataBase_.stream));
-    checkCudaErrors(cudaFreeAsync(d_gradient_internal_coeffs, dataBase_.stream));
-    checkCudaErrors(cudaFreeAsync(d_gradient_boundary_coeffs, dataBase_.stream));
-
-    checkCudaErrors(cudaFreeAsync(d_A, dataBase_.stream));
-    checkCudaErrors(cudaFreeAsync(d_b, dataBase_.stream));
-#endif
-}
+void dfUEqn::postProcess(double *h_u) {}
 
 void dfUEqn::A(double *Psi) {
     fvMtx_A(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, 

@@ -323,6 +323,7 @@ void createGPURhoEqn(const volScalarField& rho, const surfaceScalarField& phi) {
             offset += patchsize;
         }
     }
+    rhoEqn_GPU.setConstantValues();
     rhoEqn_GPU.setConstantFields(patch_type);
     rhoEqn_GPU.initNonConstantFields(h_rho, h_phi, h_boundary_rho, h_boundary_phi);
     rhoEqn_GPU.createNonConstantLduAndCsrFields();

@@ -16,11 +16,12 @@
 #include <cmath>
 #include <unordered_map>
 
+#define DEBUG_
+#define DEBUG_CHECK_LDU
+
 extern int myRank;
 
-// #define GPU_DEBUG_
-
-#ifdef GPU_DEBUG_
+#ifdef DEBUG_
    #define DEBUG_TRACE fprintf(stderr, "myRank[%d] %s %d\n", myRank, __FILE__, __LINE__);
 #else
    #define DEBUG_TRACE
