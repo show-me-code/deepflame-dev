@@ -522,6 +522,7 @@ void dfYEqn::process() {
     // to compare yi, you should only open DEBUG_ in src_gpu.
     // Besides, if you compare ldu data, be patient to keep specie_index in YEqn.H and dfYEqn.cu the same.
 // #define DEBUG_CHECK_LDU
+    int solverIndex = 0;
 #if defined DEBUG_CHECK_LDU
     int specie_index = 0;
     for (int s = specie_index; s < specie_index + 1; s++) {
@@ -576,7 +577,8 @@ void dfYEqn::process() {
             ldu_to_csr_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
                     dataBase_.num_Nz, dataBase_.d_boundary_face_cell, dataBase_.d_ldu_to_csr_index, dataBase_.num_patches,
                     dataBase_.patch_size.data(), patch_type.data(), d_ldu, d_source, d_internal_coeffs, d_boundary_coeffs, d_A);
-            solve(s); 
+            solve(solverIndex, s); 
+            solverIndex ++;
 #endif
         }
         if (s == dataBase_.num_species - 1)
@@ -601,7 +603,7 @@ void dfYEqn::process() {
     fprintf(stderr, "yeqn process time: %f(ms)\n\n",time_elapsed);
 }
 
-void dfYEqn::solve(int solverIndex) {
+void dfYEqn::solve(int solverIndex, int speciesIndex) {    
     if (num_iteration == 0)                                     // first interation
     {
         fprintf(stderr, "Initializing AmgX Linear Solver\n");
@@ -617,7 +619,7 @@ void dfYEqn::solve(int solverIndex) {
     }
     // use d_source as d_b
     DEBUG_TRACE;
-    YSolverSet[solverIndex]->solve(dataBase_.num_cells, dataBase_.d_y + dataBase_.num_cells * solverIndex, d_source);
+    YSolverSet[solverIndex]->solve(dataBase_.num_cells, dataBase_.d_y + dataBase_.num_cells * speciesIndex, d_source);
     DEBUG_TRACE;
 }
 

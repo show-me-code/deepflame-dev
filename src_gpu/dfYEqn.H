@@ -117,7 +117,7 @@ public:
         const double *h_mut_sct, const double *h_boundary_mut_sct);
 	void process();
     void postProcess(double *h_y, double *h_boundary_y);
-    void solve(int solverIndex);
+    void solve(int solverIndex, int speciesIndex);
     void sync();
 
     // 方程特化版离散函数
