@@ -60,7 +60,7 @@ Description
 #include "basicThermo.H"
 #include "CombustionModel.H"
 
-// #define GPUSolverNew_
+#define GPUSolverNew_
 #define TIME
 // #define DEBUG_ 
 
@@ -80,12 +80,15 @@ Description
     #include <thread>
 
     #include "processorFvPatchField.H"
+    #include "cyclicFvPatchField.H"
     #include "createGPUSolver.H"
 
     #include "upwind.H"
     #include "GenFvMatrix.H"
     #include "CanteraMixture.H"
 #else
+    #include "processorFvPatchField.H"
+    #include "cyclicFvPatchField.H"
     int myRank = -1;
     int mpi_init_flag = 0;
 #endif
@@ -365,7 +368,7 @@ int main(int argc, char *argv[])
                     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
                 }
                 if (!mpi_init_flag || rank == 0) {
-                    thermo_GPU.compareT(&T[0], h_boundary_T_tmp, printFlag);
+                    // thermo_GPU.compareT(&T[0], h_boundary_T_tmp, printFlag);
                     // thermo_GPU.compareHe(&thermo.he()[0], h_boundary_he_tmp, printFlag);
                     // thermo_GPU.comparePsi(&psi[0], h_boundary_thermo_psi_tmp, printFlag);
                     // thermo_GPU.compareAlpha(&alpha[0], h_boundary_thermo_alpha_tmp, printFlag);

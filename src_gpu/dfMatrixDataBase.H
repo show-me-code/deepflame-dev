@@ -19,7 +19,7 @@
 extern int myRank;
 extern int mpi_init_flag;
 
-// #define GPU_DEBUG_
+#define GPU_DEBUG_
 
 #ifdef GPU_DEBUG_
    #define DEBUG_TRACE fprintf(stderr, "myRank[%d] %s %d\n", myRank, __FILE__, __LINE__);
@@ -98,6 +98,10 @@ struct dfMatrixDataBase
     int localRank;
     std::vector<int> neighbProcNo;
 
+    // cyclic info
+    std::vector<int> cyclicNeighbor;
+    std::vector<int> patchSizeOffset;
+
     // constant values -- basic
     int num_cells = 0;
     int num_total_cells = 0;
@@ -112,6 +116,7 @@ struct dfMatrixDataBase
     std::vector<int> patch_type_extropolated;
     std::vector<int> patch_type_T;
     double rdelta_t = 0;
+    std::vector<int> lduCSRIndex;
 
     // constant values -- ldu bytesize
     size_t cell_value_bytes = 0;
@@ -271,6 +276,7 @@ struct dfMatrixDataBase
         std::vector<int> patch_size, int num_species, double rdelta_t);             
     void setConstantIndexes(const int *owner, const int *neighbor, const int *procRows, 
             const int *procCols, int globalOffset);
+    void setCyclicInfo(std::vector<int> &cyclicNeighbor); // when use cyclic boundary
 
     void createConstantFieldsInternal();
     void createConstantFieldsBoundary();

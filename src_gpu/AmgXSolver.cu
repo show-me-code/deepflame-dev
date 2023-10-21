@@ -115,7 +115,13 @@ void AmgXSolver::setMode(const std::string &modeStr)
     AMGX_SAFE_CALL(AMGX_config_add_parameters(&cfg, "exception_handling=1"));
 
     // create an AmgX resource object, only the first instance is in charge
-    if (count == 1) AMGX_resources_create(&rsrc, cfg, &mpiWorld, 1, &devID);
+    if (count == 1) {
+        if (isMPIEnabled) {
+            AMGX_resources_create(&rsrc, cfg, &mpiWorld, 1, &devID);
+        } else {
+            AMGX_resources_create_simple(&rsrc, cfg);
+        }
+    }
 
     // create AmgX vector object for unknowns and RHS
     AMGX_vector_create(&AmgXP, rsrc, mode);

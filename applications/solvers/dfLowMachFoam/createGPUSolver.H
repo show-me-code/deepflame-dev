@@ -166,6 +166,22 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
         dfDataBase.setCommInfo(PstreamGlobals::MPI_COMM_FOAM, nccl_comm, nccl_id, nRanks, myRank, localRank, GPUNeighbProcNo);
     }
 
+    // get cyclic neighbor when has cyclic patch
+    // - get boundary Index
+    std::map<std::string, int> patchNameToIndex;
+    forAll(Y[0].boundaryField(), patchi) {
+        patchNameToIndex[Y[0].boundaryField()[patchi].patch().name()] = patchi;
+    }
+    // - get cyclic neighbor
+    std::vector<int> cyclicNeighbor(dfDataBase.num_patches, -1);
+    forAll(Y[0].boundaryField(), patchi) {
+        if (Y[0].boundaryField()[patchi].type() == "cyclic") {
+            cyclicNeighbor[patchi] = patchNameToIndex[dynamic_cast<const cyclicFvPatchField<scalar>&>(Y[0].boundaryField()[patchi]).
+                    cyclicPatch().cyclicPatch().neighbPatch().name()];
+        }
+    }
+    dfDataBase.setCyclicInfo(cyclicNeighbor);
+
     // prepare cuda resources
     dfDataBase.prepareCudaResources();
 
@@ -254,6 +270,17 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
             memcpy(boundary_face_cell + offset + patchsize, &pFaceCells[0], patchsize * sizeof(int));
 
             offset += patchsize * 2;
+        } else if (patchY.type() == "cyclic") {
+            patch_type_calculated[patchi] = 6; // patchi type is cyclic
+            patch_type_extropolated[patchi] = 6; // patchi type is cyclic
+
+            memcpy(boundary_sf + 3*offset, &pSf[0][0], 3*patchsize*sizeof(double));
+            memcpy(boundary_mag_sf + offset, &pMagSf[0], patchsize*sizeof(double));
+            memcpy(boundary_delta_coeffs + offset, &pDeltaCoeffs[0], patchsize*sizeof(double));
+            memcpy(boundary_weights + offset, &pWeights[0], patchsize*sizeof(double));
+            memcpy(boundary_face_cell + offset, &pFaceCells[0], patchsize * sizeof(int));
+
+            offset += patchsize;
         } else {
             memcpy(boundary_sf + 3*offset, &pSf[0][0], 3*patchsize*sizeof(double));
             memcpy(boundary_mag_sf + offset, &pMagSf[0], patchsize*sizeof(double));

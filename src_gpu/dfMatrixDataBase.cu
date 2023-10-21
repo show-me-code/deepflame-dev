@@ -141,6 +141,11 @@ void dfMatrixDataBase::setConstantValues(int num_cells, int num_total_cells, int
     csr_value_vec_bytes = num_Nz * 3 * sizeof(double);
 }
 
+void dfMatrixDataBase::setCyclicInfo(std::vector<int> &cyclicNeighbor)
+{
+    this->cyclicNeighbor = cyclicNeighbor;
+}
+
 void dfMatrixDataBase::setConstantIndexes(const int *owner, const int *neighbor, const int *procRows, 
         const int *procCols, int globalOffset) {
     // build d_owner, d_neighbor
@@ -183,7 +188,7 @@ void dfMatrixDataBase::setConstantIndexes(const int *owner, const int *neighbor,
             return pair1.second < pair2.second;
         }
     });
-    std::vector<int> permRowIndex, lduCSRIndex;
+    std::vector<int> permRowIndex;
     std::transform(rowIndicesPermPair.begin(), rowIndicesPermPair.end(), std::back_inserter(permRowIndex), []
         (const std::pair<int, int>& pair) {
         return pair.first;

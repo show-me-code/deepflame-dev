@@ -121,28 +121,29 @@ public:
         const double *diag, double *rAU, double *boundary_rAU);
     void UEqnGetHbyA(cudaStream_t stream, ncclComm_t comm, const int *neighbor_peer, 
         int num_cells, int num_surfaces, int num_boundary_surfaces, 
-        const int *lowerAddr, const int *upperAddr, const double *volume,
+        const int *lowerAddr, const int *upperAddr, const double *volume, const double *u,
         int num_patches, const int *patch_size, const int *patch_type, const int *patch_type_U,
-        const int *boundary_cell_face, const double *internal_coffs, const double *boundary_coeffs, 
+        const int *boundary_cell_face, const double *internal_coffs, const double *boundary_coeffs, const double *boundary_weight,
         const double *lower, const double *upper, const double *source, const double *psi, 
         const double *rAU, const double *boundary_rAU, const double *boundary_u,
+        const int *cyclicNeighbor, const int *patchSizeOffset,
         double *HbyA, double *boundary_HbyA);
     void getHbyA();
     void correctPsi(double *Psi, double *boundary_psi);
     void ueqn_ldu_to_csr(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surface, int num_Nz, 
         const int* boundary_cell_face, const int *ldu_to_csr_index, const int *diag_to_csr_index,
-        int num_patches, const int *patch_size, const int *patch_type,
+        int num_patches, const int *patch_size, const int *patch_type, const double *vf, 
         const double *ldu, double *external, const double *source, const double *internal_coeffs, const double *boundary_coeffs,
-        double *A, double *b);
+        const int *cyclicNeighbor, const int *patchSizeOffset, double *A, double *b);
 
     void solve();
     void sync();
 
-#if defined DEBUG_
+// #if defined DEBUG_
     void compareResult(const double *lower, const double *upper, const double *diag, const double *source, const double *internal_coeffs, const double *boundary_coeffs, 
     // const double *tmpVal, const double *boundary_val,
     bool printFlag);
-#endif 
+// #endif 
     void compareHbyA(const double *HbyA, const double *boundary_HbyA, bool printFlag);
     void comparerAU(const double *rAU, const double *boundary_rAU, bool printFlag);
     void compareU(const double *U, const double *boundary_U, bool printFlag);

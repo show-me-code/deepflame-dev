@@ -460,12 +460,14 @@ void dfpEqn::process() {
     correct_boundary_conditions_scalar(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
             dataBase_.num_boundary_surfaces, dataBase_.num_patches, dataBase_.patch_size.data(), 
             patch_type_p.data(), dataBase_.d_boundary_delta_coeffs,
-            dataBase_.d_boundary_face_cell, dataBase_.d_p, dataBase_.d_boundary_p);
+            dataBase_.d_boundary_face_cell, dataBase_.d_p, dataBase_.d_boundary_p,
+            dataBase_.cyclicNeighbor.data(), dataBase_.patchSizeOffset.data(), dataBase_.d_boundary_weight);
     // update phi
     fvMtx_flux(dataBase_.stream, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, dataBase_.d_owner, dataBase_.d_neighbor, 
             d_lower, d_upper, dataBase_.d_p, d_flux,
             dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_p.data(), 
-            dataBase_.d_boundary_face_cell, d_internal_coeffs, d_boundary_coeffs, dataBase_.d_boundary_p, d_boundary_flux);
+            dataBase_.d_boundary_face_cell, d_internal_coeffs, d_boundary_coeffs, dataBase_.cyclicNeighbor.data(), 
+            dataBase_.patchSizeOffset.data(), dataBase_.d_boundary_p, d_boundary_flux);
     field_add_scalar(dataBase_.stream, dataBase_.num_surfaces, d_phiHbyA, d_flux, dataBase_.d_phi, 
             dataBase_.num_boundary_surfaces, d_boundary_phiHbyA, d_boundary_flux, dataBase_.d_boundary_phi);
     // correct U
@@ -479,8 +481,9 @@ void dfpEqn::process() {
     scalar_field_multiply_vector_field(dataBase_.stream, dataBase_.num_cells, dataBase_.d_rAU, dataBase_.d_u, dataBase_.d_u);
     field_add_vector(dataBase_.stream, dataBase_.num_cells, dataBase_.d_HbyA, dataBase_.d_u, dataBase_.d_u, -1.);
     correct_boundary_conditions_vector(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(), dataBase_.num_boundary_surfaces, 
-            dataBase_.num_cells, dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_U.data(), dataBase_.d_boundary_face_cell,
-            dataBase_.d_u, dataBase_.d_boundary_u);
+            dataBase_.num_cells, dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_U.data(), dataBase_.d_boundary_weight,
+            dataBase_.d_boundary_face_cell, dataBase_.d_u, dataBase_.d_boundary_u, 
+            dataBase_.cyclicNeighbor.data(), dataBase_.patchSizeOffset.data());
     vector_half_mag_square(dataBase_.stream, dataBase_.num_cells, dataBase_.d_u, dataBase_.d_k, dataBase_.num_boundary_surfaces, 
             dataBase_.d_boundary_u, dataBase_.d_boundary_k);
     // calculate dpdt
@@ -508,7 +511,8 @@ void dfpEqn::getFlux()
     fvMtx_flux(dataBase_.stream, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, dataBase_.d_owner, dataBase_.d_neighbor, 
             d_lower, d_upper, dataBase_.d_p, d_flux,
             dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_p.data(), 
-            dataBase_.d_boundary_face_cell, d_internal_coeffs, d_boundary_coeffs, dataBase_.d_boundary_p, d_boundary_flux);
+            dataBase_.d_boundary_face_cell, d_internal_coeffs, d_boundary_coeffs, dataBase_.cyclicNeighbor.data(), 
+            dataBase_.patchSizeOffset.data(), dataBase_.d_boundary_p, d_boundary_flux);
     sync();
 }
 
@@ -530,7 +534,8 @@ void dfpEqn::getrhorAUf(cudaStream_t stream, int num_cells, int num_surfaces,
         // TODO: maybe do not need loop boundarys
         if (patch_type[i] == boundaryConditions::zeroGradient
                 || patch_type[i] == boundaryConditions::fixedValue
-                || patch_type[i] == boundaryConditions::calculated) {
+                || patch_type[i] == boundaryConditions::calculated
+                || patch_type[i] == boundaryConditions::cyclic) {
             fvc_interpolate_boundary_multi_scalar_kernel_unCouple<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
                     boundary_vf1, boundary_vf2, boundary_output, sign);
         } else if (patch_type[i] == boundaryConditions::processor) {
@@ -600,7 +605,8 @@ void dfpEqn::getphiHbyA(cudaStream_t stream, int num_cells, int num_surfaces, in
     for (int i = 0; i < num_patches; i++) {
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
-        if (patch_type[i] == boundaryConditions::extrapolated) {
+        if (patch_type[i] == boundaryConditions::extrapolated
+            || patch_type[i] == boundaryConditions::cyclic) {
             multi_fvc_flux_fvc_intepolate_boundary_kernel_zeroGradient<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset, 
                     boundary_Sf, boundary_HbyA, boundary_rho, boundary_output, sign);
         } else if (patch_type[i] == boundaryConditions::processor) {
