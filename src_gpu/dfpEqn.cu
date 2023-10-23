@@ -440,12 +440,12 @@ void dfpEqn::process() {
     solve();
     TICK_END_EVENT(pEqn solve);
 
-    TICK_START_EVENT;
 #ifdef USE_GRAPH
     if(!post_graph_created) {
         checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
 #endif
     
+        TICK_START_EVENT;
         correct_boundary_conditions_scalar(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
                 dataBase_.num_boundary_surfaces, dataBase_.num_patches, dataBase_.patch_size.data(), 
                 patch_type_p.data(), dataBase_.d_boundary_delta_coeffs,
@@ -476,6 +476,7 @@ void dfpEqn::process() {
         // calculate dpdt
         fvc_ddt_scalar_field(dataBase_.stream, dataBase_.num_cells, dataBase_.rdelta_t,
                 dataBase_.d_p, dataBase_.d_p_old, dataBase_.d_volume, dataBase_.d_dpdt, 1.);
+        TICK_END_EVENT(pEqn post process all);
 
 #ifdef USE_GRAPH
         checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph_post));
@@ -484,7 +485,6 @@ void dfpEqn::process() {
     }
     checkCudaErrors(cudaGraphLaunch(graph_instance_post, dataBase_.stream));
 #endif
-    TICK_END_EVENT(pEqn post process);
     sync();
 }
 void dfpEqn::postProcess() {}

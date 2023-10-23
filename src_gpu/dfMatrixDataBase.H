@@ -16,8 +16,8 @@
 #include <cmath>
 #include <unordered_map>
 
-#define DEBUG_
-#define DEBUG_CHECK_LDU
+//#define DEBUG_
+//#define DEBUG_CHECK_LDU
 
 extern int myRank;
 

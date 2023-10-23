@@ -501,23 +501,27 @@ void dfUEqn::process() {
 #endif
     TICK_END_EVENT(UEqn solve);
 
-    TICK_START_EVENT;
 #ifdef USE_GRAPH
     if(!post_graph_created) {
         checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
 #endif
 
+        TICK_START_EVENT;
         correct_boundary_conditions_vector(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
                 dataBase_.num_boundary_surfaces, 
                 dataBase_.num_cells, dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(), dataBase_.d_boundary_face_cell,
                 dataBase_.d_u, dataBase_.d_boundary_u);
         vector_half_mag_square(dataBase_.stream, dataBase_.num_cells, dataBase_.d_u, dataBase_.d_k, dataBase_.num_boundary_surfaces, 
                 dataBase_.d_boundary_u, dataBase_.d_boundary_k);
-    
+        TICK_END_EVENT(UEqn post process correctBC);
+
+        TICK_START_EVENT;
         // copy u and boundary_u to host
         permute_vector_d2h(dataBase_.stream, dataBase_.num_cells, dataBase_.d_u, d_u_host_order);
         checkCudaErrors(cudaMemcpyAsync(dataBase_.h_u, d_u_host_order, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
+        TICK_END_EVENT(UEqn post process copyback);
 
+        TICK_START_EVENT;
 #ifdef STREAM_ALLOCATOR
         // free
         // thermophysical fields
@@ -541,6 +545,7 @@ void dfUEqn::process() {
         checkCudaErrors(cudaFreeAsync(d_A, dataBase_.stream));
         checkCudaErrors(cudaFreeAsync(d_b, dataBase_.stream));
 #endif
+        TICK_END_EVENT(UEqn post process free);
 
 #ifdef USE_GRAPH
         checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph_post));
@@ -549,7 +554,6 @@ void dfUEqn::process() {
     }
     checkCudaErrors(cudaGraphLaunch(graph_instance_post, dataBase_.stream));
 #endif
-    TICK_END_EVENT(UEqn post process);
     sync();
 }
 

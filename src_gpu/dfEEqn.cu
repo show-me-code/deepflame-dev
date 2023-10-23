@@ -204,21 +204,25 @@ void dfEEqn::process() {
 #endif
     TICK_END_EVENT(EEqn solve);
 
-    TICK_START_EVENT;
 #ifdef USE_GRAPH
     if(!post_graph_created) {
         checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
 #endif
 
+        TICK_START_EVENT;
         correct_boundary_conditions_scalar(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
                 dataBase_.num_boundary_surfaces, dataBase_.num_patches, dataBase_.patch_size.data(),
                 patch_type_he.data(), dataBase_.d_boundary_delta_coeffs, dataBase_.d_boundary_face_cell,
                 dataBase_.d_he, dataBase_.d_boundary_he, d_boundary_heGradient);
+        TICK_END_EVENT(EEqn post process correctBC);
 
+        TICK_START_EVENT;
         // copy he and boundary_he to host
         checkCudaErrors(cudaMemcpyAsync(dataBase_.h_he, dataBase_.d_he, dataBase_.cell_value_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
         checkCudaErrors(cudaMemcpyAsync(dataBase_.h_boundary_he, dataBase_.d_boundary_he, dataBase_.boundary_surface_value_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
+        TICK_END_EVENT(EEqn post process copy back);
 
+        TICK_START_EVENT;
 #ifdef STREAM_ALLOCATOR
         // thermophysical fields
         checkCudaErrors(cudaFreeAsync(d_dpdt, dataBase_.stream));
@@ -238,6 +242,7 @@ void dfEEqn::process() {
         checkCudaErrors(cudaFreeAsync(d_A, dataBase_.stream));
         checkCudaErrors(cudaFreeAsync(d_b, dataBase_.stream));
 #endif
+        TICK_END_EVENT(EEqn post process free);
 #ifdef USE_GRAPH
         checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph_post));
         checkCudaErrors(cudaGraphInstantiate(&graph_instance_post, graph_post, NULL, NULL, 0));
@@ -245,7 +250,6 @@ void dfEEqn::process() {
     }
     checkCudaErrors(cudaGraphLaunch(graph_instance_post, dataBase_.stream));
 #endif
-    TICK_END_EVENT(EEqn post process);
     sync();
 }
 

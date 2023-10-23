@@ -591,11 +591,15 @@ void dfYEqn::process() {
                 patch_type.data(), dataBase_.d_boundary_delta_coeffs, dataBase_.d_boundary_face_cell,
                 dataBase_.d_y + dataBase_.num_cells * s, dataBase_.d_boundary_y + dataBase_.num_boundary_surfaces * s);
     }
+    TICK_END_EVENT(YEqn post process for all species correctBC);
 
+    TICK_START_EVENT;
     // copy y and boundary_y to host
     checkCudaErrors(cudaMemcpyAsync(dataBase_.h_y, dataBase_.d_y, dataBase_.cell_value_bytes * dataBase_.num_species, cudaMemcpyDeviceToHost, dataBase_.stream));
     checkCudaErrors(cudaMemcpyAsync(dataBase_.h_boundary_y, dataBase_.d_boundary_y, dataBase_.boundary_surface_value_bytes * dataBase_.num_species, cudaMemcpyDeviceToHost, dataBase_.stream));
+    TICK_END_EVENT(YEqn post process for all species copy back);
 
+    TICK_START_EVENT;
 #ifdef STREAM_ALLOCATOR
     // thermophysical fields
     checkCudaErrors(cudaFreeAsync(d_rhoD, dataBase_.stream));
@@ -630,7 +634,7 @@ void dfYEqn::process() {
     checkCudaErrors(cudaFreeAsync(d_boundary_coeffs, dataBase_.stream));
     checkCudaErrors(cudaFreeAsync(d_A, dataBase_.stream));
 #endif
-    TICK_END_EVENT(YEqn post process for all species);
+    TICK_END_EVENT(YEqn post process for all species free);
     sync();
 }
 

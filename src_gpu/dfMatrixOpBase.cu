@@ -297,10 +297,13 @@ void correct_boundary_conditions_processor_scalar(cudaStream_t stream, ncclComm_
     correct_internal_boundary_field_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(num, offset, 
             vf, boundary_cell_face, vf_boundary);
 
+    TICK_INIT_EVENT;
+    TICK_START_EVENT;
     checkNcclErrors(ncclGroupStart());
     checkNcclErrors(ncclSend(vf_boundary + internal_start_index, num, ncclDouble, peer, comm, stream));
     checkNcclErrors(ncclRecv(vf_boundary + neighbor_start_index, num, ncclDouble, peer, comm, stream));
     checkNcclErrors(ncclGroupEnd());
+    TICK_END_EVENT(nccl scalar);
     //checkCudaErrors(cudaStreamSynchronize(stream));
 }
 
@@ -316,12 +319,15 @@ void correct_boundary_conditions_processor_vector(cudaStream_t stream, ncclComm_
     correct_internal_boundary_field_vector<<<blocks_per_grid, threads_per_block, 0, stream>>>(num, offset, 
             num_boundary_surfaces, num_cells, vf, boundary_cell_face, vf_boundary);
 
+    TICK_INIT_EVENT;
+    TICK_START_EVENT;
     checkNcclErrors(ncclGroupStart());
     for (int i = 0; i < 3; i++) {
         checkNcclErrors(ncclSend(vf_boundary + num_boundary_surfaces * i + internal_start_index, num, ncclDouble, peer, comm, stream));
         checkNcclErrors(ncclRecv(vf_boundary + num_boundary_surfaces * i + neighbor_start_index, num, ncclDouble, peer, comm, stream));   
     }
     checkNcclErrors(ncclGroupEnd());
+    TICK_END_EVENT(nccl vector);
     //checkCudaErrors(cudaStreamSynchronize(stream));
 }
 
@@ -1179,13 +1185,17 @@ void fvc_grad_vector_correctBC_processor(cudaStream_t stream, ncclComm_t comm,
 
     correct_internal_boundary_field_tensor<<<blocks_per_grid, threads_per_block, 0, stream>>>(num, offset, 
             num_boundary_surfaces, num_cells, internal_grad, face2Cells, boundary_grad);
+
+    TICK_INIT_EVENT;
+    TICK_START_EVENT;
     checkNcclErrors(ncclGroupStart());
     for (int i = 0; i < 9; i++) {
         checkNcclErrors(ncclSend(boundary_grad + num_boundary_surfaces * i + internal_start_index, num, ncclDouble, peer, comm, stream));
         checkNcclErrors(ncclRecv(boundary_grad + num_boundary_surfaces * i + neighbor_start_index, num, ncclDouble, peer, comm, stream));   
     }
     checkNcclErrors(ncclGroupEnd());
-    checkCudaErrors(cudaStreamSynchronize(stream));
+    TICK_END_EVENT(nccl tensor);
+    //checkCudaErrors(cudaStreamSynchronize(stream));
 }
 
 __global__ void fvc_grad_cell_scalar_correctBC_zeroGradient(int num_cells, int num_boundary_surfaces,
