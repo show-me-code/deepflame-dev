@@ -763,7 +763,8 @@ void dfYEqn::yeqn_fvc_laplacian_scalar(cudaStream_t stream, ncclComm_t comm, con
                     num_species, num_cells, num_boundary_surfaces, patch_size[i], offset, patchSizeOffset[cyclicNeighbor[i]], 
                     boundary_cell_face, boundary_mag_sf, boundary_delta_coeffs,
                     boundary_thermo_alpha, boundary_hai, vf, boundary_vf, output);
-        } else if (patch_type[i] == boundaryConditions::processor) {
+        } else if (patch_type[i] == boundaryConditions::processor
+                    || patch_type[i] == boundaryConditions::processorCyclic) {
             yeqn_fvc_laplacian_scalar_boundary_processor<<<blocks_per_grid, threads_per_block, 0, stream>>>(
                     num_species, num_cells, num_boundary_surfaces, patch_size[i], offset, boundary_cell_face,
                     boundary_mag_sf, boundary_delta_coeffs, boundary_weight,
@@ -788,6 +789,10 @@ void dfYEqn::yeqn_fvc_laplacian_scalar(cudaStream_t stream, ncclComm_t comm, con
     offset = 0;
     for (int i = 0; i < num_patches; i++) {
         if (patch_type[i] == boundaryConditions::processor) {
+            correct_boundary_conditions_processor_scalar(stream, comm, neighbor_peer[i], patch_size[i], offset,
+                    output, boundary_cell_face, boundary_output);
+            offset += 2 * patch_size[i];
+        } else if (patch_type[i] == boundaryConditions::processorCyclic) {
             correct_boundary_conditions_processor_scalar(stream, comm, neighbor_peer[i], patch_size[i], offset,
                     output, boundary_cell_face, boundary_output);
             offset += 2 * patch_size[i];
@@ -833,7 +838,7 @@ void dfYEqn::yeqn_compute_y_inertIndex(cudaStream_t stream, int num_species, int
     yeqn_compute_y_inertIndex_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_species, inertIndex, num_cells, y);
 }
 
-#if defined DEBUG_
+// #if defined DEBUG_
 void dfYEqn::comparediffAlphaD(const double *diffAlphaD, const double *boundary_diffAlphaD, bool printFlag)
 {
     DEBUG_TRACE;
@@ -985,4 +990,4 @@ void dfYEqn::compareYi(const double *yi, int specie_index, bool printFlag) {
     checkVectorEqual(dataBase_.num_cells, yi, h_yi.data(), 1e-10, printFlag);
     DEBUG_TRACE;
 }
-#endif
+// #endif

@@ -114,7 +114,8 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
         const fvPatchScalarField& patchY = Y[0].boundaryField()[patchi];
         int patchsize = patchY.size();
         patch_size.push_back(patchsize);
-        if (patchY.type() == "processor") {
+        if (patchY.type() == "processor"
+            || patchY.type() == "processorCyclic") {
             num_boundary_surfaces += patchsize * 2; // patchNeighbourfield and patchInternalfield
         } else {
             num_boundary_surfaces += patchsize;
@@ -158,7 +159,8 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
         std::vector<int> GPUNeighbProcNo(dfDataBase.num_patches, -1);
         // get basic communication info from of
         forAll(Y[0].boundaryField(), patchi) {
-            if (Y[0].boundaryField()[patchi].type() == "processor") {
+            if (Y[0].boundaryField()[patchi].type() == "processor"
+                || Y[0].boundaryField()[patchi].type() == "processorCyclic") {
                 GPUNeighbProcNo[patchi] = dynamic_cast<const processorFvPatchField<scalar>&>(Y[0].boundaryField()[patchi]).neighbProcNo();
             }
         }
@@ -270,6 +272,26 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
             memcpy(boundary_face_cell + offset + patchsize, &pFaceCells[0], patchsize * sizeof(int));
 
             offset += patchsize * 2;
+        } else if (patchY.type() == "processorCyclic") {
+            patch_type_calculated[patchi] = 10; // patchi type is processorCyclic
+            patch_type_extropolated[patchi] = 10; // patchi type is processorCyclic
+
+            memcpy(boundary_sf + 3*offset, &pSf[0][0], 3*patchsize*sizeof(double));
+            memcpy(boundary_sf + 3*offset + 3*patchsize, &pSf[0][0], 3*patchsize*sizeof(double));
+
+            memcpy(boundary_mag_sf + offset, &pMagSf[0], patchsize*sizeof(double));
+            memcpy(boundary_mag_sf + offset + patchsize, &pMagSf[0], patchsize*sizeof(double));
+
+            memcpy(boundary_delta_coeffs + offset, &pDeltaCoeffs[0], patchsize*sizeof(double));
+            memcpy(boundary_delta_coeffs + offset + patchsize, &pDeltaCoeffs[0], patchsize*sizeof(double));
+
+            memcpy(boundary_weights + offset, &pWeights[0], patchsize*sizeof(double));
+            memcpy(boundary_weights + offset + patchsize, &pWeights[0], patchsize*sizeof(double));
+
+            memcpy(boundary_face_cell + offset, &pFaceCells[0], patchsize * sizeof(int));
+            memcpy(boundary_face_cell + offset + patchsize, &pFaceCells[0], patchsize * sizeof(int));
+
+            offset += patchsize * 2;
         } else if (patchY.type() == "cyclic") {
             patch_type_calculated[patchi] = 6; // patchi type is cyclic
             patch_type_extropolated[patchi] = 6; // patchi type is cyclic
@@ -327,7 +349,8 @@ void createGPURhoEqn(const volScalarField& rho, const surfaceScalarField& phi) {
         const fvPatchScalarField& patchRho = rho.boundaryField()[patchi];
         const fvsPatchScalarField& patchPhi = phi.boundaryField()[patchi];
         int patchsize = patchRho.size();
-        if (patchRho.type() == "processor") {
+        if (patchRho.type() == "processor"
+            || patchRho.type() == "processorCyclic") {
             if (dynamic_cast<const processorFvPatchField<scalar>&>(patchRho).doTransform()) {
                 Info << "gradU transform = true" << endl;
             } else {
@@ -376,11 +399,12 @@ void createGPUUEqn(const IOdictionary& CanteraTorchProperties, const volVectorFi
         constructBoundarySelectorPerPatch(&(patch_type[patchi]), U.boundaryField()[patchi].type());
         const fvPatchVectorField& patchU = U.boundaryField()[patchi];
         int patchsize = patchU.size();
-        if (patchU.type() == "processor") {
+        if (patchU.type() == "processor"
+            || patchU.type() == "processorCyclic") {
             if (dynamic_cast<const processorFvPatchField<vector>&>(patchU).doTransform()) {
-                Info << "gradU transform = true" << endl;
+                Info << "U transform = true" << endl;
             } else {
-                Info << "gradU transform = false" << endl;
+                Info << "U transform = false" << endl;
             }
             Info << "rank = " << dynamic_cast<const processorFvPatchField<vector>&>(patchU).rank() << endl;
 
@@ -438,7 +462,8 @@ void createGPUYEqn(const IOdictionary& CanteraTorchProperties, PtrList<volScalar
         forAll(Yi.boundaryField(), patchi) {
             const fvPatchScalarField& patchYi = Yi.boundaryField()[patchi];
             int patchsize = patchYi.size();
-            if (patchYi.type() == "processor") {
+            if (patchYi.type() == "processor"
+                || patchYi.type() == "processorCyclic") {
                 scalarField patchYiInternal =
                     dynamic_cast<const processorFvPatchField<scalar>&>(patchYi).patchInternalField()();
                 memcpy(dfDataBase.h_boundary_y + offset, &patchYi[0], patchsize * sizeof(double));
@@ -484,7 +509,8 @@ void createGPUEEqn(const IOdictionary& CanteraTorchProperties, volScalarField& h
     {
         const fvPatchScalarField& patchHe = he.boundaryField()[patchi];
         int patchsize = patchHe.size();
-        if (patchHe.type() == "processor") {
+        if (patchHe.type() == "processor"
+            || patchHe.type() == "processorCyclic") {
             scalarField patchHeInternal =
                     dynamic_cast<const processorFvPatchField<scalar>&>(patchHe).patchInternalField()();
             memcpy(h_boundary_he + offset, &patchHe[0], patchsize * sizeof(double));
@@ -522,7 +548,8 @@ void createGPUpEqn(const IOdictionary& CanteraTorchProperties, volScalarField& p
         constructBoundarySelectorPerPatch(&(patch_type_U[patchi]), U.boundaryField()[patchi].type());
         const fvPatchScalarField& patchP = p.boundaryField()[patchi];
         int patchsize = patchP.size();
-        if (patchP.type() == "processor") {
+        if (patchP.type() == "processor"
+            || patchP.type() == "processorCyclic") {
             memcpy(h_boundary_p + offset, &patchP[0], patchsize * sizeof(double));
             scalarField patchPInternal = 
                     dynamic_cast<const processorFvPatchField<scalar>&>(patchP).patchInternalField()();
@@ -578,7 +605,8 @@ void createGPUThermo(const IOdictionary& CanteraTorchProperties, volScalarField&
         const fvPatchScalarField& patchK = K.boundaryField()[patchi];
 
         int patchsize = patchT.size();
-        if (patchT.type() == "processor") {
+        if (patchT.type() == "processor"
+            || patchT.type() == "processorCyclic") {
             memcpy(h_boundary_T + offset, &patchT[0], patchsize * sizeof(double));
             scalarField patchTInternal = 
                     dynamic_cast<const processorFvPatchField<scalar>&>(patchT).patchInternalField()();

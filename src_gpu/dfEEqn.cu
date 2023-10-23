@@ -257,7 +257,8 @@ void dfEEqn::eeqn_calculate_energy_gradient(dfThermo& GPUThermo, int num_cells, 
                     face2Cells, T, p, y, boundary_delta_coeffs, boundary_p, boundary_y, boundary_thermo_gradient);
             bou_offset += patch_size[i];
             gradient_offset += patch_size[i];
-        } else if (patch_type[i] == boundaryConditions::processor) {
+        } else if (patch_type[i] == boundaryConditions::processor
+                    || patch_type[i] == boundaryConditions::processorCyclic) {
             bou_offset += 2 * patch_size[i];
         } else {
             bou_offset += patch_size[i];

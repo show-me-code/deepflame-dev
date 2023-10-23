@@ -16,7 +16,8 @@ void constructBoundarySelectorPerPatch(int *patchTypeSelector, const std::string
         {"cyclic", cyclic},
         {"processor", processor},
         {"extrapolated", extrapolated},
-        {"fixedEnergy", fixedEnergy}
+        {"fixedEnergy", fixedEnergy},
+        {"processorCyclic", processorCyclic}
     };
     auto iter = BCMap.find(patchTypeStr);
     if (iter != BCMap.end()) {
@@ -76,6 +77,11 @@ void constructBoundarySelectorPerPatch(int *patchTypeSelector, const std::string
             *patchTypeSelector = 9;
             break;
         }
+        case processorCyclic:
+        {
+            *patchTypeSelector = 10;
+            break;
+        }
     }
 }
 
@@ -92,7 +98,6 @@ void dfMatrixDataBase::setCommInfo(MPI_Comm mpi_comm, ncclComm_t nccl_comm, nccl
     this->myRank = myRank;
     this->localRank = localRank;
     this->neighbProcNo = neighbProcNo;
-    //fprintf(stderr, "myRank: %d, nRanks: %d, localRank: %d, neighbProcNo: %d\n", myRank, nRanks, localRank, neighbProcNo);
 }
  
 void dfMatrixDataBase::prepareCudaResources() {

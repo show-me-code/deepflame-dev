@@ -167,7 +167,8 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
         const fvPatchVectorField& patchhDiffCorrFlux = hDiffCorrFlux.boundaryField()[patchi];
         const fvsPatchScalarField& patchphiUc = phiUc.boundaryField()[patchi];
         int patchSize = patchdiffAlphaD.size();
-        if (patchdiffAlphaD.type() == "processor") {
+        if (patchdiffAlphaD.type() == "processor"
+            || patchdiffAlphaD.type() == "processorCyclic") {
             scalarField patchdiffAlphaDInternal = dynamic_cast<const processorFvPatchField<scalar>&>(patchdiffAlphaD).patchInternalField()();
             vectorField patchgradyiInternal = dynamic_cast<const processorFvPatchField<vector>&>(patchgradyi).patchInternalField()();
             vectorField patchsumYDiffErrorInternal = dynamic_cast<const processorFvPatchField<vector>&>(patchsumYDiffError).patchInternalField()();
@@ -212,7 +213,8 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
         int patchsize = patchYi.size();
         const double* internal_coeff_ptr = &YiEqn.internalCoeffs()[patchi][0];
         const double* boundary_coeff_ptr = &YiEqn.boundaryCoeffs()[patchi][0];
-        if (patchYi.type() == "processor") {
+        if (patchYi.type() == "processor"
+            || patchYi.type() == "processorCyclic") {
             memcpy(yeqn_h_internal_coeffs.data() + offset, internal_coeff_ptr, patchsize * sizeof(double));
             memset(yeqn_h_internal_coeffs.data() + offset + patchsize, 0, patchsize * sizeof(double));
             memcpy(yeqn_h_boundary_coeffs.data() + offset, boundary_coeff_ptr, patchsize * sizeof(double));

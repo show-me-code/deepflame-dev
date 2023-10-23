@@ -79,7 +79,8 @@ enum boundaryConditions{
     cyclic,
     processor,
     extrapolated,
-    fixedEnergy
+    fixedEnergy,
+    processorCyclic
 };
 
 void constructBoundarySelectorPerPatch(int *patchTypeSelector, const std::string& patchTypeStr);

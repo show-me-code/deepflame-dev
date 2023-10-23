@@ -538,7 +538,8 @@ void dfpEqn::getrhorAUf(cudaStream_t stream, int num_cells, int num_surfaces,
                 || patch_type[i] == boundaryConditions::cyclic) {
             fvc_interpolate_boundary_multi_scalar_kernel_unCouple<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
                     boundary_vf1, boundary_vf2, boundary_output, sign);
-        } else if (patch_type[i] == boundaryConditions::processor) {
+        } else if (patch_type[i] == boundaryConditions::processor
+                    || patch_type[i] == boundaryConditions::processorCyclic) {
             fvc_interpolate_boundary_multi_scalar_kernel_processor<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
                     boundary_weight, boundary_vf1, boundary_vf2, boundary_output, sign);
             offset += 2 * patch_size[i];
@@ -568,7 +569,8 @@ void dfpEqn::getphiHbyA(cudaStream_t stream, int num_cells, int num_surfaces, in
     for (int i = 0; i < num_patches; i++) {
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
-        if (patch_type[i] == boundaryConditions::processor) {
+        if (patch_type[i] == boundaryConditions::processor
+            || patch_type[i] == boundaryConditions::processorCyclic) {
             get_phiCorr_boundary_kernel_processor<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset,
                     boundary_Sf, boundary_velocity_old, boundary_rho_old, boundary_phi_old, boundary_weight, boundary_output);
             offset += 2 * patch_size[i];
@@ -586,7 +588,8 @@ void dfpEqn::getphiHbyA(cudaStream_t stream, int num_cells, int num_surfaces, in
     for (int i = 0; i < num_patches; i++) {
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
-        if (patch_type[i] == boundaryConditions::processor) {
+        if (patch_type[i] == boundaryConditions::processor
+            || patch_type[i] == boundaryConditions::processorCyclic) {
             get_ddtCorr_boundary_nonZero_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset, 
                     boundary_output, boundary_phi_old, rDeltaT, boundary_output);
             offset += 2 * patch_size[i];
@@ -609,7 +612,8 @@ void dfpEqn::getphiHbyA(cudaStream_t stream, int num_cells, int num_surfaces, in
             || patch_type[i] == boundaryConditions::cyclic) {
             multi_fvc_flux_fvc_intepolate_boundary_kernel_zeroGradient<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset, 
                     boundary_Sf, boundary_HbyA, boundary_rho, boundary_output, sign);
-        } else if (patch_type[i] == boundaryConditions::processor) {
+        } else if (patch_type[i] == boundaryConditions::processor
+                    || patch_type[i] == boundaryConditions::processorCyclic) {
             multi_fvc_flux_fvc_intepolate_boundary_kernel_processor<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset, 
                     boundary_Sf, boundary_HbyA, boundary_weight, boundary_rho, boundary_output, sign);
             offset += 2 * patch_size[i];

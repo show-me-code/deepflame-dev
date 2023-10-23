@@ -132,7 +132,7 @@ public:
     void correctPsi(double *Psi, double *boundary_psi);
     void ueqn_ldu_to_csr(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surface, int num_Nz, 
         const int* boundary_cell_face, const int *ldu_to_csr_index, const int *diag_to_csr_index,
-        int num_patches, const int *patch_size, const int *patch_type, const double *vf, 
+        int num_patches, const int *patch_size, const int *patch_type, const double *vf, const double *boundary_vf, 
         const double *ldu, double *external, const double *source, const double *internal_coeffs, const double *boundary_coeffs,
         const int *cyclicNeighbor, const int *patchSizeOffset, double *A, double *b);
 

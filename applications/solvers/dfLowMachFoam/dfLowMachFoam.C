@@ -81,6 +81,7 @@ Description
 
     #include "processorFvPatchField.H"
     #include "cyclicFvPatchField.H"
+    #include "processorCyclicFvPatchField.H"
     #include "createGPUSolver.H"
 
     #include "upwind.H"
@@ -413,6 +414,8 @@ int main(int argc, char *argv[])
                     offset += patchsize;
                 }
             }
+            delete h_T_tmp;
+            delete h_boundary_T_tmp;
             #endif
 
             Info<< "min/max(T) = " << min(T).value() << ", " << max(T).value() << endl;
@@ -461,6 +464,15 @@ int main(int argc, char *argv[])
 #endif
 #else
         rho = thermo.rho();
+#endif
+
+#ifdef GPUSolverNew_
+        // write U for
+        double *h_U_tmp = new double[dfDataBase.num_cells * 3];
+        UEqn_GPU.postProcess(h_U_tmp);
+        memcpy(&U[0][0], h_U_tmp, dfDataBase.cell_value_vec_bytes);
+        U.correctBoundaryConditions();
+        delete h_U_tmp;
 #endif
 
         runTime.write();

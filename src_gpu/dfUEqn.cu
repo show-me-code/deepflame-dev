@@ -212,6 +212,18 @@ __global__ void ueqn_add_external_entry_kernal(int num, int bou_offset,
     external[external_start_index] = - boundary_coeffs[bou_start_index];
 }
 
+__global__ void ueqn_add_external_entry_kernal_processCyclic(int num, int bou_offset, 
+        int external_offset, const double *boundary_coeffs, double *external)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
+        return;
+
+    int bou_start_index = bou_offset + index;
+    int external_start_index = external_offset + index;
+    external[external_start_index] = boundary_coeffs[bou_start_index];
+}
+
 __global__ void ueqn_ldu_to_csr_kernel(int nNz, const int *ldu_to_csr_index, 
         const double *ldu, double *A_csr)
 {
@@ -261,7 +273,7 @@ __global__ void ueqn_add_boundary_diag_src_couple(int num_cells, int num_Nz, int
         const int *diagCSRIndex, double *A_csr)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
-    if (index >= num_boundary_surfaces)
+    if (index >= num)
         return;
     
     int startIndex = offset + index;
@@ -303,7 +315,8 @@ void dfUEqn::setConstantFields(const std::vector<int> patch_type) {
 
     int offset = 0;
     for (int i = 0; i < dataBase_.num_patches; i++) {
-        if (patch_type[i] == boundaryConditions::processor) {
+        if (patch_type[i] == boundaryConditions::processor
+                || patch_type[i] == boundaryConditions::processorCyclic) {
             dataBase_.patchSizeOffset.push_back(offset);
             offset += dataBase_.patch_size[i] * 2;
         } else {
@@ -523,7 +536,7 @@ void dfUEqn::process() {
 #ifndef DEBUG_CHECK_LDU   
         ueqn_ldu_to_csr(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, dataBase_.num_Nz,
             dataBase_.d_boundary_face_cell, dataBase_.d_ldu_to_csr_index, dataBase_.d_diag_to_csr_index, 
-            dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(), dataBase_.d_u, 
+            dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(), dataBase_.d_u, dataBase_.d_boundary_u,
             d_ldu, d_extern, d_source, d_internal_coeffs, d_boundary_coeffs, dataBase_.cyclicNeighbor.data(), 
             dataBase_.patchSizeOffset.data(), d_A, d_b);
 #endif
@@ -754,7 +767,8 @@ void dfUEqn::UEqnGetHbyA(cudaStream_t stream, ncclComm_t comm, const int *neighb
         if (patch_type[i] == boundaryConditions::extrapolated) {
             ueqn_addBoundarySrc_unCoupled<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, patch_size[i], offset, 
                     num_boundary_surfaces, boundary_cell_face, boundary_coeffs, HbyA);
-        } else if (patch_type[i] == boundaryConditions::processor) {
+        } else if (patch_type[i] == boundaryConditions::processor
+                    || patch_type[i] == boundaryConditions::processorCyclic) {
             ueqn_addBoundarySrc_processor<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, patch_size[i], offset, 
                     num_boundary_surfaces, boundary_cell_face, boundary_coeffs, boundary_u, HbyA);
             offset += patch_size[i] * 2;
@@ -807,7 +821,7 @@ void dfUEqn::getHbyA()
 
 void dfUEqn::ueqn_ldu_to_csr(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surface, int num_Nz, 
         const int* boundary_cell_face, const int *ldu_to_csr_index, const int *diag_to_csr_index,
-        int num_patches, const int *patch_size, const int *patch_type, const double *vf, 
+        int num_patches, const int *patch_size, const int *patch_type, const double *vf, const double *boundary_vf,
         const double *ldu, double *external, const double *source, const double *internal_coeffs, const double *boundary_coeffs,
         const int *cyclicNeighbor, const int *patchSizeOffset, double *A, double *b)
 {
@@ -815,7 +829,8 @@ void dfUEqn::ueqn_ldu_to_csr(cudaStream_t stream, int num_cells, int num_surface
     int bou_offset = 0, ext_offset = 0;
     size_t threads_per_block, blocks_per_grid;
     for (int i = 0; i < num_patches; i++) {
-        if (patch_type[i] == boundaryConditions::processor) {
+        if (patch_type[i] == boundaryConditions::processor
+            || patch_type[i] == boundaryConditions::processorCyclic) {
             threads_per_block = 64;
             blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
             ueqn_add_external_entry_kernal<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], bou_offset, 
@@ -845,7 +860,8 @@ void dfUEqn::ueqn_ldu_to_csr(cudaStream_t stream, int num_cells, int num_surface
     for (int i = 0; i < num_patches; i++) {
         threads_per_block = 64;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
-        if (patch_type[i] == boundaryConditions::processor) {
+        if (patch_type[i] == boundaryConditions::processor
+            || patch_type[i] == boundaryConditions::processorCyclic) {
             ueqn_add_boundary_diag_src_couple<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_Nz, num_boundary_surface, 
                     patch_size[i], bou_offset, boundary_cell_face, internal_coeffs, diag_to_csr_index, A);
             bou_offset += patch_size[i] * 2;

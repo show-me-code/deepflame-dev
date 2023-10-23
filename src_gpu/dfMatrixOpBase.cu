@@ -1801,6 +1801,23 @@ __global__ void addBoundaryDiagSrc_scalar_couple(int num, int offset, const int 
     atomicAdd(&diag[cellIndex], internalCoeff);
 }
 
+__global__ void addBoundaryDiagSrc_scalar_couple_processorCyclic(int num, int offset, const int *face2Cells, 
+        const double *internal_coeffs, const double *boundary_coeffs, double *diag, double *source)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
+        return;
+    
+    int startIndex = offset + index;
+    int cellIndex = face2Cells[startIndex];
+
+    double internalCoeff = internal_coeffs[startIndex];
+    double boundaryCoeff = boundary_coeffs[startIndex];
+
+    atomicAdd(&diag[cellIndex], internalCoeff);
+    atomicAdd(&source[cellIndex], 2 * boundaryCoeff);
+}
+
 __global__ void addBoundaryDiagSrc_scalar_unCouple(int num, int offset, const int *face2Cells, 
         const double *internal_coeffs, const double *boundary_coeffs,
         double *diag, double *source)
@@ -2182,7 +2199,8 @@ void ldu_to_csr_scalar(cudaStream_t stream, int num_cells, int num_surfaces, int
     int bou_offset = 0, ext_offset = 0;
     size_t threads_per_block, blocks_per_grid;
     for (int i = 0; i < num_patches; i++) {
-        if (patch_type[i] == boundaryConditions::processor) {
+        if (patch_type[i] == boundaryConditions::processor
+                || patch_type[i] == boundaryConditions::processorCyclic) {
             threads_per_block = 64;
             blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
             add_external_entry_kernal<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], bou_offset, 
@@ -2206,7 +2224,8 @@ void ldu_to_csr_scalar(cudaStream_t stream, int num_cells, int num_surfaces, int
     for (int i = 0; i < num_patches; i++) {
         threads_per_block = 64;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
-        if (patch_type[i] == boundaryConditions::processor) {
+        if (patch_type[i] == boundaryConditions::processor
+            || patch_type[i] == boundaryConditions::processorCyclic) {
             addBoundaryDiagSrc_scalar_couple<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], bou_offset, 
                     boundary_cell_face, internal_coeffs, diag);
             bou_offset += patch_size[i] * 2;
@@ -2282,6 +2301,11 @@ void update_boundary_coeffs_scalar(cudaStream_t stream,
                     boundary_weight, boundary_delta_coeffs, value_internal_coeffs, value_boundary_coeffs, gradient_internal_coeffs, gradient_boundary_coeffs);
             offset += 2 * patch_size[i];
             continue;
+        } else if (patch_type[i] == boundaryConditions::processorCyclic) {
+            update_boundary_coeffs_processor_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
+                    boundary_weight, boundary_delta_coeffs, value_internal_coeffs, value_boundary_coeffs, gradient_internal_coeffs, gradient_boundary_coeffs);
+            offset += 2 * patch_size[i];
+            continue;
         } else {
             // xxx
             fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
@@ -2314,6 +2338,11 @@ void correct_boundary_conditions_scalar(cudaStream_t stream, ncclComm_t comm,
                     || patch_type[i] == boundaryConditions::calculated) {
             // No operation needed in this condition
         } else if (patch_type[i] == boundaryConditions::processor) {
+            correct_boundary_conditions_processor_scalar(stream, comm, neighbor_peer[i], patch_size[i], offset, 
+                    vf, boundary_cell_face, boundary_vf);
+            offset += 2 * patch_size[i]; // patchNeighbourFields and patchInternalFields
+            continue;
+        } else if (patch_type[i] == boundaryConditions::processorCyclic) {
             correct_boundary_conditions_processor_scalar(stream, comm, neighbor_peer[i], patch_size[i], offset, 
                     vf, boundary_cell_face, boundary_vf);
             offset += 2 * patch_size[i]; // patchNeighbourFields and patchInternalFields
@@ -2359,6 +2388,11 @@ void correct_boundary_conditions_vector(cudaStream_t stream, ncclComm_t comm,
                     num_boundary_surfaces, num_cells, vf, boundary_cell_face, boundary_vf);
             offset += 2 * patch_size[i]; // patchNeighbourFields and patchInternalFields
             continue;
+        } else if (patch_type[i] == boundaryConditions::processorCyclic) {
+            correct_boundary_conditions_processor_vector(stream, comm, neighbor_peer[i], patch_size[i], offset, 
+                    num_boundary_surfaces, num_cells, vf, boundary_cell_face, boundary_vf);
+            offset += 2 * patch_size[i]; // patchNeighbourFields and patchInternalFields
+            continue;
         } else if (patch_type[i] == boundaryConditions::cyclic) {
             correct_boundary_conditions_cyclic_vector<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
                     patchSizeOffset[cyclicNeighbor[i]], num_boundary_surfaces, num_cells, boundary_weight, vf, boundary_cell_face, boundary_vf);
@@ -2393,7 +2427,8 @@ void update_boundary_coeffs_vector(cudaStream_t stream, int num_boundary_surface
         } else if (patch_type[i] == boundaryConditions::cyclic) {
             update_boundary_coeffs_processor_vector<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset, 
                     boundary_weight, boundary_deltaCoeffs, value_internal_coeffs, value_boundary_coeffs, gradient_internal_coeffs, gradient_boundary_coeffs);
-        } else if (patch_type[i] == boundaryConditions::processor) {
+        } else if (patch_type[i] == boundaryConditions::processor
+                    || patch_type[i] == boundaryConditions::processorCyclic) {
             update_boundary_coeffs_processor_vector<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset, 
                     boundary_weight, boundary_deltaCoeffs, value_internal_coeffs, value_boundary_coeffs, gradient_internal_coeffs, gradient_boundary_coeffs);
             offset += 2 * patch_size[i];
@@ -2487,7 +2522,8 @@ void fvm_div_scalar(cudaStream_t stream, int num_surfaces, const int *lowerAddr,
         fvm_div_scalar_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
                     boundary_phi, value_internal_coeffs, value_boundary_coeffs,
                     internal_coeffs, boundary_coeffs, sign);
-        if (patch_type[i] == boundaryConditions::processor) offset += 2 * patch_size[i];
+        if (patch_type[i] == boundaryConditions::processor
+            || patch_type[i] == boundaryConditions::processorCyclic) offset += 2 * patch_size[i];
         else offset += patch_size[i];
     }
 }
@@ -2519,7 +2555,8 @@ void fvm_div_vector(cudaStream_t stream, int num_surfaces, int num_boundary_surf
         fvm_div_vector_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset,
                     boundary_phi, value_internal_coeffs, value_boundary_coeffs,
                     internal_coeffs, boundary_coeffs, sign);
-        patch_type[i] == boundaryConditions::processor ?
+        (patch_type[i] == boundaryConditions::processor
+            || patch_type[i] == boundaryConditions::processorCyclic) ?
             offset += 2 * patch_size[i] : offset += patch_size[i];
     }
 }
@@ -2544,7 +2581,8 @@ void fvm_laplacian_scalar(cudaStream_t stream, int num_surfaces, int num_boundar
         fvm_laplacian_scalar_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
                 boundary_mag_sf, boundary_gamma, gradient_internal_coeffs, gradient_boundary_coeffs,
                 internal_coeffs, boundary_coeffs, sign);
-        patch_type[i] == boundaryConditions::processor ?
+        (patch_type[i] == boundaryConditions::processor
+            || patch_type[i] == boundaryConditions::processorCyclic) ?
             offset += 2 * patch_size[i] : offset += patch_size[i];
     }
 }
@@ -2573,7 +2611,8 @@ void fvm_laplacian_vector(cudaStream_t stream, int num_surfaces, int num_boundar
         fvm_laplacian_vector_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset,
                     boundary_mag_sf, boundary_gamma, gradient_internal_coeffs, gradient_boundary_coeffs,
                     internal_coeffs, boundary_coeffs, sign);
-        patch_type[i] == boundaryConditions::processor ?
+        (patch_type[i] == boundaryConditions::processor
+            || patch_type[i] == boundaryConditions::processorCyclic) ?
             offset += 2 * patch_size[i] : offset += patch_size[i];
     }
 }
@@ -2599,7 +2638,8 @@ void fvm_laplacian_surface_scalar_vol_scalar(cudaStream_t stream, int num_surfac
         fvm_laplacian_surface_scalar_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
                 boundary_mag_sf, boundary_gamma, gradient_internal_coeffs, gradient_boundary_coeffs,
                 internal_coeffs, boundary_coeffs, sign);
-        if (patch_type[i] == boundaryConditions::processor) {
+        if (patch_type[i] == boundaryConditions::processor
+            || patch_type[i] == boundaryConditions::processorCyclic) {
             offset += 2 * patch_size[i];
         } else {
             offset += patch_size[i];
@@ -2653,7 +2693,8 @@ void fvc_grad_vector(cudaStream_t stream, ncclComm_t comm,
             fvc_grad_vector_boundary_zeroGradient<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, num_cells, 
                     patch_size[i], offset, boundary_cell_face, boundary_Sf, boundary_vf, output);
             TICK_END_EVENT(fvc_grad_vector_boundary_zeroGradient);
-        } else if (patch_type[i] == boundaryConditions::processor) {
+        } else if (patch_type[i] == boundaryConditions::processor
+                    || patch_type[i] == boundaryConditions::processorCyclic) {
             fvc_grad_vector_boundary_processor<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, num_cells, 
                     patch_size[i], offset, boundary_cell_face, boundary_Sf, boundary_weight, boundary_vf, output);
             offset += 2 * patch_size[i]; // patchNeighbourFields and patchInternalFields
@@ -2692,6 +2733,11 @@ void fvc_grad_vector(cudaStream_t stream, ncclComm_t comm,
                     patch_size[i], offset, boundary_cell_face,
                     output, vf, boundary_Sf, boundary_mag_Sf, boundary_output, boundary_deltaCoeffs, boundary_vf);
         } else if (patch_type[i] == boundaryConditions::processor) {
+            fvc_grad_vector_correctBC_processor(stream, comm, neighbor_peer[i], patch_size[i], offset, num_cells, 
+                    num_boundary_surfaces, boundary_cell_face, output, boundary_output);
+            offset += 2 * patch_size[i]; // patchNeighbourFields and patchInternalFields
+            continue;
+        } else if (patch_type[i] == boundaryConditions::processorCyclic) {
             fvc_grad_vector_correctBC_processor(stream, comm, neighbor_peer[i], patch_size[i], offset, num_cells, 
                     num_boundary_surfaces, boundary_cell_face, output, boundary_output);
             offset += 2 * patch_size[i]; // patchNeighbourFields and patchInternalFields
@@ -2740,7 +2786,8 @@ void fvc_div_surface_scalar(cudaStream_t stream, int num_cells, int num_surfaces
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         fvc_div_surface_scalar_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset, boundary_cell_face, 
                 boundary_ssf, output, sign);
-        if (patch_type[i] == boundaryConditions::processor) {
+        if (patch_type[i] == boundaryConditions::processor
+            || patch_type[i] == boundaryConditions::processorCyclic) {
             offset += 2 * patch_size[i];
         } else {
             offset += patch_size[i];
@@ -2768,7 +2815,8 @@ void fvc_div_cell_vector(cudaStream_t stream, int num_cells, int num_surfaces, i
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
-        if (patch_type[i] == boundaryConditions::processor) {
+        if (patch_type[i] == boundaryConditions::processor
+                || patch_type[i] == boundaryConditions::processorCyclic) {
             fvc_div_cell_vector_boundary_processor<<<blocks_per_grid, threads_per_block, 0, stream>>>(
                     num_boundary_surfaces, patch_size[i], offset,
                     boundary_cell_face, boundary_weight, boundary_Sf, boundary_vf, output, sign);
@@ -2812,7 +2860,8 @@ void fvc_div_cell_tensor(cudaStream_t stream, int num_cells, int num_surfaces, i
                     patch_size[i], offset, boundary_cell_face,
                     boundary_Sf, boundary_vf, output, sign);
             TICK_END_EVENT(fvc_div_cell_tensor_boundary_zeroGradient);
-        } else if (patch_type[i] == boundaryConditions::processor) {
+        } else if (patch_type[i] == boundaryConditions::processor
+                    || patch_type[i] == boundaryConditions::processorCyclic) {
             fvc_div_cell_tensor_boundary_processor<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_boundary_surfaces,
                     patch_size[i], offset, boundary_cell_face, boundary_weight, boundary_Sf, boundary_vf, output, sign);
             offset += 2 * patch_size[i];
@@ -2847,7 +2896,8 @@ void fvc_div_surface_scalar_vol_scalar(cudaStream_t stream, int num_surfaces,
         fvc_div_surface_scalar_vol_scalar_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(
                 patch_size[i], offset, boundary_cell_face,
                 boundary_vf, boundary_ssf, output, sign);
-        patch_type[i] == boundaryConditions::processor ?
+        (patch_type[i] == boundaryConditions::processor
+            || patch_type[i] == boundaryConditions::processorCyclic) ?
             offset += 2 * patch_size[i] : offset += patch_size[i];
     }
 }
@@ -2879,7 +2929,8 @@ void fvc_grad_cell_scalar(cudaStream_t stream, int num_cells, int num_surfaces, 
             fvc_grad_scalar_boundary_zeroGradient<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, num_cells, patch_size[i], offset, boundary_cell_face,
                     boundary_Sf, boundary_vf, output, sign);
             TICK_END_EVENT(fvc_grad_scalar_boundary_zeroGradient);
-        } else if (patch_type[i] == boundaryConditions::processor) {
+        } else if (patch_type[i] == boundaryConditions::processor
+                    || patch_type[i] == boundaryConditions::processorCyclic) {
             fvc_grad_scalar_boundary_processor<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, num_cells, patch_size[i], offset, boundary_cell_face,
                     boundary_Sf, boundary_weight, boundary_vf, output, sign);
             offset += 2 * patch_size[i];
@@ -2920,7 +2971,8 @@ void fvc_grad_cell_scalar(cudaStream_t stream, int num_cells, int num_surfaces, 
             fvc_grad_scalar_boundary_zeroGradient<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, num_cells, patch_size[i], offset, boundary_cell_face,
                     boundary_Sf, boundary_vf, output, sign);
             TICK_END_EVENT(fvc_grad_scalar_boundary_zeroGradient);
-        } else if (patch_type[i] == boundaryConditions::processor) {
+        } else if (patch_type[i] == boundaryConditions::processor
+                    || patch_type[i] == boundaryConditions::processorCyclic) {
             fvc_grad_scalar_boundary_processor<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, num_cells, patch_size[i], offset, boundary_cell_face,
                     boundary_Sf, boundary_weight, boundary_vf, output, sign);
             offset += 2 * patch_size[i];
@@ -2975,6 +3027,11 @@ void fvc_grad_cell_scalar_withBC(cudaStream_t stream, ncclComm_t comm, const int
                     patch_size[i], offset, boundary_cell_face,
                     output, vf, boundary_Sf, boundary_mag_Sf, boundary_output, boundary_deltaCoeffs, boundary_vf);
         } else if (patch_type[i] == boundaryConditions::processor) {
+            correct_boundary_conditions_processor_vector(stream, comm, neighbor_peer[i], patch_size[i], offset, 
+                    num_boundary_surfaces, num_cells, output, boundary_cell_face, boundary_output);
+            offset += 2 * patch_size[i]; // patchNeighbourFields and patchInternalFields
+            continue;
+        } else if (patch_type[i] == boundaryConditions::processorCyclic) {
             correct_boundary_conditions_processor_vector(stream, comm, neighbor_peer[i], patch_size[i], offset, 
                     num_boundary_surfaces, num_cells, output, boundary_cell_face, boundary_output);
             offset += 2 * patch_size[i]; // patchNeighbourFields and patchInternalFields
@@ -3187,7 +3244,8 @@ void fvMtx_flux(cudaStream_t stream, int num_surfaces, int num_boundary_surfaces
     for (int i = 0; i < num_patches; i++) {
         threads_per_block = 64;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
-        if (patch_type[i] == boundaryConditions::processor) {
+        if (patch_type[i] == boundaryConditions::processor
+            || patch_type[i] == boundaryConditions::processorCyclic) {
             boundary_flux_couple_process<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset, boundary_cell_face, boundary_psi,
                     internal_coeffs, boundary_coeffs, boundary_output);
             offset += 2 * patch_size[i];
