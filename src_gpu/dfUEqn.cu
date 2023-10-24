@@ -565,24 +565,9 @@ void dfUEqn::sync()
 }
 
 void dfUEqn::solve() {
-    sync(); // TODO need remove
-
-    if (num_iteration == 0)                                     // first interation
-    {
-        printf("Initializing AmgX Linear Solver\n");
-        UxSolver->setOperator(dataBase_.num_cells, dataBase_.num_total_cells, dataBase_.num_Nz, dataBase_.d_csr_row_index, dataBase_.d_csr_col_index, d_A);
-        UySolver->setOperator(dataBase_.num_cells, dataBase_.num_total_cells, dataBase_.num_Nz, dataBase_.d_csr_row_index, dataBase_.d_csr_col_index, d_A + dataBase_.num_Nz);
-        UzSolver->setOperator(dataBase_.num_cells, dataBase_.num_total_cells, dataBase_.num_Nz, dataBase_.d_csr_row_index, dataBase_.d_csr_col_index, d_A + 2 * dataBase_.num_Nz);
-    }
-    else
-    {
-        UxSolver->updateOperator(dataBase_.num_cells, dataBase_.num_Nz, d_A);
-        UySolver->updateOperator(dataBase_.num_cells, dataBase_.num_Nz, d_A + dataBase_.num_Nz);
-        UzSolver->updateOperator(dataBase_.num_cells, dataBase_.num_Nz, d_A + 2 * dataBase_.num_Nz);
-    }
-    UxSolver->solve(dataBase_.num_cells, dataBase_.d_u, d_b);
-    UySolver->solve(dataBase_.num_cells, dataBase_.d_u + dataBase_.num_cells, d_b + dataBase_.num_cells);
-    UzSolver->solve(dataBase_.num_cells, dataBase_.d_u + 2 * dataBase_.num_cells, d_b + 2 * dataBase_.num_cells);
+    dataBase_.solve(num_iteration, AMGXSetting::u_setting, d_A, dataBase_.d_u, d_b);
+    dataBase_.solve(num_iteration, AMGXSetting::u_setting, d_A + dataBase_.num_Nz, dataBase_.d_u + dataBase_.num_cells, d_b + dataBase_.num_cells);
+    dataBase_.solve(num_iteration, AMGXSetting::u_setting, d_A + 2 * dataBase_.num_Nz, dataBase_.d_u + 2 * dataBase_.num_cells, d_b + 2 * dataBase_.num_cells);
     num_iteration++;
 }
 

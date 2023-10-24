@@ -676,30 +676,7 @@ void dfpEqn::sync()
 
 void dfpEqn::solve()
 {
-    sync();
-
-    // double *h_A_csr = new double[dataBase_.num_Nz];
-    // checkCudaErrors(cudaMemcpy(h_A_csr, d_A, dataBase_.csr_value_bytes, cudaMemcpyDeviceToHost));
-    // for (int i = 0; i < dataBase_.num_Nz; i++)
-    //     fprintf(stderr, "h_A_csr[%d]: %.10lf\n", i, h_A_csr[i]);
-    // delete[] h_A_csr;
-
-    // double *h_b = new double[dataBase_.num_cells];
-    // checkCudaErrors(cudaMemcpy(h_b, d_source, dataBase_.cell_value_bytes, cudaMemcpyDeviceToHost));
-    // for (int i = 0; i < dataBase_.num_cells; i++)
-    //     fprintf(stderr, "h_b[%d]: %.10lf\n", i, h_b[i]);
-    // delete[] h_b;
-
-    if (num_iteration == 0)                                     // first interation
-    {
-        printf("Initializing AmgX Linear Solver\n");
-        pSolver->setOperator(dataBase_.num_cells, dataBase_.num_total_cells, dataBase_.num_Nz, dataBase_.d_csr_row_index, dataBase_.d_csr_col_index, d_A);
-    }
-    else
-    {
-        pSolver->updateOperator(dataBase_.num_cells, dataBase_.num_Nz, d_A);
-    }
-    pSolver->solve(dataBase_.num_cells, dataBase_.d_p, d_source);
+    dataBase_.solve(num_iteration, AMGXSetting::p_setting, d_A, dataBase_.d_p, d_source);
     num_iteration++;
 }
 

@@ -643,23 +643,7 @@ void dfYEqn::process() {
 void dfYEqn::solve(int solverIndex) {
     TICK_INIT_EVENT;
     TICK_START_EVENT;
-    if (num_iteration == 0)                                     // first interation
-    {
-        fprintf(stderr, "Initializing AmgX Linear Solver\n");
-        DEBUG_TRACE;
-        YSolverSet[solverIndex]->setOperator(dataBase_.num_cells, dataBase_.num_total_cells, dataBase_.num_Nz, dataBase_.d_csr_row_index, dataBase_.d_csr_col_index, d_A);
-        DEBUG_TRACE;
-    }
-    else
-    {
-        DEBUG_TRACE;
-        YSolverSet[solverIndex]->updateOperator(dataBase_.num_cells, dataBase_.num_Nz, d_A);
-        DEBUG_TRACE;
-    }
-    // use d_source as d_b
-    DEBUG_TRACE;
-    YSolverSet[solverIndex]->solve(dataBase_.num_cells, dataBase_.d_y + dataBase_.num_cells * solverIndex, d_source);
-    DEBUG_TRACE;
+    dataBase_.solve(num_iteration, AMGXSetting::u_setting, d_A, dataBase_.d_y + dataBase_.num_cells * solverIndex, d_source);
     TICK_END_EVENT(YEqn solve one specie);
 }
 

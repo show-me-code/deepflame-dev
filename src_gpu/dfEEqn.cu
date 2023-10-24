@@ -347,18 +347,7 @@ void dfEEqn::sync()
 
 void dfEEqn::solve()
 {
-    sync(); // TODO can be removed
-
-    if (num_iteration == 0)                                     // first interation
-    {
-        printf("Initializing AmgX Linear Solver\n");
-        ESolver->setOperator(dataBase_.num_cells, dataBase_.num_total_cells, dataBase_.num_Nz, dataBase_.d_csr_row_index, dataBase_.d_csr_col_index, d_A);
-    }
-    else
-    {
-        ESolver->updateOperator(dataBase_.num_cells, dataBase_.num_Nz, d_A);
-    }
-    ESolver->solve(dataBase_.num_cells, dataBase_.d_he, d_source);
+    dataBase_.solve(num_iteration, AMGXSetting::u_setting, d_A, dataBase_.d_he, d_source);
     num_iteration++;
 }
 

@@ -16,6 +16,9 @@
 #include <cmath>
 #include <unordered_map>
 
+#include "AmgXSolver.H"
+#include <amgx_c.h>
+
 //#define DEBUG_
 //#define DEBUG_CHECK_LDU
 
@@ -58,6 +61,11 @@ inline void checkVectorEqual(int count, const double* basevec, double* vec, doub
             fprintf(stderr, "myRank[%d] mismatch index %d, cpu data: %.30lf, gpu data: %.30lf, relative error: %.16lf\n", myRank, i, basevec[i], vec[i], rel_diff);
     }   
 }
+
+enum AMGXSetting {
+    u_setting,
+    p_setting
+};
 
 enum location {
     cpu,
@@ -138,6 +146,10 @@ struct dfMatrixDataBase
     int *d_ldu_to_csr_index = nullptr;
     int *d_csr_row_index= nullptr;
     int *d_csr_col_index= nullptr;
+
+    // amgx solvers
+	AmgXSolver *u_setting_solver = nullptr;
+	AmgXSolver *p_setting_solver = nullptr;
 
     // constant fields - internal
     double *d_sf = nullptr;
@@ -270,6 +282,8 @@ struct dfMatrixDataBase
         std::vector<int> patch_size, int num_species, double rdelta_t);             
     void setConstantIndexes(const int *owner, const int *neighbor, const int *procRows, 
             const int *procCols, int globalOffset);
+    void setAmgxSolvers(const std::string &mode_string, const std::string &u_setting_path, const std::string &p_setting_path);
+    void solve(int num_iteration, AMGXSetting setting, double *d_A, double *d_x, double *d_b);
 
     void createConstantFieldsInternal();
     void createConstantFieldsBoundary();

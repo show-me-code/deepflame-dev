@@ -197,7 +197,7 @@ int main(int argc, char *argv[])
     if(mpi_init_flag) {
         initNccl();
     }
-    createGPUBase(mesh, Y);
+    createGPUBase(CanteraTorchProperties, mesh, Y);
     DEBUG_TRACE;
 #endif
 
@@ -444,6 +444,8 @@ int main(int argc, char *argv[])
             }
             end = std::clock();
             time_monitor_turbulence_correct += double(end - start) / double(CLOCKS_PER_SEC);
+            //fprintf(stderr, "sleep for 5s...\n");
+            //usleep(5 * 1000 * 1000);
         }
         clock_t loop_end = std::clock();
         double loop_time = double(loop_end - loop_start) / double(CLOCKS_PER_SEC);
