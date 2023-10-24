@@ -23,8 +23,8 @@ void init_const_coeff_ptr(std::vector<std::vector<double>>& nasa_coeffs, std::ve
         std::vector<std::vector<double>>& thermal_conductivity_coeffs, std::vector<std::vector<double>>& binary_diffusion_coeffs,
         std::vector<double>& molecular_weights)
 {
-    double *d_tmp;
-    checkCudaErrors(cudaMalloc((void**)&d_tmp, sizeof(double) * NUM_SPECIES * 15));
+    //double *d_tmp;
+    //checkCudaErrors(cudaMalloc((void**)&d_tmp, sizeof(double) * NUM_SPECIES * 15));
     double nasa_coeffs_tmp[NUM_SPECIES*15];
     double viscosity_coeffs_tmp[NUM_SPECIES*5];
     double thermal_conductivity_coeffs_tmp[NUM_SPECIES*5];
@@ -344,6 +344,7 @@ void dfThermo::setConstantValue(std::string mechanism_file, int num_cells, int n
     initCoeffsfromBinaryFile(fp);
 
     stream = dataBase_.stream;
+#ifndef STREAM_ALLOCATOR
     checkCudaErrors(cudaMalloc((void**)&d_mole_fraction, sizeof(double) * num_species * num_cells));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_mole_fraction, sizeof(double) * num_species * dataBase_.num_boundary_surfaces));
     checkCudaErrors(cudaMalloc((void**)&d_mean_mole_weight, sizeof(double) * num_cells));
@@ -355,10 +356,10 @@ void dfThermo::setConstantValue(std::string mechanism_file, int num_cells, int n
     checkCudaErrors(cudaMalloc((void**)&d_boundary_species_viscosities, sizeof(double) * num_species * dataBase_.num_boundary_surfaces));
     checkCudaErrors(cudaMalloc((void**)&d_species_thermal_conductivities, sizeof(double) * num_species * num_cells));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_species_thermal_conductivities, sizeof(double) * num_species * dataBase_.num_boundary_surfaces));
+#endif
     
     checkCudaErrors(cudaMalloc((void**)&d_psip0, sizeof(double) * num_cells));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_psip0, sizeof(double) * dataBase_.num_boundary_surfaces));
-
     std::cout << "dfThermo initialized" << std::endl;
 }
 
@@ -493,6 +494,20 @@ void dfThermo::updateEnergy()
 
 void dfThermo::correctThermo()
 {
+#ifdef STREAM_ALLOCATOR
+    checkCudaErrors(cudaMallocAsync((void**)&d_mole_fraction, sizeof(double) * num_species * num_cells, stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_boundary_mole_fraction, sizeof(double) * num_species * dataBase_.num_boundary_surfaces, stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_mean_mole_weight, sizeof(double) * num_cells, stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_boundary_mean_mole_weight, sizeof(double) * dataBase_.num_boundary_surfaces, stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_T_poly, sizeof(double) * 5 * num_cells, stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_boundary_T_poly, sizeof(double) * 5 * dataBase_.num_boundary_surfaces, stream));
+
+    checkCudaErrors(cudaMallocAsync((void**)&d_species_viscosities, sizeof(double) * num_species * num_cells, stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_boundary_species_viscosities, sizeof(double) * num_species * dataBase_.num_boundary_surfaces, stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_species_thermal_conductivities, sizeof(double) * num_species * num_cells, stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_boundary_species_thermal_conductivities, sizeof(double) * num_species * dataBase_.num_boundary_surfaces, stream));
+#endif
+ 
     setMassFraction(dataBase_.d_y, dataBase_.d_boundary_y);
     // internal field
     int cell_thread = 512, boundary_thread = 32;
@@ -550,6 +565,19 @@ void dfThermo::correctThermo()
         } else {
             offset += dataBase_.patch_size[i]; }
     }
+#ifdef STREAM_ALLOCATOR
+    checkCudaErrors(cudaFreeAsync(d_mole_fraction, stream));
+    checkCudaErrors(cudaFreeAsync(d_boundary_mole_fraction, stream));
+    checkCudaErrors(cudaFreeAsync(d_mean_mole_weight, stream));
+    checkCudaErrors(cudaFreeAsync(d_boundary_mean_mole_weight, stream));
+    checkCudaErrors(cudaFreeAsync(d_T_poly, stream));
+    checkCudaErrors(cudaFreeAsync(d_boundary_T_poly, stream));
+
+    checkCudaErrors(cudaFreeAsync(d_species_viscosities, stream));
+    checkCudaErrors(cudaFreeAsync(d_boundary_species_viscosities, stream));
+    checkCudaErrors(cudaFreeAsync(d_species_thermal_conductivities, stream));
+    checkCudaErrors(cudaFreeAsync(d_boundary_species_thermal_conductivities, stream));
+#endif
 }
 
 void dfThermo::updateRho()

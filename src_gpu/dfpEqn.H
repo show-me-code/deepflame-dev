@@ -96,7 +96,7 @@ public:
 	void preProcess(double *h_phi, double *h_boundary_phi);
     void correctPsi(const double *h_thermoPsi, double *h_boundary_thermoPsi); // tmp
     void correctP(const double *h_p, double *h_boundary_p); // tmp
-    void getFlux();
+    //void getFlux();
 	void process();
 	void postProcess();
 
