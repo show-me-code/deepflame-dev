@@ -507,6 +507,7 @@ void dfThermo::correctThermo()
     // boundary field
     int offset = 0;
     for (int i = 0; i < dataBase_.num_patches; i++) {
+        if (dataBase_.patch_size[i] == 0) continue;
         if (dataBase_.patch_type_T[i] == boundaryConditions::fixedValue) {
             calculateTPolyGPU(boundary_thread, dataBase_.patch_size[i], dataBase_.num_boundary_surfaces, dataBase_.d_boundary_T, d_boundary_T_poly, offset);
             calculateEnthalpyGPU(boundary_thread, dataBase_.patch_size[i], dataBase_.d_boundary_T, dataBase_.d_boundary_he, 

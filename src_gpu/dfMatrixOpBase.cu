@@ -2034,6 +2034,7 @@ void ldu_to_csr_scalar(cudaStream_t stream, int num_cells, int num_surfaces, int
     int bou_offset = 0, ext_offset = 0;
     size_t threads_per_block, blocks_per_grid;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         if (patch_type[i] == boundaryConditions::processor) {
             threads_per_block = 64;
             blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
@@ -2049,6 +2050,7 @@ void ldu_to_csr_scalar(cudaStream_t stream, int num_cells, int num_surfaces, int
     // add coeff to source and diagnal
     bou_offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 64;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         if (patch_type[i] == boundaryConditions::processor) {
@@ -2096,6 +2098,7 @@ void update_boundary_coeffs_scalar(cudaStream_t stream,
     int offset = 0;
     int gradient_offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
@@ -2135,6 +2138,7 @@ void correct_boundary_conditions_scalar(cudaStream_t stream, ncclComm_t comm,
     int offset = 0;
     int gradient_offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         if (patch_type[i] == boundaryConditions::zeroGradient
@@ -2170,6 +2174,7 @@ void correct_boundary_conditions_vector(cudaStream_t stream, ncclComm_t comm,
 
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         if (patch_type[i] == boundaryConditions::zeroGradient
@@ -2202,6 +2207,7 @@ void update_boundary_coeffs_vector(cudaStream_t stream, int num_boundary_surface
 
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
@@ -2277,6 +2283,7 @@ void fvm_div_scalar(cudaStream_t stream, int num_surfaces, const int *lowerAddr,
 
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
@@ -2316,6 +2323,7 @@ void fvm_div_vector(cudaStream_t stream, int num_surfaces, int num_boundary_surf
 
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 64;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
@@ -2354,6 +2362,7 @@ void fvm_laplacian_scalar(cudaStream_t stream, int num_surfaces, int num_boundar
             weight, mag_sf, delta_coeffs, gamma, lower, upper, diag, sign);
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
@@ -2393,6 +2402,7 @@ void fvm_laplacian_vector(cudaStream_t stream, int num_surfaces, int num_boundar
             weight, mag_sf, delta_coeffs, gamma, lower, upper, diag, sign);
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
@@ -2432,6 +2442,7 @@ void fvm_laplacian_surface_scalar_vol_scalar(cudaStream_t stream, int num_surfac
     
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         fvm_laplacian_surface_scalar_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
@@ -2472,6 +2483,7 @@ void fvc_grad_vector(cudaStream_t stream, ncclComm_t comm,
     int offset = 0;
     // finish conctruct grad field except dividing cell volume
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 64;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
@@ -2501,6 +2513,7 @@ void fvc_grad_vector(cudaStream_t stream, ncclComm_t comm,
     // correct boundary conditions
     offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 64;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
@@ -2550,6 +2563,7 @@ void fvc_div_surface_scalar(cudaStream_t stream, int num_cells, int num_surfaces
 
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         fvc_div_surface_scalar_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset, boundary_cell_face, 
@@ -2576,6 +2590,7 @@ void fvc_div_cell_vector(cudaStream_t stream, int num_cells, int num_surfaces, i
 
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
@@ -2615,6 +2630,7 @@ void fvc_div_cell_tensor(cudaStream_t stream, int num_cells, int num_surfaces, i
 
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 64;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
@@ -2652,6 +2668,7 @@ void fvc_div_surface_scalar_vol_scalar(cudaStream_t stream, int num_surfaces,
 
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 64;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just non-coupled patch type now
@@ -2688,6 +2705,7 @@ void fvc_grad_cell_scalar(cudaStream_t stream, int num_cells, int num_surfaces, 
     
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 64;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just non-coupled patch type now
@@ -2723,6 +2741,7 @@ void fvc_grad_cell_scalar(cudaStream_t stream, int num_cells, int num_surfaces, 
     
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 64;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just non-coupled patch type now
@@ -2769,6 +2788,7 @@ void fvc_grad_cell_scalar_withBC(cudaStream_t stream, ncclComm_t comm, const int
     // correct boundary conditions
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
@@ -2813,6 +2833,7 @@ void fvc_laplacian_scalar(cudaStream_t stream, int num_cells, int num_surfaces, 
 
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
@@ -2847,6 +2868,7 @@ void fvc_flux(cudaStream_t stream, int num_cells, int num_surfaces, int num_boun
 
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: maybe do not need loop boundarys
@@ -2876,6 +2898,7 @@ void fvc_interpolate(cudaStream_t stream, int num_cells, int num_surfaces,
     
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: maybe do not need loop boundarys
@@ -2943,6 +2966,7 @@ void fvMtx_H(cudaStream_t stream, int num_cells, int num_surfaces, int num_bound
 
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 64;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just non-coupled patch type now
@@ -2972,6 +2996,7 @@ void fvMtx_flux(cudaStream_t stream, int num_surfaces, int num_boundary_surfaces
     
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 64;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         if (patch_type[i] == boundaryConditions::processor) {

@@ -13,11 +13,13 @@ class dfEEqn
 
     // cuda resource
     cudaStream_t stream;
+#ifdef USE_GRAPH
     // one graph for one eqn before using self-developed solver
     cudaGraph_t graph_pre, graph_post;
     cudaGraphExec_t graph_instance_pre, graph_instance_post;
     bool pre_graph_created=false;
     bool post_graph_created=false;
+#endif
 
 	// constant values -- basic
 	std::string mode_string;

@@ -89,6 +89,7 @@ void dfEEqn::initNonConstantFields(const double *he, const double *boundary_he)
 }
 
 void dfEEqn::cleanCudaResources() {
+#ifdef USE_GRAPH
     if (pre_graph_created) {
         checkCudaErrors(cudaGraphExecDestroy(graph_instance_pre));
         checkCudaErrors(cudaGraphDestroy(graph_pre));
@@ -97,6 +98,7 @@ void dfEEqn::cleanCudaResources() {
         checkCudaErrors(cudaGraphExecDestroy(graph_instance_post));
         checkCudaErrors(cudaGraphDestroy(graph_post));
     }
+#endif
 }
 
 void dfEEqn::preProcess(const double *h_he, const double *h_k, const double *h_k_old, const double *h_dpdt, const double *h_boundary_k, const double *h_boundary_heGradient)
@@ -123,7 +125,7 @@ void dfEEqn::process() {
     checkCudaErrors(cudaMallocAsync((void**)&d_gradient_internal_coeffs, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
     checkCudaErrors(cudaMallocAsync((void**)&d_gradient_boundary_coeffs, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
  
-    checkCudaErrors(cudaMallocAsync((void**)&d_boundary_heGradient, dataBase_.num_gradientEnergy_boundary_surfaces, dataBase_.stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_boundary_heGradient, sizeof(double) * num_gradientEnergy_boundary_surfaces, dataBase_.stream));
 
     checkCudaErrors(cudaMallocAsync((void**)&d_source, dataBase_.cell_value_bytes, dataBase_.stream));
     checkCudaErrors(cudaMallocAsync((void**)&d_internal_coeffs, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
@@ -261,6 +263,7 @@ void dfEEqn::eeqn_calculate_energy_gradient(dfThermo& GPUThermo, int num_cells, 
 {
     int bou_offset = 0, gradient_offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         if (patch_type[i] == boundaryConditions::gradientEnergy) {
             GPUThermo.calculateEnergyGradient(patch_size[i], num_cells, num_species, num_boundary_surfaces, bou_offset, gradient_offset,
                     face2Cells, T, p, y, boundary_delta_coeffs, boundary_p, boundary_y, boundary_thermo_gradient);

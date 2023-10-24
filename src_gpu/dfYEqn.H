@@ -12,10 +12,12 @@ private:
 
     // cuda resource
     cudaStream_t stream;
+#ifdef USE_GRAPH
     // one graph for one eqn before using self-developed solver
     cudaGraph_t graph;
     cudaGraphExec_t graph_instance;
     bool graph_created=false;
+#endif
 
 	// constant values -- basic
 	std::string mode_string;

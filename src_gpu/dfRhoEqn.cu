@@ -26,10 +26,12 @@ void dfRhoEqn::initNonConstantFields(const double *rho, const double *phi,
 }
 
 void dfRhoEqn::cleanCudaResources() {
+#ifdef USE_GRAPH
     if (graph_created) {
         checkCudaErrors(cudaGraphExecDestroy(graph_instance));
         checkCudaErrors(cudaGraphDestroy(graph));
     }
+#endif
 }
 
 void dfRhoEqn::preProcess()

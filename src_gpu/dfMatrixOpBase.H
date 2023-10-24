@@ -2,18 +2,39 @@
 #include <cuda_runtime.h>
 #include <nccl.h>
 
+// macros need to be in a certain order
+
+// sequence 0: STREAM_ALLOCATOR can be open or not
+#ifndef STREAM_ALLOCATOR
+    #define STREAM_ALLOCATOR
+#endif
+
+// sequence 0: USE_GRAPH can be open or not
 #ifndef USE_GRAPH
     #define USE_GRAPH
 #endif
 
+// sequence 0: TIME_GPU can be open or not
 #ifndef TIME_GPU
     #define TIME_GPU
-    #if (defined TIME_GPU) && (defined USE_GRAPH)
-        #undef USE_GRAPH
-    #endif
+#endif
+
+// sequence 1: TIME_GPU and USE_GRAPH can not be open at the same time
+#if (defined TIME_GPU) && (defined USE_GRAPH)
+    #undef USE_GRAPH
+#endif
+
+// sequence 2: STREAM_ALLOCATOR must be open if USE_GRAPH is open
+#if (defined USE_GRAPH) && (!defined STREAM_ALLOCATOR)
+    #define STREAM_ALLOCATOR
 #endif
 
 extern int myRank;
+
+#define PRINT_PTR(x) { \
+    fprintf(stderr, "rank[%d], %s %d, print ptr %s: %p\n", myRank, __FILE__, __LINE__, #x, x); \
+}
+
 extern __global__ void warmup();
 
 #ifdef TIME_GPU

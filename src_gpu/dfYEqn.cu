@@ -373,13 +373,6 @@ void dfYEqn::createNonConstantLduAndCsrFields() {
 
 void dfYEqn::initNonConstantFieldsInternal(const double *y) {
     checkCudaErrors(cudaMemcpyAsync(dataBase_.d_y, y, dataBase_.cell_value_bytes * dataBase_.num_species, cudaMemcpyHostToDevice, dataBase_.stream));
-
-    // UnityLewis
-    checkCudaErrors(cudaMemsetAsync(d_hai, 0, dataBase_.cell_value_bytes * dataBase_.num_species, dataBase_.stream));
-    checkCudaErrors(cudaMemsetAsync(d_boundary_hai, 0, dataBase_.boundary_surface_value_bytes * dataBase_.num_species, dataBase_.stream));
-    // laminar
-    checkCudaErrors(cudaMemsetAsync(d_mut_sct, 0, dataBase_.cell_value_bytes, dataBase_.stream));
-    checkCudaErrors(cudaMemsetAsync(d_boundary_mut_sct, 0, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
 }
 
 void dfYEqn::initNonConstantFieldsBoundary(const double *boundary_y) {
@@ -397,10 +390,12 @@ void dfYEqn::initNonConstantFieldsBoundary(const double *boundary_y) {
 }
 
 void dfYEqn::cleanCudaResources() {
+#ifdef USE_GRAPH
     if (graph_created) {
         checkCudaErrors(cudaGraphExecDestroy(graph_instance));
         checkCudaErrors(cudaGraphDestroy(graph));
     }
+#endif
 }
 
 void dfYEqn::preProcess(const double *h_rhoD, const double *h_boundary_rhoD,
@@ -449,6 +444,14 @@ void dfYEqn::process() {
         checkCudaErrors(cudaMallocAsync((void**)&d_boundary_coeffs, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
         checkCudaErrors(cudaMallocAsync((void**)&d_A, dataBase_.csr_value_bytes, dataBase_.stream));
 #endif
+
+        // UnityLewis
+        checkCudaErrors(cudaMemsetAsync(d_hai, 0, dataBase_.cell_value_bytes * dataBase_.num_species, dataBase_.stream));
+        checkCudaErrors(cudaMemsetAsync(d_boundary_hai, 0, dataBase_.boundary_surface_value_bytes * dataBase_.num_species, dataBase_.stream));
+        // laminar
+        checkCudaErrors(cudaMemsetAsync(d_mut_sct, 0, dataBase_.cell_value_bytes, dataBase_.stream));
+        checkCudaErrors(cudaMemsetAsync(d_boundary_mut_sct, 0, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
+
         checkCudaErrors(cudaMemsetAsync(dataBase_.d_diff_alphaD, 0, dataBase_.cell_value_bytes, dataBase_.stream));
         checkCudaErrors(cudaMemsetAsync(dataBase_.d_boundary_diff_alphaD, 0, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
         checkCudaErrors(cudaMemsetAsync(d_grad_y, 0, dataBase_.cell_value_vec_bytes * dataBase_.num_species, dataBase_.stream));
@@ -583,7 +586,6 @@ void dfYEqn::process() {
     TICK_START_EVENT;
     // compute y_inertIndex
     yeqn_compute_y_inertIndex(dataBase_.stream, dataBase_.num_species, inertIndex, dataBase_.num_cells, dataBase_.d_y);
-
     // correct boundary conditions
     for (int s = 0; s < dataBase_.num_species; s++) {
         correct_boundary_conditions_scalar(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
@@ -602,7 +604,7 @@ void dfYEqn::process() {
     TICK_START_EVENT;
 #ifdef STREAM_ALLOCATOR
     // thermophysical fields
-    checkCudaErrors(cudaFreeAsync(d_rhoD, dataBase_.stream));
+    //checkCudaErrors(cudaFreeAsync(d_rhoD, dataBase_.stream));
     checkCudaErrors(cudaFreeAsync(d_hai, dataBase_.stream));
     checkCudaErrors(cudaFreeAsync(d_mut_sct, dataBase_.stream));
     // intermediate fields
@@ -613,7 +615,7 @@ void dfYEqn::process() {
     checkCudaErrors(cudaFreeAsync(d_permute, dataBase_.stream));
 
     // thermophysical fields
-    checkCudaErrors(cudaFreeAsync(d_boundary_rhoD, dataBase_.stream));
+    //checkCudaErrors(cudaFreeAsync(d_boundary_rhoD, dataBase_.stream));
     checkCudaErrors(cudaFreeAsync(d_boundary_hai, dataBase_.stream));
     checkCudaErrors(cudaFreeAsync(d_boundary_mut_sct, dataBase_.stream));
     // intermediate fields
@@ -709,6 +711,7 @@ void dfYEqn::yeqn_fvc_laplacian_scalar(cudaStream_t stream, ncclComm_t comm, con
 
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
@@ -746,6 +749,7 @@ void dfYEqn::yeqn_fvc_laplacian_scalar(cudaStream_t stream, ncclComm_t comm, con
             boundary_cell_face, output, boundary_output);
     offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         if (patch_type[i] == boundaryConditions::processor) {
             correct_boundary_conditions_processor_scalar(stream, comm, neighbor_peer[i], patch_size[i], offset,
                     output, boundary_cell_face, boundary_output);
