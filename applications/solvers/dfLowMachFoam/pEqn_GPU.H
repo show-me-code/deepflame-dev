@@ -31,7 +31,8 @@ UEqn_GPU.sync();
         const fvsPatchScalarField& patchrhorAUf = rhorAUf.boundaryField()[patchi];
         int patchSize = patchrAU.size();
 
-        if (patchrAU.type() == "processor") {
+        if (patchrAU.type() == "processor"
+            || patchrAU.type() == "processorCyclic") {
             memcpy(h_boundary_rAU + offset, &patchrAU[0], patchSize*sizeof(double));
             scalarField patchrAUInternal = 
                     dynamic_cast<const processorFvPatchField<scalar>&>(patchrAU).patchInternalField()();
@@ -78,7 +79,8 @@ UEqn_GPU.sync();
     {
         const fvsPatchScalarField& patchphiHbyA = phiHbyA.boundaryField()[patchi];
         int patchSize = patchphiHbyA.size();
-        if (patchphiHbyA.type() == "processor") {
+        if (patchphiHbyA.type() == "processor"
+            || patchphiHbyA.type() == "processorCyclic") {
             memcpy(h_boundary_phiHbyA + offset, &patchphiHbyA[0], patchSize*sizeof(double));
             offset += 2 * patchSize;
         } else {
@@ -122,7 +124,7 @@ UEqn_GPU.sync();
             const double* boundary_coeff_ptr = &pEqn.boundaryCoeffs()[patchi][0];
             memcpy(h_internal_coeffs.data() + offset, internal_coeff_ptr, patchsize * sizeof(double));
             memcpy(h_boundary_coeffs.data() + offset, boundary_coeff_ptr, patchsize * sizeof(double));
-            if (patchP.type() == "processor") offset += 2 * patchsize;
+            if (patchP.type() == "processor" || patchP.type() == "processorCyclic") offset += 2 * patchsize;
             else offset += patchsize;
         }
         if (!mpi_init_flag || rank == 0) {
@@ -138,7 +140,8 @@ UEqn_GPU.sync();
     {
         const fvPatchScalarField& patchP = p.boundaryField()[patchi];
         int patchsize = patchP.size();
-        if (patchP.type() == "processor") {
+        if (patchP.type() == "processor"
+            || patchP.type() == "processorCyclic") {
             memcpy(h_boundary_p + offset, &patchP[0], patchsize * sizeof(double));
             scalarField patchPInternal = 
                     dynamic_cast<const processorFvPatchField<scalar>&>(patchP).patchInternalField()();
@@ -151,7 +154,7 @@ UEqn_GPU.sync();
     }
     // pEqn_GPU.correctP(&p[0], h_boundary_p);
     if (!mpi_init_flag || rank == 0) {
-        // pEqn_GPU.comparep(&p[0], h_boundary_p, false);
+        pEqn_GPU.comparep(&p[0], h_boundary_p, false);
     }
     delete h_boundary_p;
 
@@ -163,7 +166,8 @@ UEqn_GPU.sync();
         const fvsPatchScalarField& patchFlux = phi.boundaryField()[patchi];
         int patchSize = patchFlux.size();
         memcpy(h_boundary_phi + offset, &patchFlux[0], patchSize*sizeof(double));
-        if (patchFlux.type() == "processor") {
+        if (patchFlux.type() == "processor"
+            || patchFlux.type() == "processorCyclic") {
             memset(h_boundary_phi + offset + patchSize, 0, patchSize*sizeof(double));
             offset += 2 * patchSize;
         } else {
@@ -195,7 +199,8 @@ thermo_GPU.correctPsipRho();
         const fvPatchVectorField& patchU = U.boundaryField()[patchi];
         int patchSize = patchU.size();
 
-        if (patchU.type() == "processor") {
+        if (patchU.type() == "processor"
+            || patchU.type() == "processorCyclic") {
             memcpy(h_boundary_u_tmp_inp + 3*offset, &patchU[0][0], patchSize*sizeof(double)*3);
             vectorField patchUInternal = 
                     dynamic_cast<const processorFvPatchField<vector>&>(patchU).patchInternalField()();

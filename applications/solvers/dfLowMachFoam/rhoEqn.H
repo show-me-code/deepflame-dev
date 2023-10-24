@@ -68,7 +68,8 @@ Description
     {
         const fvPatchScalarField& patchRho = rho.boundaryField()[patchi];
         int patchsize = patchRho.size();
-        if (patchRho.type() == "processor") {
+        if (patchRho.type() == "processor"
+            || patchRho.type() == "processorCyclic") {
             memcpy(h_boundary_rho + offset, &patchRho[0], patchsize * sizeof(double));
             scalarField patchRhoInternal = 
                     dynamic_cast<const processorFvPatchField<scalar>&>(patchRho).patchInternalField()();

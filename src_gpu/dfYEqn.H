@@ -117,7 +117,7 @@ public:
         const double *h_mut_sct, const double *h_boundary_mut_sct);
 	void process();
     void postProcess(double *h_y, double *h_boundary_y);
-    void solve(int solverIndex);
+    void solve(int solverIndex, int speciesIndex);
     void sync();
 
     // 方程特化版离散函数
@@ -135,7 +135,7 @@ public:
             int num_patches, const int *patch_size, const int *patch_type, const int *boundary_cell_face,
             const double *boundary_weight, const double *boundary_mag_sf, const double *boundary_delta_coeffs,
             const double *boundary_thermo_alpha, const double *boundary_hai, const double *boundary_vf,
-            double *boundary_output);
+            const int *cyclicNeighbor, const int *patchSizeOffset, double *boundary_output);
     void yeqn_compute_sumYDiffError_and_hDiffCorrFlux(cudaStream_t stream, int num_species, int num_cells, int num_boundary_surfaces,
             const double *lewis_number, const double *thermo_alpha, const double *hai, const double *y, const double *grad_y,
             double *sumY_diff_error, double *hDiff_corr_flux,
@@ -147,7 +147,7 @@ public:
             const double *boundary_sf, const double *boundary_sumY_diff_error, double *boundary_phiUc);
     void yeqn_compute_y_inertIndex(cudaStream_t stream, int num_species, int inertIndex, int num_cells, double *y);
 
-#if defined DEBUG_
+// #if defined DEBUG_
     void comparediffAlphaD(const double *diffAlphaD, const double *boundary_diffAlphaD, bool printFlag);
     void comparegradyi(const double *grad_yi, const double *boundary_grad_yi, int specie_index, bool printFlag);
     void comparesumYDiffError(const double *sumYDiffError, const double *boundary_sumYDiffError, bool printFlag);
@@ -156,5 +156,5 @@ public:
     void compareResult(const double *lower, const double *upper, const double *diag, const double *source,
             const double *internal_coeffs, const double *boundary_coeffs, bool printFlag);
     void compareYi(const double *yi, int specie_index, bool printFlag);
-#endif
+// #endif
 };

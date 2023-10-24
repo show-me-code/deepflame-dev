@@ -16,7 +16,8 @@ void constructBoundarySelectorPerPatch(int *patchTypeSelector, const std::string
         {"cyclic", cyclic},
         {"processor", processor},
         {"extrapolated", extrapolated},
-        {"fixedEnergy", fixedEnergy}
+        {"fixedEnergy", fixedEnergy},
+        {"processorCyclic", processorCyclic}
     };
     auto iter = BCMap.find(patchTypeStr);
     if (iter != BCMap.end()) {
@@ -76,6 +77,11 @@ void constructBoundarySelectorPerPatch(int *patchTypeSelector, const std::string
             *patchTypeSelector = 9;
             break;
         }
+        case processorCyclic:
+        {
+            *patchTypeSelector = 10;
+            break;
+        }
     }
 }
 
@@ -92,7 +98,6 @@ void dfMatrixDataBase::setCommInfo(MPI_Comm mpi_comm, ncclComm_t nccl_comm, nccl
     this->myRank = myRank;
     this->localRank = localRank;
     this->neighbProcNo = neighbProcNo;
-    //fprintf(stderr, "myRank: %d, nRanks: %d, localRank: %d, neighbProcNo: %d\n", myRank, nRanks, localRank, neighbProcNo);
 }
  
 void dfMatrixDataBase::prepareCudaResources() {
@@ -141,6 +146,11 @@ void dfMatrixDataBase::setConstantValues(int num_cells, int num_total_cells, int
     csr_value_vec_bytes = num_Nz * 3 * sizeof(double);
 }
 
+void dfMatrixDataBase::setCyclicInfo(std::vector<int> &cyclicNeighbor)
+{
+    this->cyclicNeighbor = cyclicNeighbor;
+}
+
 void dfMatrixDataBase::setConstantIndexes(const int *owner, const int *neighbor, const int *procRows, 
         const int *procCols, int globalOffset) {
     // build d_owner, d_neighbor
@@ -183,7 +193,7 @@ void dfMatrixDataBase::setConstantIndexes(const int *owner, const int *neighbor,
             return pair1.second < pair2.second;
         }
     });
-    std::vector<int> permRowIndex, lduCSRIndex;
+    std::vector<int> permRowIndex;
     std::transform(rowIndicesPermPair.begin(), rowIndicesPermPair.end(), std::back_inserter(permRowIndex), []
         (const std::pair<int, int>& pair) {
         return pair.first;

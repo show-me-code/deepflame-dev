@@ -9,7 +9,9 @@ fluidThermo& thermo = *pThermo;
 
 const volScalarField& psi = thermo.psi();
 volScalarField& p = thermo.p();
+p.correctBoundaryConditions();
 volScalarField& T = thermo.T();
+T.correctBoundaryConditions();
 volScalarField rho
 (
     IOobject
@@ -37,6 +39,7 @@ volVectorField U
     ),
     mesh
 );
+U.correctBoundaryConditions();
 
 #include "compressibleCreatePhi.H"
 
@@ -87,6 +90,10 @@ const word turbName(mesh.objectRegistry::lookupObject<IOdictionary>("turbulenceP
 
 dfChemistryModel<basicThermo>* chemistry = combustion->chemistry();
 PtrList<volScalarField>& Y = chemistry->Y();
+forAll(Y, i)
+{
+    Y[i].correctBoundaryConditions();
+}
 const word inertSpecie(chemistry->lookup("inertSpecie"));
 const label inertIndex(chemistry->species()[inertSpecie]);
 chemistry->setEnergyName("ha");
@@ -94,6 +101,7 @@ chemistry->updateEnergy();
 
 chemistry->correctThermo();
 Info<< "At initial time, min/max(T) = " << min(T).value() << ", " << max(T).value() << endl;
+rho = thermo.rho();
 
 //for dpdt
 
