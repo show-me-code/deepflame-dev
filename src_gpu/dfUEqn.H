@@ -115,7 +115,7 @@ public:
     void preProcessForRhoEqn(const double *h_rho, const double *h_phi, const double *h_boundary_phi);
 	void preProcess(const double *h_u, const double *h_boundary_u, const double *h_p, const double *h_boundary_p, const double *h_nu_eff, const double *h_boundary_nu_eff);
 	void process();
-	void postProcess(double *h_u);
+	void postProcess();
 
     void A(double *Psi);
     void H(double *Psi);

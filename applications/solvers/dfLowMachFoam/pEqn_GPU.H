@@ -154,7 +154,7 @@ UEqn_GPU.sync();
     }
     // pEqn_GPU.correctP(&p[0], h_boundary_p);
     if (!mpi_init_flag || rank == 0) {
-        pEqn_GPU.comparep(&p[0], h_boundary_p, false);
+        //pEqn_GPU.comparep(&p[0], h_boundary_p, false);
     }
     delete h_boundary_p;
 

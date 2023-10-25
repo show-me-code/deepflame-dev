@@ -336,8 +336,8 @@ void dfUEqn::createNonConstantFieldsInternal() {
   checkCudaErrors(cudaMalloc((void**)&d_grad_u, dataBase_.cell_value_tsr_bytes));
   checkCudaErrors(cudaMalloc((void**)&d_rho_nueff, dataBase_.cell_value_bytes));
   checkCudaErrors(cudaMalloc((void**)&d_fvc_output, dataBase_.cell_value_vec_bytes));
-  checkCudaErrors(cudaMalloc((void**)&d_u_host_order, dataBase_.cell_value_vec_bytes));
 #endif
+  checkCudaErrors(cudaMalloc((void**)&d_u_host_order, dataBase_.cell_value_vec_bytes));
   // computed on CPU, used on GPU, need memcpyh2d
   checkCudaErrors(cudaMallocHost((void**)&h_nu_eff , dataBase_.cell_value_bytes));
   checkCudaErrors(cudaMallocHost((void**)&h_A_pEqn , dataBase_.cell_value_bytes));
@@ -359,9 +359,9 @@ void dfUEqn::createNonConstantFieldsBoundary() {
   checkCudaErrors(cudaMalloc((void**)&d_value_boundary_coeffs, dataBase_.boundary_surface_value_vec_bytes));
   checkCudaErrors(cudaMalloc((void**)&d_gradient_internal_coeffs, dataBase_.boundary_surface_value_vec_bytes));
   checkCudaErrors(cudaMalloc((void**)&d_gradient_boundary_coeffs, dataBase_.boundary_surface_value_vec_bytes));
+#endif
   // intermediate boundary
   checkCudaErrors(cudaMalloc((void**)&d_boundary_u_host_order, dataBase_.boundary_surface_value_vec_bytes));
-#endif
   // computed on CPU, used on GPU, need memcpyh2d
   checkCudaErrors(cudaMallocHost((void**)&h_boundary_nu_eff, dataBase_.boundary_surface_value_bytes));
 
@@ -385,10 +385,6 @@ void dfUEqn::createNonConstantLduAndCsrFields() {
   checkCudaErrors(cudaMalloc((void**)&d_A_pEqn, dataBase_.cell_value_bytes)); // TODO: delete redundant variables
   checkCudaErrors(cudaMalloc((void**)&d_H_pEqn, dataBase_.cell_value_vec_bytes));
   checkCudaErrors(cudaMalloc((void**)&d_H_pEqn_perm, dataBase_.cell_value_vec_bytes));
-
-  checkCudaErrors(cudaMalloc((void**)&d_u_host_order, dataBase_.cell_value_vec_bytes));
-  // intermediate boundary fields
-  checkCudaErrors(cudaMalloc((void**)&d_boundary_u_host_order, dataBase_.boundary_surface_value_vec_bytes));
 }
 
 void dfUEqn::initNonConstantFieldsInternal(const double *u, const double *boundary_u)
@@ -571,12 +567,6 @@ void dfUEqn::process() {
         TICK_END_EVENT(UEqn post process correctBC);
 
         TICK_START_EVENT;
-        // copy u and boundary_u to host
-        permute_vector_d2h(dataBase_.stream, dataBase_.num_cells, dataBase_.d_u, d_u_host_order);
-        checkCudaErrors(cudaMemcpyAsync(dataBase_.h_u, d_u_host_order, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
-        TICK_END_EVENT(UEqn post process copyback);
-
-        TICK_START_EVENT;
 #ifdef STREAM_ALLOCATOR
         // free
         // thermophysical fields
@@ -624,7 +614,14 @@ void dfUEqn::solve() {
     num_iteration++;
 }
 
-void dfUEqn::postProcess(double *h_u) {}
+void dfUEqn::postProcess() {
+    // postProcess of dfUEqn can not be moved to the end of dfUEqn::process(),
+    // because dataBase_.d_u is modified in dfpEqn and we only need the result of the last change
+    // copy u and boundary_u to host
+    permute_vector_d2h(dataBase_.stream, dataBase_.num_cells, dataBase_.d_u, d_u_host_order);
+    checkCudaErrors(cudaMemcpyAsync(dataBase_.h_u, d_u_host_order, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
+    sync();
+}
 
 void dfUEqn::A(double *Psi) {
     fvMtx_A(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, 

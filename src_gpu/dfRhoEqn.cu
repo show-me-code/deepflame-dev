@@ -87,7 +87,7 @@ void dfRhoEqn::process()
     TICK_END_EVENT(rhoEqn post process free);
     TICK_START_EVENT;
     checkCudaErrors(cudaMemcpyAsync(dataBase_.h_rho, dataBase_.d_rho, dataBase_.cell_value_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
-    TICK_END_EVENT(rhoEqn post process copyback);
+    TICK_END_EVENT(rhoEqn post process copy back);
     sync();
 }
 
