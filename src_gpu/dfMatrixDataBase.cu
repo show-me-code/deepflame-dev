@@ -353,6 +353,10 @@ void dfMatrixDataBase::createNonConstantFieldsInternal() {
     checkCudaErrors(cudaMalloc((void**)&d_T, cell_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_mu, cell_value_bytes));
 
+    // turbulence fields
+    checkCudaErrors(cudaMalloc((void**)&d_turbulence_k, cell_value_bytes));
+    checkCudaErrors(cudaMalloc((void**)&d_turbulence_epsilon, cell_value_bytes));
+
     // internal fields used between eqns
     checkCudaErrors(cudaMalloc((void**)&d_rAU, cell_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_HbyA, cell_value_vec_bytes));

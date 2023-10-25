@@ -41,6 +41,8 @@ private:
     double *h_H_pEqn = nullptr;
 	// intermediate fields
 	double *d_grad_u = nullptr;
+    double *d_delta = nullptr;
+
 	double *d_rho_nueff = nullptr;
 	double *d_u_host_order = nullptr;
     double *d_fvc_output = nullptr; // TODO: no need anymore
@@ -129,6 +131,8 @@ public:
         const int *cyclicNeighbor, const int *patchSizeOffset,
         double *HbyA, double *boundary_HbyA);
     void getHbyA();
+    void getTurbulenceKEpsilon_Smagorinsky(cudaStream_t stream, int num_cells, int num_boundary_surfaces, 
+        const double *grad_U_tsr, const double *volume, double *delta, double *turbulence_k, double *turbulence_epsilon);
     void correctPsi(double *Psi, double *boundary_psi);
     void ueqn_ldu_to_csr(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surface, int num_Nz, 
         const int* boundary_cell_face, const int *ldu_to_csr_index, const int *diag_to_csr_index,
