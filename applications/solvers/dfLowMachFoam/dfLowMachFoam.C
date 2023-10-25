@@ -203,7 +203,7 @@ int main(int argc, char *argv[])
     if(mpi_init_flag) {
         initNccl();
     }
-    createGPUBase(mesh, Y);
+    createGPUBase(CanteraTorchProperties, mesh, Y);
     DEBUG_TRACE;
 #endif
 
@@ -369,7 +369,7 @@ int main(int argc, char *argv[])
                     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
                 }
                 if (!mpi_init_flag || rank == 0) {
-                    // thermo_GPU.compareT(&T[0], h_boundary_T_tmp, printFlag);
+                    thermo_GPU.compareT(&T[0], h_boundary_T_tmp, printFlag);
                     // thermo_GPU.compareHe(&thermo.he()[0], h_boundary_he_tmp, printFlag);
                     // thermo_GPU.comparePsi(&psi[0], h_boundary_thermo_psi_tmp, printFlag);
                     // thermo_GPU.compareAlpha(&alpha[0], h_boundary_thermo_alpha_tmp, printFlag);
@@ -452,6 +452,8 @@ int main(int argc, char *argv[])
             }
             end = std::clock();
             time_monitor_turbulence_correct += double(end - start) / double(CLOCKS_PER_SEC);
+            //fprintf(stderr, "sleep for 5s...\n");
+            //usleep(5 * 1000 * 1000);
         }
         clock_t loop_end = std::clock();
         double loop_time = double(loop_end - loop_start) / double(CLOCKS_PER_SEC);
@@ -468,11 +470,9 @@ int main(int argc, char *argv[])
 
 #ifdef GPUSolverNew_
         // write U for
-        double *h_U_tmp = new double[dfDataBase.num_cells * 3];
-        UEqn_GPU.postProcess(h_U_tmp);
-        memcpy(&U[0][0], h_U_tmp, dfDataBase.cell_value_vec_bytes);
+        UEqn_GPU.postProcess();
+        memcpy(&U[0][0], dfDataBase.h_u, dfDataBase.cell_value_vec_bytes);
         U.correctBoundaryConditions();
-        delete h_U_tmp;
 #endif
 
         runTime.write();

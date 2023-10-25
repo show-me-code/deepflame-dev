@@ -11,10 +11,14 @@ private:
 	dfMatrixDataBase &dataBase_;
 
     // cuda resource
+    cudaStream_t stream;
+#ifdef USE_GRAPH
     // one graph for one eqn before using self-developed solver
     cudaGraph_t graph_pre, graph_post;
     cudaGraphExec_t graph_instance_pre, graph_instance_post;
-    bool graph_created=false;
+    bool pre_graph_created=false;
+    bool post_graph_created=false;
+#endif
 
 	// constant values -- basic
 	std::string mode_string;
@@ -92,7 +96,7 @@ public:
 	void preProcess(double *h_phi, double *h_boundary_phi);
     void correctPsi(const double *h_thermoPsi, double *h_boundary_thermoPsi); // tmp
     void correctP(const double *h_p, double *h_boundary_p); // tmp
-    void getFlux();
+    //void getFlux();
 	void process();
 	void postProcess();
 

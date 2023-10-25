@@ -54,15 +54,15 @@ void AmgXSolver::initialize(const std::string &modeStr, const std::string &cfgFi
     // get the mode of AmgX solver
     setMode(modeStr);  
 
-    // initialize AmgX
-    initAmgX(cfgFile, devID);  
-
     // check if MPI has been initialized
     MPI_Initialized(&isMPIEnabled);
     if (isMPIEnabled) {
         MPI_Comm_size(MPI_COMM_WORLD, &mpiSize);
         mpiWorld = MPI_COMM_WORLD;
     }
+
+    // initialize AmgX
+    initAmgX(cfgFile, devID);
 
     // a bool indicating if this instance is initialized
     isInitialised = true;

@@ -146,6 +146,25 @@ void dfMatrixDataBase::setConstantValues(int num_cells, int num_total_cells, int
     csr_value_vec_bytes = num_Nz * 3 * sizeof(double);
 }
 
+void dfMatrixDataBase::setAmgxSolvers(const std::string &mode_string, const std::string &u_setting_path, const std::string &p_setting_path) {
+    // amgx solvers
+    u_setting_solver = new AmgXSolver(mode_string, u_setting_path, localRank);
+    p_setting_solver = new AmgXSolver(mode_string, p_setting_path, localRank);
+}
+    
+void dfMatrixDataBase::solve(int num_iteration, AMGXSetting setting, double *d_A, double *d_x, double *d_b) {
+    AmgXSolver *solver = (setting == AMGXSetting::u_setting) ? u_setting_solver : p_setting_solver;
+    if (num_iteration == 0)                                     // first interation
+    {
+        solver->setOperator(num_cells, num_total_cells, num_Nz, d_csr_row_index, d_csr_col_index, d_A);
+    }
+    else
+    {
+        solver->updateOperator(num_cells, num_Nz, d_A);
+    }
+    solver->solve(num_cells, d_x, d_b);
+}
+
 void dfMatrixDataBase::setCyclicInfo(std::vector<int> &cyclicNeighbor)
 {
     this->cyclicNeighbor = cyclicNeighbor;

@@ -11,10 +11,13 @@ private:
 	dfMatrixDataBase &dataBase_;
 
     // cuda resource
+    cudaStream_t stream;
+#ifdef USE_GRAPH
     // one graph for one eqn before using self-developed solver
     cudaGraph_t graph;
     cudaGraphExec_t graph_instance;
     bool graph_created=false;
+#endif
 
 	// constant values -- basic
 	std::string mode_string;
@@ -117,7 +120,7 @@ public:
         const double *h_mut_sct, const double *h_boundary_mut_sct);
 	void process();
     void postProcess(double *h_y, double *h_boundary_y);
-    void solve(int solverIndex, int speciesIndex);
+    void solve(int speciesIndex);
     void sync();
 
     // 方程特化版离散函数

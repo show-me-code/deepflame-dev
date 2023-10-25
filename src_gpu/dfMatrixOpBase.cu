@@ -5,32 +5,10 @@
 #include <cuda_runtime.h>
 #include "cuda_profiler_api.h"
 
-#ifdef TIME_GPU
-    #define TICK_INIT_EVENT \
-        float time_elapsed_kernel=0;\
-        cudaEvent_t start_kernel, stop_kernel;\
-        checkCudaErrors(cudaEventCreate(&start_kernel));\
-        checkCudaErrors(cudaEventCreate(&stop_kernel));
-
-    #define TICK_START_EVENT \
-        checkCudaErrors(cudaEventRecord(start_kernel,0));
-
-    #define TICK_END_EVENT(prefix) \
-        checkCudaErrors(cudaEventRecord(stop_kernel,0));\
-        checkCudaErrors(cudaEventSynchronize(start_kernel));\
-        checkCudaErrors(cudaEventSynchronize(stop_kernel));\
-        checkCudaErrors(cudaEventElapsedTime(&time_elapsed_kernel,start_kernel,stop_kernel));\
-        printf("try %s 执行时间：%lf(ms)\n", #prefix, time_elapsed_kernel);
-#else
-    #define TICK_INIT_EVENT
-    #define TICK_START_EVENT
-    #define TICK_END_EVENT(prefix)
-#endif
-
-__global__ void warmup(int num_cells)
+__global__ void warmup()
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
-    if (index >= num_cells)
+    if (index >= 10240)
         return;
 }
 
@@ -363,10 +341,13 @@ void correct_boundary_conditions_processor_scalar(cudaStream_t stream, ncclComm_
     correct_internal_boundary_field_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(num, offset, 
             vf, boundary_cell_face, vf_boundary);
 
+    TICK_INIT_EVENT;
+    TICK_START_EVENT;
     checkNcclErrors(ncclGroupStart());
     checkNcclErrors(ncclSend(vf_boundary + internal_start_index, num, ncclDouble, peer, comm, stream));
     checkNcclErrors(ncclRecv(vf_boundary + neighbor_start_index, num, ncclDouble, peer, comm, stream));
     checkNcclErrors(ncclGroupEnd());
+    TICK_END_EVENT(nccl scalar);
     //checkCudaErrors(cudaStreamSynchronize(stream));
 }
 
@@ -382,12 +363,15 @@ void correct_boundary_conditions_processor_vector(cudaStream_t stream, ncclComm_
     correct_internal_boundary_field_vector<<<blocks_per_grid, threads_per_block, 0, stream>>>(num, offset, 
             num_boundary_surfaces, num_cells, vf, boundary_cell_face, vf_boundary);
 
+    TICK_INIT_EVENT;
+    TICK_START_EVENT;
     checkNcclErrors(ncclGroupStart());
     for (int i = 0; i < 3; i++) {
         checkNcclErrors(ncclSend(vf_boundary + num_boundary_surfaces * i + internal_start_index, num, ncclDouble, peer, comm, stream));
         checkNcclErrors(ncclRecv(vf_boundary + num_boundary_surfaces * i + neighbor_start_index, num, ncclDouble, peer, comm, stream));   
     }
     checkNcclErrors(ncclGroupEnd());
+    TICK_END_EVENT(nccl vector);
     //checkCudaErrors(cudaStreamSynchronize(stream));
 }
 
@@ -1282,13 +1266,17 @@ void fvc_grad_vector_correctBC_processor(cudaStream_t stream, ncclComm_t comm,
 
     correct_internal_boundary_field_tensor<<<blocks_per_grid, threads_per_block, 0, stream>>>(num, offset, 
             num_boundary_surfaces, num_cells, internal_grad, face2Cells, boundary_grad);
+
+    TICK_INIT_EVENT;
+    TICK_START_EVENT;
     checkNcclErrors(ncclGroupStart());
     for (int i = 0; i < 9; i++) {
         checkNcclErrors(ncclSend(boundary_grad + num_boundary_surfaces * i + internal_start_index, num, ncclDouble, peer, comm, stream));
         checkNcclErrors(ncclRecv(boundary_grad + num_boundary_surfaces * i + neighbor_start_index, num, ncclDouble, peer, comm, stream));   
     }
     checkNcclErrors(ncclGroupEnd());
-    checkCudaErrors(cudaStreamSynchronize(stream));
+    TICK_END_EVENT(nccl tensor);
+    //checkCudaErrors(cudaStreamSynchronize(stream));
 }
 
 __global__ void fvc_grad_cell_scalar_correctBC_zeroGradient(int num_cells, int num_boundary_surfaces,
@@ -2094,13 +2082,10 @@ void field_add_scalar(cudaStream_t stream,
         int num, const double *input1, const double *input2, double *output,
         int num_boundary_surfaces, const double *boundary_input1, const double *boundary_input2, double *boundary_output)
 {
-    TICK_INIT_EVENT;
     size_t threads_per_block = 256;
     size_t blocks_per_grid = (std::max(num, num_boundary_surfaces) + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     field_add_scalar_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num, num_boundary_surfaces,
             input1, input2, output, boundary_input1, boundary_input2, boundary_output);
-    TICK_END_EVENT(field_add_scalar_kernel);
 }
 
 void field_add_vector(cudaStream_t stream,
@@ -2109,7 +2094,6 @@ void field_add_vector(cudaStream_t stream,
 {
     size_t threads_per_block = 256;
     size_t blocks_per_grid = (std::max(num_cells, num_boundary_surfaces) + threads_per_block - 1) / threads_per_block;
-
     field_add_vector_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_boundary_surfaces,
             input1, input2, output, boundary_input1, boundary_input2, boundary_output, sign);
 }
@@ -2127,13 +2111,10 @@ void field_multiply_scalar(cudaStream_t stream,
         int num_cells, const double *input1, const double *input2, double *output,
         int num_boundary_surfaces, const double *boundary_input1, const double *boundary_input2, double *boundary_output)
 {
-    TICK_INIT_EVENT;
     size_t threads_per_block = 256;
     size_t blocks_per_grid = (std::max(num_cells, num_boundary_surfaces) + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     field_multiply_scalar_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_boundary_surfaces,
             input1, input2, output, boundary_input1, boundary_input2, boundary_output);
-    TICK_END_EVENT(field_multiply_scalar_kernel);
 }
 
 void vector_half_mag_square(cudaStream_t stream, int num_cells, const double *vec_input, double *scalar_output,
@@ -2177,13 +2158,10 @@ void fvc_to_source_vector(cudaStream_t stream, int num_cells, const double *volu
 
 void fvc_to_source_scalar(cudaStream_t stream, int num_cells, const double *volume, const double *fvc_output, double *source, double sign)
 {
-    TICK_INIT_EVENT;
     size_t threads_per_block = 256;
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     fvc_to_source_scalar_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
             volume, fvc_output, source, sign);
-    TICK_END_EVENT(fvc_to_source_scalar_kernel);
 }
 
 void ldu_to_csr_scalar(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surface, int num_Nz, 
@@ -2199,6 +2177,7 @@ void ldu_to_csr_scalar(cudaStream_t stream, int num_cells, int num_surfaces, int
     int bou_offset = 0, ext_offset = 0;
     size_t threads_per_block, blocks_per_grid;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         if (patch_type[i] == boundaryConditions::processor
                 || patch_type[i] == boundaryConditions::processorCyclic) {
             threads_per_block = 64;
@@ -2222,6 +2201,7 @@ void ldu_to_csr_scalar(cudaStream_t stream, int num_cells, int num_surfaces, int
     // add coeff to source and diagnal
     bou_offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 64;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         if (patch_type[i] == boundaryConditions::processor
@@ -2250,21 +2230,16 @@ void ldu_to_csr(cudaStream_t stream, int num_cells, int num_surfaces, int num_bo
         const int* boundary_cell_face, const int *ldu_to_csr_index, const int *diag_to_csr_index,
         const double *ldu, const double *internal_coeffs, const double *boundary_coeffs, double *source, double *A)
 {
-    TICK_INIT_EVENT;
     // construct diag
     int nNz = num_cells + 2 * num_surfaces;
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (nNz + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     ldu_to_csr_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(nNz, ldu_to_csr_index, ldu, A);
-    TICK_END_EVENT(ldu_to_csr_kernel);
 
     // add coeff to source and diagnal
     blocks_per_grid = (num_boundary_surface + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     addBoundaryDiagSrc<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_surfaces, num_boundary_surface, 
             boundary_cell_face, internal_coeffs, boundary_coeffs, diag_to_csr_index, A, source);
-    TICK_END_EVENT(addBoundaryDiagSrc);
 }
 
 void update_boundary_coeffs_scalar(cudaStream_t stream,
@@ -2279,6 +2254,7 @@ void update_boundary_coeffs_scalar(cudaStream_t stream,
     int offset = 0;
     int gradient_offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
@@ -2328,6 +2304,7 @@ void correct_boundary_conditions_scalar(cudaStream_t stream, ncclComm_t comm,
     int offset = 0;
     int gradient_offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         if (patch_type[i] == boundaryConditions::zeroGradient
@@ -2374,6 +2351,7 @@ void correct_boundary_conditions_vector(cudaStream_t stream, ncclComm_t comm,
 
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         if (patch_type[i] == boundaryConditions::zeroGradient
@@ -2414,6 +2392,7 @@ void update_boundary_coeffs_vector(cudaStream_t stream, int num_boundary_surface
 
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
@@ -2453,50 +2432,30 @@ void fvm_ddt_vol_scalar_vol_scalar(cudaStream_t stream, int num_cells, double rD
         const double *rho, const double *rho_old, const double *vf, const double *volume,
         double *diag, double *source, double sign)
 {
-    TICK_INIT_EVENT;
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     fvm_ddt_vol_scalar_vol_scalar_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
             rDeltaT, rho, rho_old, vf, volume, diag, source, sign);
-    TICK_END_EVENT(fvm_ddt_vol_scalar_vol_scalar_kernel);
 }
 
 void fvm_ddt_scalar(cudaStream_t stream, int num_cells, double rDeltaT, 
         const double *vf_old, const double *volume, 
         double *diag, double *source, double sign)
 {
-#ifdef TIME_GPU
-    printf("#############kernel profile#############\n");
-#endif
-    TICK_INIT_EVENT;
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
-#ifdef TIME_GPU
-    printf("warm up ...\n");
-    warmup<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells);
-#endif
-    TICK_START_EVENT;
     fvm_ddt_scalar_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, 
             rDeltaT, vf_old, volume, diag, source, sign);
-    TICK_END_EVENT(fvm_ddt_scalar_kernel);
 }
 
 void fvm_ddt_vector(cudaStream_t stream, int num_cells, double rDeltaT,
         const double *rho, const double *rho_old, const double *vf, const double *volume,
         double *diag, double *source, double sign)
 {
-    TICK_INIT_EVENT;
     size_t threads_per_block = 64;
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
-#ifdef TIME_GPU
-    printf("warm up ...\n");
-    warmup<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells);
-#endif
-    TICK_START_EVENT;
     fvm_ddt_vector_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
             rDeltaT, rho, rho_old, vf, volume, diag, source, sign);
-    TICK_END_EVENT(fvm_ddt_vector_kernel);
 }
 
 void fvm_div_scalar(cudaStream_t stream, int num_surfaces, const int *lowerAddr, const int *upperAddr,
@@ -2506,16 +2465,14 @@ void fvm_div_scalar(cudaStream_t stream, int num_surfaces, const int *lowerAddr,
         const double *boundary_phi, const double *value_internal_coeffs, const double *value_boundary_coeffs,
         double *internal_coeffs, double *boundary_coeffs, double sign)
 {
-    TICK_INIT_EVENT;
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     fvm_div_scalar_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_surfaces, lowerAddr, upperAddr,
             phi, weight, lower, upper, diag, sign);
-    TICK_END_EVENT(fvm_div_scalar_internal);
 
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
@@ -2536,20 +2493,14 @@ void fvm_div_vector(cudaStream_t stream, int num_surfaces, int num_boundary_surf
         const double *boundary_phi, const double *value_internal_coeffs, const double *value_boundary_coeffs,
         double *internal_coeffs, double *boundary_coeffs, double sign)
 {
-    TICK_INIT_EVENT;
     size_t threads_per_block = 256;
     size_t blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
-#ifdef TIME_GPU
-    printf("warm up ...\n");
-    warmup<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_surfaces);
-#endif
-    TICK_START_EVENT;
     fvm_div_vector_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_surfaces, lowerAddr, upperAddr,
             phi, weight, lower, upper, diag, sign);
-    TICK_END_EVENT(fvm_div_vector_internal);
 
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 64;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         fvm_div_vector_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset,
@@ -2576,6 +2527,7 @@ void fvm_laplacian_scalar(cudaStream_t stream, int num_surfaces, int num_boundar
             weight, mag_sf, delta_coeffs, gamma, lower, upper, diag, sign);
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         fvm_laplacian_scalar_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
@@ -2596,15 +2548,13 @@ void fvm_laplacian_vector(cudaStream_t stream, int num_surfaces, int num_boundar
         const double *gradient_internal_coeffs, const double *gradient_boundary_coeffs,
         double *internal_coeffs, double *boundary_coeffs, double sign)
 {
-    TICK_INIT_EVENT;
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     fvm_laplacian_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_surfaces, lowerAddr, upperAddr,
             weight, mag_sf, delta_coeffs, gamma, lower, upper, diag, sign);
-    TICK_END_EVENT(fvm_laplacian_internal);
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
@@ -2633,6 +2583,7 @@ void fvm_laplacian_surface_scalar_vol_scalar(cudaStream_t stream, int num_surfac
     
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         fvm_laplacian_surface_scalar_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
@@ -2651,13 +2602,10 @@ void fvc_ddt_vol_scalar_vol_scalar(cudaStream_t stream, int num_cells, double rD
         const double *rho, const double *rho_old, const double *vf, const double *vf_old, const double *volume, 
         double *output, double sign)
 {
-    TICK_INIT_EVENT;
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     fvc_ddt_vol_scalar_vol_scalar_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells,
             rDeltaT, rho, rho_old, vf, vf_old, volume, output, sign);
-    TICK_END_EVENT(fvc_ddt_vol_scalar_vol_scalar_kernel);
 }
 
 void fvc_grad_vector(cudaStream_t stream, ncclComm_t comm, 
@@ -2670,17 +2618,15 @@ void fvc_grad_vector(cudaStream_t stream, ncclComm_t comm,
         const int *cyclicNeighbor, const int *patchSizeOffset,
         const double *boundary_deltaCoeffs, double sign)
 {
-    TICK_INIT_EVENT;
     size_t threads_per_block = 32;
     size_t blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     fvc_grad_vector_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_surfaces, lowerAddr, upperAddr,
             Sf, weight, vf, output);
-    TICK_END_EVENT(fvc_grad_vector_internal);
     
     int offset = 0;
     // finish conctruct grad field except dividing cell volume
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 64;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
@@ -2689,10 +2635,8 @@ void fvc_grad_vector(cudaStream_t stream, ncclComm_t comm,
                 || patch_type[i] == boundaryConditions::calculated
                 || patch_type[i] == boundaryConditions::cyclic) {
             // TODO: just vector version now
-            TICK_START_EVENT;
             fvc_grad_vector_boundary_zeroGradient<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, num_cells, 
                     patch_size[i], offset, boundary_cell_face, boundary_Sf, boundary_vf, output);
-            TICK_END_EVENT(fvc_grad_vector_boundary_zeroGradient);
         } else if (patch_type[i] == boundaryConditions::processor
                     || patch_type[i] == boundaryConditions::processorCyclic) {
             fvc_grad_vector_boundary_processor<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, num_cells, 
@@ -2709,23 +2653,20 @@ void fvc_grad_vector(cudaStream_t stream, ncclComm_t comm,
     // divide cell volume
     threads_per_block = 512;
     blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     divide_cell_volume_tsr<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, volume, output);
-    TICK_END_EVENT(divide_cell_volume_tsr);
 
     // correct boundary conditions
     offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 64;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
         if (patch_type[i] == boundaryConditions::zeroGradient) {
             // TODO: just vector version now
-            TICK_START_EVENT;
             fvc_grad_vector_correctBC_zeroGradient<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_boundary_surfaces,
                     patch_size[i], offset, boundary_cell_face,
                     output, boundary_vf, boundary_Sf, boundary_mag_Sf, boundary_output);
-            TICK_END_EVENT(fvc_grad_vector_correctBC_zeroGradient);
         } else if (patch_type[i] == boundaryConditions::fixedValue) {
             // TODO: implement fixedValue version
             fvc_grad_vector_correctBC_fixedValue<<<blocks_per_grid, threads_per_block, 0, stream>>>(
@@ -2757,12 +2698,9 @@ void fvc_grad_vector(cudaStream_t stream, ncclComm_t comm,
 void scale_dev2T_tensor(cudaStream_t stream, int num_cells, const double *vf1, double *vf2,
         int num_boundary_surfaces, const double *boundary_vf1, double *boundary_vf2)
 {
-    TICK_INIT_EVENT;
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     scale_dev2t_tensor_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, vf1, vf2);
-    TICK_END_EVENT(scale_dev2t_tensor_kernel);
 
     blocks_per_grid = (num_boundary_surfaces + threads_per_block - 1) / threads_per_block;
     scale_dev2t_tensor_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, boundary_vf1, boundary_vf2);
@@ -2773,15 +2711,13 @@ void fvc_div_surface_scalar(cudaStream_t stream, int num_cells, int num_surfaces
         int num_patches, const int *patch_size, const int *patch_type,
         const double *boundary_ssf, const double *volume, double *output, double sign)
 {
-    TICK_INIT_EVENT;
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     fvc_div_surface_scalar_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_surfaces, lowerAddr, upperAddr, ssf, output, sign);
-    TICK_END_EVENT(fvc_div_surface_scalar_internal);
 
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         fvc_div_surface_scalar_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset, boundary_cell_face, 
@@ -2802,16 +2738,14 @@ void fvc_div_cell_vector(cudaStream_t stream, int num_cells, int num_surfaces, i
         const double *boundary_weight, const double *boundary_vf, const double *boundary_Sf,
         const double *volume, double sign)
 {
-    TICK_INIT_EVENT;
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     fvc_div_cell_vector_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_surfaces,
             lowerAddr, upperAddr, vf, weight, Sf, output, sign);
-    TICK_END_EVENT(fvc_div_cell_vector_internal);
 
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
@@ -2837,16 +2771,14 @@ void fvc_div_cell_tensor(cudaStream_t stream, int num_cells, int num_surfaces, i
         const int *boundary_cell_face, const double *boundary_vf, const double *boundary_Sf,
         const double *volume, double sign)
 {
-    TICK_INIT_EVENT;
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     fvc_div_cell_tensor_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_surfaces,
             lowerAddr, upperAddr, vf, weight, Sf, output, sign);
-    TICK_END_EVENT(fvc_div_cell_tensor_internal);
 
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 64;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
@@ -2855,11 +2787,9 @@ void fvc_div_cell_tensor(cudaStream_t stream, int num_cells, int num_surfaces, i
                 || patch_type[i] == boundaryConditions::calculated
                 || patch_type[i] == boundaryConditions::cyclic) {
             // TODO: just vector version now
-            TICK_START_EVENT;
             fvc_div_cell_tensor_boundary_zeroGradient<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_boundary_surfaces,
                     patch_size[i], offset, boundary_cell_face,
                     boundary_Sf, boundary_vf, output, sign);
-            TICK_END_EVENT(fvc_div_cell_tensor_boundary_zeroGradient);
         } else if (patch_type[i] == boundaryConditions::processor
                     || patch_type[i] == boundaryConditions::processorCyclic) {
             fvc_div_cell_tensor_boundary_processor<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_boundary_surfaces,
@@ -2881,16 +2811,14 @@ void fvc_div_surface_scalar_vol_scalar(cudaStream_t stream, int num_surfaces,
         const int *boundary_cell_face, const double *boundary_vf, const double *boundary_ssf, 
         double sign)
 {
-    TICK_INIT_EVENT;
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     fvc_div_surface_scalar_vol_scalar_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_surfaces,
             lowerAddr, upperAddr, weight, ssf, vf, output, sign);
-    TICK_END_EVENT(fvc_div_surface_scalar_vol_scalar_internal);
 
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 64;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         fvc_div_surface_scalar_vol_scalar_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(
@@ -2908,16 +2836,14 @@ void fvc_grad_cell_scalar(cudaStream_t stream, int num_cells, int num_surfaces, 
         int num_patches, const int *patch_size, const int *patch_type, const double *boundary_weight,
         const int *boundary_cell_face, const double *boundary_vf, const double *boundary_Sf, const double *volume, double sign)
 {
-    TICK_INIT_EVENT;
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     fvc_grad_scalar_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_surfaces, lowerAddr, upperAddr,
             Sf, weight, vf, output, sign);
-    TICK_END_EVENT(fvc_grad_scalar_internal);
     
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 64;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just non-coupled patch type now
@@ -2925,10 +2851,8 @@ void fvc_grad_cell_scalar(cudaStream_t stream, int num_cells, int num_surfaces, 
                 || patch_type[i] == boundaryConditions::fixedValue
                 || patch_type[i] == boundaryConditions::calculated
                 || patch_type[i] == boundaryConditions::cyclic) {
-            TICK_START_EVENT;
             fvc_grad_scalar_boundary_zeroGradient<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, num_cells, patch_size[i], offset, boundary_cell_face,
                     boundary_Sf, boundary_vf, output, sign);
-            TICK_END_EVENT(fvc_grad_scalar_boundary_zeroGradient);
         } else if (patch_type[i] == boundaryConditions::processor
                     || patch_type[i] == boundaryConditions::processorCyclic) {
             fvc_grad_scalar_boundary_processor<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, num_cells, patch_size[i], offset, boundary_cell_face,
@@ -2950,16 +2874,14 @@ void fvc_grad_cell_scalar(cudaStream_t stream, int num_cells, int num_surfaces, 
         const int *boundary_cell_face, const double *boundary_vf, const double *boundary_Sf, const double *volume, 
         bool dividVol, double sign)
 {
-    TICK_INIT_EVENT;
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     fvc_grad_scalar_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_surfaces, lowerAddr, upperAddr,
             Sf, weight, vf, output, sign);
-    TICK_END_EVENT(fvc_grad_scalar_internal);
     
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 64;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just non-coupled patch type now
@@ -2967,10 +2889,8 @@ void fvc_grad_cell_scalar(cudaStream_t stream, int num_cells, int num_surfaces, 
                 || patch_type[i] == boundaryConditions::fixedValue
                 || patch_type[i] == boundaryConditions::calculated
                 || patch_type[i] == boundaryConditions::cyclic) {
-            TICK_START_EVENT;
             fvc_grad_scalar_boundary_zeroGradient<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, num_cells, patch_size[i], offset, boundary_cell_face,
                     boundary_Sf, boundary_vf, output, sign);
-            TICK_END_EVENT(fvc_grad_scalar_boundary_zeroGradient);
         } else if (patch_type[i] == boundaryConditions::processor
                     || patch_type[i] == boundaryConditions::processorCyclic) {
             fvc_grad_scalar_boundary_processor<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, num_cells, patch_size[i], offset, boundary_cell_face,
@@ -3011,6 +2931,7 @@ void fvc_grad_cell_scalar_withBC(cudaStream_t stream, ncclComm_t comm, const int
     // correct boundary conditions
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
@@ -3064,6 +2985,7 @@ void fvc_laplacian_scalar(cudaStream_t stream, int num_cells, int num_surfaces, 
 
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just basic patch type now
@@ -3091,26 +3013,22 @@ void fvc_flux(cudaStream_t stream, int num_cells, int num_surfaces, int num_boun
         const int *boundary_cell_face, const double *boundary_vf, const double *boundary_Sf, 
         double *boundary_output, double sign)
 {
-    TICK_INIT_EVENT;
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     fvc_flux_internal_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_surfaces,
             lowerAddr, upperAddr, vf, weight, Sf, output, sign);
-    TICK_END_EVENT(fvc_flux_internal_kernel);
 
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: maybe do not need loop boundarys
         if (patch_type[i] == boundaryConditions::zeroGradient
                 || patch_type[i] == boundaryConditions::fixedValue
                 || patch_type[i] == boundaryConditions::gradientEnergy) {
-            TICK_START_EVENT;
             fvc_flux_boundary_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_boundary_surfaces, patch_size[i], offset, boundary_cell_face,
                     boundary_Sf, boundary_vf, boundary_output, sign);
-            TICK_END_EVENT(fvc_flux_boundary_kernel);
         } else {
             // xxx
             fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
@@ -3132,6 +3050,7 @@ void fvc_interpolate(cudaStream_t stream, int num_cells, int num_surfaces,
     
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: maybe do not need loop boundarys
@@ -3169,19 +3088,14 @@ void fvMtx_A(cudaStream_t stream, int num_cells, int num_surfaces, int num_bound
         double *A_pEqn)
 {
     checkCudaErrors(cudaMemcpyAsync(A_pEqn, diag, num_cells * sizeof(double), cudaMemcpyDeviceToDevice, stream));
-    TICK_INIT_EVENT;
 
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_boundary_surfaces + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     addAveInternaltoDiag<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_boundary_surfaces, boundary_cell_face, 
             internal_coeffs, A_pEqn);
-    TICK_END_EVENT(addAveInternaltoDiag);
     
     blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     divide_cell_volume_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, volume, A_pEqn);
-    TICK_END_EVENT(divide_cell_volume_scalar);
 }
 
 void fvMtx_H(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces, 
@@ -3191,42 +3105,34 @@ void fvMtx_H(cudaStream_t stream, int num_cells, int num_surfaces, int num_bound
         const double *lower, const double *upper, const double *source, const double *psi, 
         double *H_pEqn, double *H_pEqn_perm)
 {
-    TICK_INIT_EVENT;
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_boundary_surfaces + threads_per_block - 1) / threads_per_block;
 
-    TICK_START_EVENT;
     checkCudaErrors(cudaMemcpyAsync(H_pEqn, source, num_cells * 3 * sizeof(double), cudaMemcpyDeviceToDevice, stream));
     addBoundaryDiag<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_boundary_surfaces, boundary_cell_face, 
             internal_coffs, psi, H_pEqn);
-    TICK_END_EVENT(addBoundaryDiag);
     
     blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     lduMatrix_H<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_surfaces, lowerAddr, upperAddr, 
             lower, upper, psi, H_pEqn);
-    TICK_END_EVENT(lduMatrix_H);
 
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 64;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: just non-coupled patch type now
         if (patch_type[i] == boundaryConditions::zeroGradient
                 || patch_type[i] == boundaryConditions::fixedValue) {
-            TICK_START_EVENT;
             addBoundarySrc_unCoupled<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, patch_size[i], offset, 
                     num_boundary_surfaces, boundary_cell_face, boundary_coeffs, H_pEqn);
-            TICK_END_EVENT(addBoundarySrc_unCoupled);
         } else {
             fprintf(stderr, "%s %d, boundaryConditions other than zeroGradient are not support yet!\n", __FILE__, __LINE__);
         }
         offset += patch_size[i];
     }
     blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     divideVol_permute_vec<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, volume, H_pEqn, H_pEqn_perm);
-    TICK_END_EVENT(divideVol_permute_vec);
 }
 
 void fvMtx_flux(cudaStream_t stream, int num_surfaces, int num_boundary_surfaces, 
@@ -3242,6 +3148,7 @@ void fvMtx_flux(cudaStream_t stream, int num_surfaces, int num_boundary_surfaces
     
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 64;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         if (patch_type[i] == boundaryConditions::processor
@@ -3264,11 +3171,8 @@ void fvMtx_flux(cudaStream_t stream, int num_surfaces, int num_boundary_surfaces
 void solve_explicit_scalar(cudaStream_t stream, int num_cells, const double *diag, const double *source,
         double *psi)
 {
-    TICK_INIT_EVENT;
     size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
 
-    TICK_START_EVENT;
     solve_explicit_scalar_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, diag, source, psi);
-    TICK_END_EVENT(solve_explicit_scalar_kernel);
 }

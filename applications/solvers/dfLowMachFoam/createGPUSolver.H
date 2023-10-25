@@ -99,7 +99,7 @@ void initNccl() {
     ncclInit(PstreamGlobals::MPI_COMM_FOAM, nccl_comm, nccl_id, &nRanks, &myRank, &localRank, &mpi_init_flag);
 }
 
-void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
+void createGPUBase(const IOdictionary& CanteraTorchProperties, fvMesh& mesh, PtrList<volScalarField>& Y) {
     // prepare constant values: num_cells, num_surfaces, num_boundary_surfaces,
     // num_patches, patch_size, num_species, rdelta_t
     const labelUList& owner = mesh.owner();
@@ -152,6 +152,7 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
     double rDeltaT = 1 / 1e-6;
     dfDataBase.setConstantValues(num_cells, num_total_cells, num_surfaces, num_boundary_surfaces, 
             num_patches, nProcValues, patch_size, Y.size(), rDeltaT);
+
     // wyr: now there is no other place to prepare nccl info, thus mpi must be initialized at beginning.
     label flag_mpi_init;
     MPI_Initialized(&flag_mpi_init);
@@ -186,6 +187,14 @@ void createGPUBase(fvMesh& mesh, PtrList<volScalarField>& Y) {
 
     // prepare cuda resources
     dfDataBase.prepareCudaResources();
+
+    // setup amgx solvers
+    string mode_string = "dDDI";
+    string u_setting_path;
+    u_setting_path = CanteraTorchProperties.subDict("AmgxSettings").lookupOrDefault("UEqnSettingPath", string(""));
+    string p_setting_path;
+    p_setting_path = CanteraTorchProperties.subDict("AmgxSettings").lookupOrDefault("pEqnSettingPath", string(""));
+    dfDataBase.setAmgxSolvers(mode_string, u_setting_path, p_setting_path);
 
     // prepare constant indexes: owner, neighbor, procRows, procCols
     if (Pstream::parRun())
@@ -373,12 +382,14 @@ void createGPURhoEqn(const volScalarField& rho, const surfaceScalarField& phi) {
             offset += patchsize;
         }
     }
+    rhoEqn_GPU.setConstantValues();
     rhoEqn_GPU.setConstantFields(patch_type);
     rhoEqn_GPU.initNonConstantFields(h_rho, h_phi, h_boundary_rho, h_boundary_phi);
     rhoEqn_GPU.createNonConstantLduAndCsrFields();
 }
 
 void createGPUUEqn(const IOdictionary& CanteraTorchProperties, const volVectorField& U) {
+    // TODO need remove amgx solver setting
     // prepare mode_string and setting_path
     string mode_string = "dDDI";
     string settingPath;
@@ -431,6 +442,7 @@ void createGPUUEqn(const IOdictionary& CanteraTorchProperties, const volVectorFi
 
 void createGPUYEqn(const IOdictionary& CanteraTorchProperties, PtrList<volScalarField>& Y, const int inertIndex) {
     DEBUG_TRACE;
+    // TODO need remove amgx solver setting
     // prepare mode_string and setting_path
     string mode_string = "dDDI";
     string settingPath;
@@ -481,6 +493,7 @@ void createGPUYEqn(const IOdictionary& CanteraTorchProperties, PtrList<volScalar
 
 void createGPUEEqn(const IOdictionary& CanteraTorchProperties, volScalarField& he, volScalarField& K) {
     DEBUG_TRACE;
+    // TODO need remove amgx solver setting
     // prepare mode_string and setting_path
     string mode_string = "dDDI";
     string settingPath;
@@ -527,6 +540,7 @@ void createGPUEEqn(const IOdictionary& CanteraTorchProperties, volScalarField& h
 
 void createGPUpEqn(const IOdictionary& CanteraTorchProperties, volScalarField& p, const volVectorField& U) {
     DEBUG_TRACE;
+    // TODO need remove amgx solver setting
     // prepare mode_string and setting_path
     string mode_string = "dDDI";
     string settingPath;

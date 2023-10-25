@@ -6,28 +6,6 @@
 #include <cstring>
 #include "device_launch_parameters.h"
 
-#ifdef TIME_GPU
-    #define TICK_INIT_EVENT \
-        float time_elapsed_kernel=0;\
-        cudaEvent_t start_kernel, stop_kernel;\
-        checkCudaErrors(cudaEventCreate(&start_kernel));\
-        checkCudaErrors(cudaEventCreate(&stop_kernel));
-
-    #define TICK_START_EVENT \
-        checkCudaErrors(cudaEventRecord(start_kernel,0));
-
-    #define TICK_END_EVENT(prefix) \
-        checkCudaErrors(cudaEventRecord(stop_kernel,0));\
-        checkCudaErrors(cudaEventSynchronize(start_kernel));\
-        checkCudaErrors(cudaEventSynchronize(stop_kernel));\
-        checkCudaErrors(cudaEventElapsedTime(&time_elapsed_kernel,start_kernel,stop_kernel));\
-        printf("try %s 执行时间：%lf(ms)\n", #prefix, time_elapsed_kernel);
-#else
-    #define TICK_INIT_EVENT
-    #define TICK_START_EVENT
-    #define TICK_END_EVENT(prefix)
-#endif
-
 #define GAS_CANSTANT 8314.46261815324
 #define SQRT8 2.8284271247461903
 #define NUM_SPECIES 7
@@ -45,8 +23,8 @@ void init_const_coeff_ptr(std::vector<std::vector<double>>& nasa_coeffs, std::ve
         std::vector<std::vector<double>>& thermal_conductivity_coeffs, std::vector<std::vector<double>>& binary_diffusion_coeffs,
         std::vector<double>& molecular_weights)
 {
-    double *d_tmp;
-    checkCudaErrors(cudaMalloc((void**)&d_tmp, sizeof(double) * NUM_SPECIES * 15));
+    //double *d_tmp;
+    //checkCudaErrors(cudaMalloc((void**)&d_tmp, sizeof(double) * NUM_SPECIES * 15));
     double nasa_coeffs_tmp[NUM_SPECIES*15];
     double viscosity_coeffs_tmp[NUM_SPECIES*5];
     double thermal_conductivity_coeffs_tmp[NUM_SPECIES*5];
@@ -366,6 +344,7 @@ void dfThermo::setConstantValue(std::string mechanism_file, int num_cells, int n
     initCoeffsfromBinaryFile(fp);
 
     stream = dataBase_.stream;
+#ifndef STREAM_ALLOCATOR
     checkCudaErrors(cudaMalloc((void**)&d_mole_fraction, sizeof(double) * num_species * num_cells));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_mole_fraction, sizeof(double) * num_species * dataBase_.num_boundary_surfaces));
     checkCudaErrors(cudaMalloc((void**)&d_mean_mole_weight, sizeof(double) * num_cells));
@@ -377,10 +356,10 @@ void dfThermo::setConstantValue(std::string mechanism_file, int num_cells, int n
     checkCudaErrors(cudaMalloc((void**)&d_boundary_species_viscosities, sizeof(double) * num_species * dataBase_.num_boundary_surfaces));
     checkCudaErrors(cudaMalloc((void**)&d_species_thermal_conductivities, sizeof(double) * num_species * num_cells));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_species_thermal_conductivities, sizeof(double) * num_species * dataBase_.num_boundary_surfaces));
+#endif
     
     checkCudaErrors(cudaMalloc((void**)&d_psip0, sizeof(double) * num_cells));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_psip0, sizeof(double) * dataBase_.num_boundary_surfaces));
-
     std::cout << "dfThermo initialized" << std::endl;
 }
 
@@ -454,55 +433,40 @@ void dfThermo::calculateTPolyGPU(int threads_per_block, int num_thread, int num_
 void dfThermo::calculatePsiGPU(int threads_per_block, int num_thread, const double *T, const double *mean_mole_weight, 
         double *d_psi, int offset)
 {
-    TICK_INIT_EVENT;
     size_t blocks_per_grid = (num_thread + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     calculate_psi_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_thread, offset, T, mean_mole_weight, d_psi);
-    TICK_END_EVENT(calculate_psi_kernel);
 }
 
 void dfThermo::calculateRhoGPU(int threads_per_block, int num_thread, const double *p, const double *psi, double *rho, int offset)
 {
-    TICK_INIT_EVENT;
     size_t blocks_per_grid = (num_thread + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     calculate_rho_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, offset, p, psi, rho);
-    TICK_END_EVENT(calculate_rho_kernel);
 }
 
 void dfThermo::calculateViscosityGPU(int threads_per_block, int num_thread, int num_total, const double *T, const double *mole_fraction, 
         const double *T_poly, double *species_viscosities, double *viscosity, int offset)
 {
-    TICK_INIT_EVENT;
     size_t blocks_per_grid = (num_thread + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     calculate_viscosity_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_thread, num_total, num_species, offset, 
             T_poly, T, mole_fraction, species_viscosities, viscosity);
-    TICK_END_EVENT(calculate_viscosity_kernel);
 }
 
 void dfThermo::calculateThermoConductivityGPU(int threads_per_block, int num_thread, int num_total, const double *T, 
         const double *T_poly, const double *d_y, const double *mole_fraction, double *species_thermal_conductivities,
         double *thermal_conductivity, int offset)
 {
-    TICK_INIT_EVENT;
     size_t blocks_per_grid = (num_thread + threads_per_block - 1) / threads_per_block;
-    TICK_START_EVENT;
     calculate_thermoConductivity_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_thread, num_total, num_species, 
             offset, d_nasa_coeffs, d_y, T_poly, T, mole_fraction, species_thermal_conductivities, thermal_conductivity);
-    TICK_END_EVENT(calculate_thermoConductivity_kernel);
 }
 
 void dfThermo::calculateTemperatureGPU(int threads_per_block, int num_thread, int num_total, const double *T_init, const double *target_h, double *T, 
         const double *d_mass_fraction, int offset, double atol, double rtol, int max_iter)
 {
-    TICK_INIT_EVENT;
     size_t blocks_per_grid = (num_thread + threads_per_block - 1) / threads_per_block;
 
-    TICK_START_EVENT;
     calculate_temperature_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_thread, num_total, num_species, offset,
             T_init, target_h, d_mass_fraction, T, atol, rtol, max_iter);
-    TICK_END_EVENT(calculate_temperature_kernel);
 }
 
 void dfThermo::calculateEnthalpyGPU(int threads_per_block, int num_thread, const double *T, double *enthalpy, const double *d_mass_fraction, int offset)
@@ -530,6 +494,20 @@ void dfThermo::updateEnergy()
 
 void dfThermo::correctThermo()
 {
+#ifdef STREAM_ALLOCATOR
+    checkCudaErrors(cudaMallocAsync((void**)&d_mole_fraction, sizeof(double) * num_species * num_cells, stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_boundary_mole_fraction, sizeof(double) * num_species * dataBase_.num_boundary_surfaces, stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_mean_mole_weight, sizeof(double) * num_cells, stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_boundary_mean_mole_weight, sizeof(double) * dataBase_.num_boundary_surfaces, stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_T_poly, sizeof(double) * 5 * num_cells, stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_boundary_T_poly, sizeof(double) * 5 * dataBase_.num_boundary_surfaces, stream));
+
+    checkCudaErrors(cudaMallocAsync((void**)&d_species_viscosities, sizeof(double) * num_species * num_cells, stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_boundary_species_viscosities, sizeof(double) * num_species * dataBase_.num_boundary_surfaces, stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_species_thermal_conductivities, sizeof(double) * num_species * num_cells, stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_boundary_species_thermal_conductivities, sizeof(double) * num_species * dataBase_.num_boundary_surfaces, stream));
+#endif
+ 
     setMassFraction(dataBase_.d_y, dataBase_.d_boundary_y);
     // internal field
     int cell_thread = 512, boundary_thread = 32;
@@ -544,6 +522,7 @@ void dfThermo::correctThermo()
     // boundary field
     int offset = 0;
     for (int i = 0; i < dataBase_.num_patches; i++) {
+        if (dataBase_.patch_size[i] == 0) continue;
         if (dataBase_.patch_type_T[i] == boundaryConditions::fixedValue) {
             calculateTPolyGPU(boundary_thread, dataBase_.patch_size[i], dataBase_.num_boundary_surfaces, dataBase_.d_boundary_T, d_boundary_T_poly, offset);
             calculateEnthalpyGPU(boundary_thread, dataBase_.patch_size[i], dataBase_.d_boundary_T, dataBase_.d_boundary_he, 
@@ -587,6 +566,19 @@ void dfThermo::correctThermo()
         } else {
             offset += dataBase_.patch_size[i]; }
     }
+#ifdef STREAM_ALLOCATOR
+    checkCudaErrors(cudaFreeAsync(d_mole_fraction, stream));
+    checkCudaErrors(cudaFreeAsync(d_boundary_mole_fraction, stream));
+    checkCudaErrors(cudaFreeAsync(d_mean_mole_weight, stream));
+    checkCudaErrors(cudaFreeAsync(d_boundary_mean_mole_weight, stream));
+    checkCudaErrors(cudaFreeAsync(d_T_poly, stream));
+    checkCudaErrors(cudaFreeAsync(d_boundary_T_poly, stream));
+
+    checkCudaErrors(cudaFreeAsync(d_species_viscosities, stream));
+    checkCudaErrors(cudaFreeAsync(d_boundary_species_viscosities, stream));
+    checkCudaErrors(cudaFreeAsync(d_species_thermal_conductivities, stream));
+    checkCudaErrors(cudaFreeAsync(d_boundary_species_thermal_conductivities, stream));
+#endif
 }
 
 void dfThermo::updateRho()
@@ -620,7 +612,6 @@ void dfThermo::calculateEnergyGradient(int num_thread, int num_cells, int num_sp
 {
     size_t threads_per_block = 256;
     size_t blocks_per_grid = (num_thread + threads_per_block - 1) / threads_per_block;
-
     calculate_energy_gradient_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_thread, num_cells, num_species, num_boundary_surfaces,
             bou_offset, gradient_offset, face2Cells, T, p, y, boundary_p, boundary_y, boundary_delta_coeffs, boundary_thermo_gradient);
 }

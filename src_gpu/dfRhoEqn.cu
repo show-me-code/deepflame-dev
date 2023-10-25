@@ -9,6 +9,10 @@ void dfRhoEqn::createNonConstantLduAndCsrFields()
 #endif
 }
 
+void dfRhoEqn::setConstantValues() {
+    this->stream = dataBase_.stream;
+}
+
 void dfRhoEqn::setConstantFields(const std::vector<int> patch_type) {
   this->patch_type = patch_type;
 }
@@ -22,10 +26,12 @@ void dfRhoEqn::initNonConstantFields(const double *rho, const double *phi,
 }
 
 void dfRhoEqn::cleanCudaResources() {
+#ifdef USE_GRAPH
     if (graph_created) {
         checkCudaErrors(cudaGraphExecDestroy(graph_instance));
         checkCudaErrors(cudaGraphDestroy(graph));
     }
+#endif
 }
 
 void dfRhoEqn::preProcess()
@@ -34,18 +40,13 @@ void dfRhoEqn::preProcess()
 
 void dfRhoEqn::process()
 {
-    // 使用event计算时间
-    float time_elapsed=0;
-    cudaEvent_t start,stop;
-    checkCudaErrors(cudaEventCreate(&start));
-    checkCudaErrors(cudaEventCreate(&stop));
-    checkCudaErrors(cudaEventRecord(start,0));
-
-// #ifndef TIME_GPU
-//     if(!graph_created) {
-//         DEBUG_TRACE;
-//         checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
-// #endif
+    TICK_INIT_EVENT;
+    TICK_START_EVENT;
+#ifdef USE_GRAPH
+    if(!graph_created) {
+        DEBUG_TRACE;
+        checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
+#endif
 
 #ifdef STREAM_ALLOCATOR
     checkCudaErrors(cudaMallocAsync((void**)&d_source, dataBase_.cell_value_bytes, dataBase_.stream));
@@ -69,21 +70,25 @@ void dfRhoEqn::process()
             dataBase_.num_boundary_surfaces, dataBase_.num_patches, dataBase_.patch_size.data(),
             patch_type.data(), dataBase_.d_boundary_delta_coeffs, dataBase_.d_boundary_face_cell, dataBase_.d_rho, dataBase_.d_boundary_rho,
             dataBase_.cyclicNeighbor.data(), dataBase_.patchSizeOffset.data(), dataBase_.d_boundary_weight);
-    
-// #ifndef TIME_GPU
-//         checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph));
-//         checkCudaErrors(cudaGraphInstantiate(&graph_instance, graph, NULL, NULL, 0));
-//         graph_created = true;
-//     }
-//     checkCudaErrors(cudaGraphLaunch(graph_instance, dataBase_.stream));
-// #endif
+#ifdef USE_GRAPH
+        checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph));
+        checkCudaErrors(cudaGraphInstantiate(&graph_instance, graph, NULL, NULL, 0));
+        graph_created = true;
+    }
+    checkCudaErrors(cudaGraphLaunch(graph_instance, dataBase_.stream));
+#endif
+    TICK_END_EVENT(rhoEqn process);
 
-    checkCudaErrors(cudaEventRecord(stop,0));
-    checkCudaErrors(cudaEventSynchronize(start));
-    checkCudaErrors(cudaEventSynchronize(stop));
-    checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
-    if(!mpi_init_flag || myRank == 0)
-    fprintf(stderr, "rhoEqn process time:%f(ms)\n\n",time_elapsed);
+    TICK_START_EVENT;
+#ifdef STREAM_ALLOCATOR
+    checkCudaErrors(cudaFreeAsync(d_source, dataBase_.stream));
+    checkCudaErrors(cudaFreeAsync(d_diag, dataBase_.stream));
+#endif
+    TICK_END_EVENT(rhoEqn post process free);
+    TICK_START_EVENT;
+    checkCudaErrors(cudaMemcpyAsync(dataBase_.h_rho, dataBase_.d_rho, dataBase_.cell_value_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
+    TICK_END_EVENT(rhoEqn post process copy back);
+    sync();
 }
 
 void dfRhoEqn::sync()
@@ -96,16 +101,7 @@ void dfRhoEqn::solve()
     solve_explicit_scalar(dataBase_.stream, dataBase_.num_cells, d_diag, d_source, dataBase_.d_rho);
 }
 
-void dfRhoEqn::postProcess(double *h_rho)
-{
-#ifdef STREAM_ALLOCATOR
-    checkCudaErrors(cudaFreeAsync(d_source, dataBase_.stream));
-    checkCudaErrors(cudaFreeAsync(d_diag, dataBase_.stream));
-#endif
-    checkCudaErrors(cudaMemcpyAsync(h_rho, dataBase_.d_rho, dataBase_.cell_value_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
-    sync();
-    // TODO: correct boundary conditions
-}
+void dfRhoEqn::postProcess(double *h_rho) {}
 
 void dfRhoEqn::compareResult(const double *diag, const double *source, bool printFlag)
 {
