@@ -555,7 +555,6 @@ void dfYEqn::process() {
     // to compare yi, you should only open DEBUG_ in src_gpu.
     // Besides, if you compare ldu data, be patient to keep specie_index in YEqn.H and dfYEqn.cu the same.
 // #define DEBUG_CHECK_LDU
-    int solverIndex = 0;
 #if defined DEBUG_CHECK_LDU
     int specie_index = 0;
     for (int s = specie_index; s < specie_index + 1; s++) {
@@ -611,7 +610,6 @@ void dfYEqn::process() {
                     dataBase_.num_Nz, dataBase_.d_boundary_face_cell, dataBase_.d_ldu_to_csr_index, dataBase_.num_patches,
                     dataBase_.patch_size.data(), patch_type.data(), d_ldu, d_source, d_internal_coeffs, d_boundary_coeffs, d_A);
             // TODO with solver of database_, solverIndex is no need any more.
-            //solve(solverIndex, s); 
             //solverIndex ++;
             solve(s);
 #endif
