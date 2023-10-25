@@ -93,7 +93,7 @@
 		// EEqn_GPU.compareResult(&EEqn.lower()[0], &EEqn.upper()[0], &EEqn.diag()[0], &EEqn.source()[0],
 		// 		h_internal_coeffs.data(), h_boundary_coeffs.data(), printFlag);
 		// DEBUG_TRACE;
-        EEqn_GPU.compareHe(&he[0], h_boundary_he_tmp, printFlag);
+        //EEqn_GPU.compareHe(&he[0], h_boundary_he_tmp, printFlag);
     }
 
     delete h_boundary_he_tmp;

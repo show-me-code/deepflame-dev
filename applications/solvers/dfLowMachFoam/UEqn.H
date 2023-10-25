@@ -118,7 +118,7 @@
         //     h_internal_coeffs.data(), h_boundary_coeffs.data(), 
         //     // &gradU[0][0], h_boundary_gradU,
         //     printFlag);
-        UEqn_GPU.compareU(&U[0][0], h_boundary_u_tmp, printFlag);
+        //UEqn_GPU.compareU(&U[0][0], h_boundary_u_tmp, printFlag);
     }
     DEBUG_TRACE;
 #endif

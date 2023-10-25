@@ -11,10 +11,14 @@ private:
 	dfMatrixDataBase &dataBase_;
 
     // cuda resource
+    cudaStream_t stream;
+#ifdef USE_GRAPH
     // one graph for one eqn before using self-developed solver
     cudaGraph_t graph_pre, graph_post;
     cudaGraphExec_t graph_instance_pre, graph_instance_post;
-    bool graph_created=false;
+    bool pre_graph_created=false;
+    bool post_graph_created=false;
+#endif
 
 	// constant values -- basic
 	std::string mode_string;
@@ -111,7 +115,7 @@ public:
     void preProcessForRhoEqn(const double *h_rho, const double *h_phi, const double *h_boundary_phi);
 	void preProcess(const double *h_u, const double *h_boundary_u, const double *h_p, const double *h_boundary_p, const double *h_nu_eff, const double *h_boundary_nu_eff);
 	void process();
-	void postProcess(double *h_u);
+	void postProcess();
 
     void A(double *Psi);
     void H(double *Psi);

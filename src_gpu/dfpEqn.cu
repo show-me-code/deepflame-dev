@@ -294,6 +294,7 @@ double* dfpEqn::getFieldPointer(const char* fieldAlias, location loc, position p
 }
 
 void dfpEqn::setConstantValues(const std::string &mode_string, const std::string &setting_path) {
+    this->stream = dataBase_.stream;
     this->mode_string = mode_string;
     this->setting_path = setting_path;
     pSolver = new AmgXSolver(mode_string, setting_path, dataBase_.localRank);
@@ -305,13 +306,17 @@ void dfpEqn::setConstantFields(const std::vector<int> patch_type_U, const std::v
 }
 
 void dfpEqn::createNonConstantFieldsInternal() {
+#ifndef STREAM_ALLOCATOR
     // intermediate fields
     checkCudaErrors(cudaMalloc((void**)&d_rhorAUf, dataBase_.surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_phiHbyA, dataBase_.surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_flux, dataBase_.surface_value_bytes));
+#endif
 }
 
 void dfpEqn::createNonConstantFieldsBoundary() {
+#ifndef STREAM_ALLOCATOR
+    // boundary coeffs
     checkCudaErrors(cudaMalloc((void**)&d_value_internal_coeffs, dataBase_.boundary_surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_value_boundary_coeffs, dataBase_.boundary_surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_gradient_internal_coeffs, dataBase_.boundary_surface_value_bytes));
@@ -320,18 +325,22 @@ void dfpEqn::createNonConstantFieldsBoundary() {
     checkCudaErrors(cudaMalloc((void**)&d_boundary_rhorAUf, dataBase_.boundary_surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_phiHbyA, dataBase_.boundary_surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_flux, dataBase_.boundary_surface_value_bytes));
+#endif
 }
 
 void dfpEqn::createNonConstantLduAndCsrFields() {
+    // ldu and csr
     checkCudaErrors(cudaMalloc((void**)&d_ldu, dataBase_.csr_value_bytes));
     d_lower = d_ldu;
     d_diag = d_ldu + dataBase_.num_surfaces;
     d_upper = d_ldu + dataBase_.num_cells + dataBase_.num_surfaces;
     d_extern = d_ldu + dataBase_.num_cells + 2 * dataBase_.num_surfaces;
+#ifndef STREAM_ALLOCATOR
     checkCudaErrors(cudaMalloc((void**)&d_source, dataBase_.cell_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_internal_coeffs, dataBase_.boundary_surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_coeffs, dataBase_.boundary_surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_A, dataBase_.csr_value_bytes));
+#endif
 }
 
 void dfpEqn::initNonConstantFields(const double *p, const double *boundary_p){
@@ -340,12 +349,16 @@ void dfpEqn::initNonConstantFields(const double *p, const double *boundary_p){
 }
 
 void dfpEqn::cleanCudaResources() {
-    if (graph_created) {
+#ifdef USE_GRAPH
+    if (pre_graph_created) {
         checkCudaErrors(cudaGraphExecDestroy(graph_instance_pre));
-        checkCudaErrors(cudaGraphExecDestroy(graph_instance_post));
         checkCudaErrors(cudaGraphDestroy(graph_pre));
+    }
+    if (post_graph_created) {
+        checkCudaErrors(cudaGraphExecDestroy(graph_instance_post));
         checkCudaErrors(cudaGraphDestroy(graph_post));
     }
+#endif
 }
 
 // tmp
@@ -364,17 +377,35 @@ void dfpEqn::correctP(const double *h_p, double *h_boundary_p) {
 };
 
 void dfpEqn::process() {
-
-    float time_elapsed=0;
-    cudaEvent_t start,stop;
-    checkCudaErrors(cudaEventCreate(&start));
-    checkCudaErrors(cudaEventCreate(&stop));
-    checkCudaErrors(cudaEventRecord(start,0));
-
-#ifndef TIME_GPU
-    if(!graph_created) {
+    TICK_INIT_EVENT;
+    TICK_START_EVENT;
+#ifdef USE_GRAPH
+    if(!pre_graph_created) {
         DEBUG_TRACE;
         checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
+#endif
+
+#ifdef STREAM_ALLOCATOR
+    // intermediate fields
+    checkCudaErrors(cudaMallocAsync((void**)&d_rhorAUf, dataBase_.surface_value_bytes, dataBase_.stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_phiHbyA, dataBase_.surface_value_bytes, dataBase_.stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_flux, dataBase_.surface_value_bytes, dataBase_.stream));
+
+    // boundary coeffs
+    checkCudaErrors(cudaMallocAsync((void**)&d_value_internal_coeffs, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_value_boundary_coeffs, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_gradient_internal_coeffs, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_gradient_boundary_coeffs, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
+    // intermediate boundary fields
+    checkCudaErrors(cudaMallocAsync((void**)&d_boundary_rhorAUf, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_boundary_phiHbyA, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_boundary_flux, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
+
+    // ldu and csr
+    checkCudaErrors(cudaMallocAsync((void**)&d_source, dataBase_.cell_value_bytes, dataBase_.stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_internal_coeffs, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_boundary_coeffs, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
+    checkCudaErrors(cudaMallocAsync((void**)&d_A, dataBase_.csr_value_bytes, dataBase_.stream));
 #endif
 
     checkCudaErrors(cudaMemsetAsync(d_ldu, 0, dataBase_.csr_value_bytes, dataBase_.stream)); // d_ldu contains d_lower, d_diag, and d_upper
@@ -428,93 +459,101 @@ void dfpEqn::process() {
             dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_p.data(),
             d_ldu, d_source, d_internal_coeffs, d_boundary_coeffs, d_A);
 
-#ifndef TIME_GPU
+#ifdef USE_GRAPH
         checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph_pre));
         checkCudaErrors(cudaGraphInstantiate(&graph_instance_pre, graph_pre, NULL, NULL, 0));
+        pre_graph_created = true;
     }
     DEBUG_TRACE;
     checkCudaErrors(cudaGraphLaunch(graph_instance_pre, dataBase_.stream));
 #endif
-    checkCudaErrors(cudaEventRecord(stop,0));
-    checkCudaErrors(cudaEventSynchronize(start));
-    checkCudaErrors(cudaEventSynchronize(stop));
-    checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
-    if(!mpi_init_flag || myRank == 0)
-    fprintf(stderr, "peqn assembly time:%f(ms)\n",time_elapsed);
-    
-    checkCudaErrors(cudaEventRecord(start,0));
-    solve();
-    checkCudaErrors(cudaEventRecord(stop,0));
-    checkCudaErrors(cudaEventSynchronize(start));
-    checkCudaErrors(cudaEventSynchronize(stop));
-    checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
-    if(!mpi_init_flag || myRank == 0)
-    fprintf(stderr, "peqn solve time:%f(ms)\n",time_elapsed);
+    TICK_END_EVENT(pEqn assembly);
 
-    checkCudaErrors(cudaEventRecord(start,0));
-#ifndef TIME_GPU
-    if(!graph_created) {
+    TICK_START_EVENT;
+    solve();
+    TICK_END_EVENT(pEqn solve);
+
+#ifdef USE_GRAPH
+    if(!post_graph_created) {
         checkCudaErrors(cudaStreamBeginCapture(dataBase_.stream, cudaStreamCaptureModeGlobal));
 #endif
     
-    correct_boundary_conditions_scalar(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
-            dataBase_.num_boundary_surfaces, dataBase_.num_patches, dataBase_.patch_size.data(), 
-            patch_type_p.data(), dataBase_.d_boundary_delta_coeffs,
-            dataBase_.d_boundary_face_cell, dataBase_.d_p, dataBase_.d_boundary_p,
-            dataBase_.cyclicNeighbor.data(), dataBase_.patchSizeOffset.data(), dataBase_.d_boundary_weight);
-    // update phi
-    fvMtx_flux(dataBase_.stream, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, dataBase_.d_owner, dataBase_.d_neighbor, 
-            d_lower, d_upper, dataBase_.d_p, d_flux,
-            dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_p.data(), 
-            dataBase_.d_boundary_face_cell, d_internal_coeffs, d_boundary_coeffs, dataBase_.cyclicNeighbor.data(), 
-            dataBase_.patchSizeOffset.data(), dataBase_.d_boundary_p, d_boundary_flux);
-    field_add_scalar(dataBase_.stream, dataBase_.num_surfaces, d_phiHbyA, d_flux, dataBase_.d_phi, 
-            dataBase_.num_boundary_surfaces, d_boundary_phiHbyA, d_boundary_flux, dataBase_.d_boundary_phi);
-    // correct U
-    checkCudaErrors(cudaMemsetAsync(dataBase_.d_u, 0., dataBase_.cell_value_vec_bytes, dataBase_.stream));
-    // TODO: may do not need to calculate boundary fields
-    fvc_grad_cell_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
-            dataBase_.d_owner, dataBase_.d_neighbor, 
-            dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_p, dataBase_.d_u, 
-            dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_p.data(), dataBase_.d_boundary_weight,
-            dataBase_.d_boundary_face_cell, dataBase_.d_boundary_p, dataBase_.d_boundary_sf, dataBase_.d_volume, true);
-    scalar_field_multiply_vector_field(dataBase_.stream, dataBase_.num_cells, dataBase_.d_rAU, dataBase_.d_u, dataBase_.d_u);
-    field_add_vector(dataBase_.stream, dataBase_.num_cells, dataBase_.d_HbyA, dataBase_.d_u, dataBase_.d_u, -1.);
-    correct_boundary_conditions_vector(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(), dataBase_.num_boundary_surfaces, 
-            dataBase_.num_cells, dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_U.data(), dataBase_.d_boundary_weight,
-            dataBase_.d_boundary_face_cell, dataBase_.d_u, dataBase_.d_boundary_u, 
-            dataBase_.cyclicNeighbor.data(), dataBase_.patchSizeOffset.data());
-    vector_half_mag_square(dataBase_.stream, dataBase_.num_cells, dataBase_.d_u, dataBase_.d_k, dataBase_.num_boundary_surfaces, 
-            dataBase_.d_boundary_u, dataBase_.d_boundary_k);
-    // calculate dpdt
-    fvc_ddt_scalar_field(dataBase_.stream, dataBase_.num_cells, dataBase_.rdelta_t, dataBase_.d_p, dataBase_.d_p_old, dataBase_.d_volume, dataBase_.d_dpdt, 1.);
+        TICK_START_EVENT;
+        correct_boundary_conditions_scalar(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
+                dataBase_.num_boundary_surfaces, dataBase_.num_patches, dataBase_.patch_size.data(), 
+                patch_type_p.data(), dataBase_.d_boundary_delta_coeffs,
+                dataBase_.d_boundary_face_cell, dataBase_.d_p, dataBase_.d_boundary_p,
+                dataBase_.cyclicNeighbor.data(), dataBase_.patchSizeOffset.data(), dataBase_.d_boundary_weight);
+        // update phi
+        fvMtx_flux(dataBase_.stream, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, dataBase_.d_owner, dataBase_.d_neighbor, 
+                d_lower, d_upper, dataBase_.d_p, d_flux,
+                dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_p.data(), 
+                dataBase_.d_boundary_face_cell, d_internal_coeffs, d_boundary_coeffs, dataBase_.cyclicNeighbor.data(), 
+                dataBase_.patchSizeOffset.data(), dataBase_.d_boundary_p, d_boundary_flux);
+        field_add_scalar(dataBase_.stream, dataBase_.num_surfaces, d_phiHbyA, d_flux, dataBase_.d_phi, 
+                dataBase_.num_boundary_surfaces, d_boundary_phiHbyA, d_boundary_flux, dataBase_.d_boundary_phi);
+        // correct U
+        checkCudaErrors(cudaMemsetAsync(dataBase_.d_u, 0., dataBase_.cell_value_vec_bytes, dataBase_.stream));
+        // TODO: may do not need to calculate boundary fields
+        fvc_grad_cell_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
+                dataBase_.d_owner, dataBase_.d_neighbor, 
+                dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_p, dataBase_.d_u, 
+                dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_p.data(), dataBase_.d_boundary_weight,
+                dataBase_.d_boundary_face_cell, dataBase_.d_boundary_p, dataBase_.d_boundary_sf, dataBase_.d_volume, true);
+        scalar_field_multiply_vector_field(dataBase_.stream, dataBase_.num_cells, dataBase_.d_rAU, dataBase_.d_u, dataBase_.d_u);
+        field_add_vector(dataBase_.stream, dataBase_.num_cells, dataBase_.d_HbyA, dataBase_.d_u, dataBase_.d_u, -1.);
+        correct_boundary_conditions_vector(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(), dataBase_.num_boundary_surfaces, 
+                dataBase_.num_cells, dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_U.data(), dataBase_.d_boundary_weight,
+                dataBase_.d_boundary_face_cell, dataBase_.d_u, dataBase_.d_boundary_u, 
+                dataBase_.cyclicNeighbor.data(), dataBase_.patchSizeOffset.data());
+        vector_half_mag_square(dataBase_.stream, dataBase_.num_cells, dataBase_.d_u, dataBase_.d_k, dataBase_.num_boundary_surfaces, 
+                dataBase_.d_boundary_u, dataBase_.d_boundary_k);
+        // calculate dpdt
+        fvc_ddt_scalar_field(dataBase_.stream, dataBase_.num_cells, dataBase_.rdelta_t, dataBase_.d_p, dataBase_.d_p_old, dataBase_.d_volume, dataBase_.d_dpdt, 1.);
 
-    #ifndef TIME_GPU
+#ifdef STREAM_ALLOCATOR
+        // intermediate fields
+        checkCudaErrors(cudaFreeAsync(d_rhorAUf, dataBase_.stream));
+        checkCudaErrors(cudaFreeAsync(d_phiHbyA, dataBase_.stream));
+        checkCudaErrors(cudaFreeAsync(d_flux, dataBase_.stream));
+
+        // boundary coeffs
+        checkCudaErrors(cudaFreeAsync(d_value_internal_coeffs, dataBase_.stream));
+        checkCudaErrors(cudaFreeAsync(d_value_boundary_coeffs, dataBase_.stream));
+        checkCudaErrors(cudaFreeAsync(d_gradient_internal_coeffs, dataBase_.stream));
+        checkCudaErrors(cudaFreeAsync(d_gradient_boundary_coeffs, dataBase_.stream));
+        // intermediate boundary fields
+        checkCudaErrors(cudaFreeAsync(d_boundary_rhorAUf, dataBase_.stream));
+        checkCudaErrors(cudaFreeAsync(d_boundary_phiHbyA, dataBase_.stream));
+        checkCudaErrors(cudaFreeAsync(d_boundary_flux, dataBase_.stream));
+
+        // ldu and csr
+        checkCudaErrors(cudaFreeAsync(d_source, dataBase_.stream));
+        checkCudaErrors(cudaFreeAsync(d_internal_coeffs, dataBase_.stream));
+        checkCudaErrors(cudaFreeAsync(d_boundary_coeffs, dataBase_.stream));
+        checkCudaErrors(cudaFreeAsync(d_A, dataBase_.stream));
+#endif
+        TICK_END_EVENT(pEqn post process all);
+
+#ifdef USE_GRAPH
         checkCudaErrors(cudaStreamEndCapture(dataBase_.stream, &graph_post));
         checkCudaErrors(cudaGraphInstantiate(&graph_instance_post, graph_post, NULL, NULL, 0));
-        graph_created = true;
+        post_graph_created = true;
     }
     checkCudaErrors(cudaGraphLaunch(graph_instance_post, dataBase_.stream));
 #endif
-    
-    checkCudaErrors(cudaEventRecord(stop,0));
-    checkCudaErrors(cudaEventSynchronize(start));
-    checkCudaErrors(cudaEventSynchronize(stop));
-    checkCudaErrors(cudaEventElapsedTime(&time_elapsed,start,stop));
-    if(!mpi_init_flag || myRank == 0)
-    fprintf(stderr, "peqn post process time:%f(ms)\n\n",time_elapsed);
+    sync();
 }
 void dfpEqn::postProcess() {}
 
-void dfpEqn::getFlux()
-{
-    fvMtx_flux(dataBase_.stream, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, dataBase_.d_owner, dataBase_.d_neighbor, 
-            d_lower, d_upper, dataBase_.d_p, d_flux,
-            dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_p.data(), 
-            dataBase_.d_boundary_face_cell, d_internal_coeffs, d_boundary_coeffs, dataBase_.cyclicNeighbor.data(), 
-            dataBase_.patchSizeOffset.data(), dataBase_.d_boundary_p, d_boundary_flux);
-    sync();
-}
+//void dfpEqn::getFlux()
+//{
+//    fvMtx_flux(dataBase_.stream, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, dataBase_.d_owner, dataBase_.d_neighbor, 
+//            d_lower, d_upper, dataBase_.d_p, d_flux,
+//            dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_p.data(), 
+//            dataBase_.d_boundary_face_cell, d_internal_coeffs, d_boundary_coeffs, dataBase_.d_boundary_p, d_boundary_flux);
+//    sync();
+//}
 
 void dfpEqn::getrhorAUf(cudaStream_t stream, int num_cells, int num_surfaces,
         const int *lowerAddr, const int *upperAddr, 
@@ -529,6 +568,7 @@ void dfpEqn::getrhorAUf(cudaStream_t stream, int num_cells, int num_surfaces,
     
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         // TODO: maybe do not need loop boundarys
@@ -567,6 +607,7 @@ void dfpEqn::getphiHbyA(cudaStream_t stream, int num_cells, int num_surfaces, in
     
     int offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         if (patch_type[i] == boundaryConditions::processor
@@ -586,6 +627,7 @@ void dfpEqn::getphiHbyA(cudaStream_t stream, int num_cells, int num_surfaces, in
 
     offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         if (patch_type[i] == boundaryConditions::processor
@@ -606,6 +648,7 @@ void dfpEqn::getphiHbyA(cudaStream_t stream, int num_cells, int num_surfaces, in
     
     offset = 0;
     for (int i = 0; i < num_patches; i++) {
+        if (patch_size[i] == 0) continue;
         threads_per_block = 256;
         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
         if (patch_type[i] == boundaryConditions::extrapolated
@@ -639,30 +682,7 @@ void dfpEqn::sync()
 
 void dfpEqn::solve()
 {
-    sync();
-
-    // double *h_A_csr = new double[dataBase_.num_Nz];
-    // checkCudaErrors(cudaMemcpy(h_A_csr, d_A, dataBase_.csr_value_bytes, cudaMemcpyDeviceToHost));
-    // for (int i = 0; i < dataBase_.num_Nz; i++)
-    //     fprintf(stderr, "h_A_csr[%d]: %.10lf\n", i, h_A_csr[i]);
-    // delete[] h_A_csr;
-
-    // double *h_b = new double[dataBase_.num_cells];
-    // checkCudaErrors(cudaMemcpy(h_b, d_source, dataBase_.cell_value_bytes, cudaMemcpyDeviceToHost));
-    // for (int i = 0; i < dataBase_.num_cells; i++)
-    //     fprintf(stderr, "h_b[%d]: %.10lf\n", i, h_b[i]);
-    // delete[] h_b;
-
-    if (num_iteration == 0)                                     // first interation
-    {
-        printf("Initializing AmgX Linear Solver\n");
-        pSolver->setOperator(dataBase_.num_cells, dataBase_.num_total_cells, dataBase_.num_Nz, dataBase_.d_csr_row_index, dataBase_.d_csr_col_index, d_A);
-    }
-    else
-    {
-        pSolver->updateOperator(dataBase_.num_cells, dataBase_.num_Nz, d_A);
-    }
-    pSolver->solve(dataBase_.num_cells, dataBase_.d_p, d_source);
+    dataBase_.solve(num_iteration, AMGXSetting::p_setting, d_A, dataBase_.d_p, d_source);
     num_iteration++;
 }
 

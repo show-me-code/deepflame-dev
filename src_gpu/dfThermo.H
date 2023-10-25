@@ -1,6 +1,7 @@
 #pragma once
 
 #include "dfMatrixDataBase.H"
+#include "dfMatrixOpBase.H"
 
 void init_const_coeff_ptr(std::vector<std::vector<double>>& nasa_coeffs, std::vector<std::vector<double>>& viscosity_coeffs,
         std::vector<std::vector<double>>& thermal_conductivity_coeffs, std::vector<std::vector<double>>& binary_diffusion_coeffs,
