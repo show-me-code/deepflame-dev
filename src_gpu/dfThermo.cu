@@ -545,7 +545,8 @@ void dfThermo::correctThermo()
                     dataBase_.d_boundary_y, d_boundary_mole_fraction, d_boundary_species_thermal_conductivities, dataBase_.d_boundary_thermo_alpha, offset);
         }
         // correct internal field of processor boundary
-        if (dataBase_.patch_type_T[i] == boundaryConditions::processor) {
+        if (dataBase_.patch_type_T[i] == boundaryConditions::processor
+            || dataBase_.patch_type_T[i] == boundaryConditions::processorCyclic) {
             size_t threads_per_block = 32;
             size_t blocks_per_grid = (dataBase_.patch_size[i] + threads_per_block - 1) / threads_per_block;
             correct_internal_boundary_field_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(dataBase_.patch_size[i], offset,

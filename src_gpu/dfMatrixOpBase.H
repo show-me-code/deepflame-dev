@@ -1,6 +1,8 @@
 #pragma once
 #include <cuda_runtime.h>
 #include <nccl.h>
+#include "dfThermo.H"
+class dfThermo;
 
 // macros need to be in a certain order
 
@@ -142,12 +144,15 @@ void correct_boundary_conditions_scalar(cudaStream_t stream, ncclComm_t comm,
         const int *neighbor_peer, int num_boundary_surfaces, int num_patches,
         const int *patch_size, const int *patch_type, const double *boundary_delta_coeffs, 
         const int *boundary_cell_face, const double *vf, double *boundary_vf,
-        const double *thermo_gradient = nullptr);
+        const int *cyclicNeighbor, const int *patchSizeOffset, const double *boundary_weight,
+        const double *boundary_T = nullptr, const double *boundary_y = nullptr,
+        const double *thermo_gradient = nullptr, dfThermo *GPUThermo = nullptr);
 
 void correct_boundary_conditions_vector(cudaStream_t stream, ncclComm_t comm,
         const int *neighbor_peer, int num_boundary_surfaces, int num_cells, int num_patches,
-        const int *patch_size, const int *patch_type,
-        const int *boundary_cell_face, const double *vf, double *boundary_vf);
+        const int *patch_size, const int *patch_type, const double *boundary_weight, 
+        const int *boundary_cell_face, const double *vf, double *boundary_vf,
+        const int *cyclicNeighbor, const int *patchSizeOffset);
 
 void compute_upwind_weight(cudaStream_t stream, int num_surfaces, const double *phi, double *weight);
 
@@ -226,6 +231,7 @@ void fvc_grad_vector(cudaStream_t stream, ncclComm_t comm,
         int num_patches, const int *patch_size, const int *patch_type,
         const int *boundary_cell_face, const double *boundary_vf, const double *boundary_Sf, const double *boundary_weight, 
         const double *volume, const double *boundary_mag_Sf, double *boundary_output,
+        const int *cyclicNeighbor, const int *patchSizeOffset,
         const double *boundary_deltaCoeffs, double sign = 1.);
 
 void fvc_div_surface_scalar(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces,
@@ -274,6 +280,7 @@ void fvc_grad_cell_scalar_withBC(cudaStream_t stream, ncclComm_t comm, const int
         int num_patches, const int *patch_size, const int *patch_type, const double *boundary_weight,
         const int *boundary_cell_face, const double *boundary_vf, const double *boundary_Sf,
         const double *volume, const double *boundary_mag_Sf, double *boundary_output,
+        const int *cyclicNeighbor, const int *patchSizeOffset,
         const double *boundary_deltaCoeffs);
 
 void fvc_laplacian_scalar(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces,
@@ -318,7 +325,7 @@ void fvMtx_flux(cudaStream_t stream, int num_surfaces, int num_boundary_surfaces
         const double *psi, double *output, //end for internal
         int num_patches, const int *patch_size, const int *patch_type,
         const int *boundary_cell_face, const double *internal_coeffs, const double *boundary_coeffs, 
-        const double *boundary_psi, double *boundary_output);
+        const int *cyclicNeighbor, const int *patchSizeOffset, const double *boundary_psi, double *boundary_output);
 
 void solve_explicit_scalar(cudaStream_t stream, int num_cells, const double *diag, const double *source,
         double *psi);

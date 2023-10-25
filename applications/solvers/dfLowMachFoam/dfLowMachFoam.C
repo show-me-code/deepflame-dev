@@ -62,11 +62,12 @@ Description
 
 #define GPUSolverNew_
 #define TIME
-// #define DEBUG_ // if application open DEBUG_, srg_gpu should also open DEBUG_
+// #define DEBUG_ 
 
 #include "dfMatrixDataBase.H"
 
 #ifdef GPUSolverNew_
+    #include "AmgXSolver.H"
     #include "dfUEqn.H"
     #include "dfYEqn.H"
     #include "dfRhoEqn.H"
@@ -79,13 +80,18 @@ Description
     #include <thread>
 
     #include "processorFvPatchField.H"
+    #include "cyclicFvPatchField.H"
+    #include "processorCyclicFvPatchField.H"
     #include "createGPUSolver.H"
 
     #include "upwind.H"
     #include "GenFvMatrix.H"
     #include "CanteraMixture.H"
 #else
-    int myRank = 0;
+    #include "processorFvPatchField.H"
+    #include "cyclicFvPatchField.H"
+    int myRank = -1;
+    int mpi_init_flag = 0;
 #endif
 
 int offset;
@@ -363,7 +369,7 @@ int main(int argc, char *argv[])
                     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
                 }
                 if (!mpi_init_flag || rank == 0) {
-                    thermo_GPU.compareT(&T[0], h_boundary_T_tmp, printFlag);
+                    // thermo_GPU.compareT(&T[0], h_boundary_T_tmp, printFlag);
                     // thermo_GPU.compareHe(&thermo.he()[0], h_boundary_he_tmp, printFlag);
                     // thermo_GPU.comparePsi(&psi[0], h_boundary_thermo_psi_tmp, printFlag);
                     // thermo_GPU.compareAlpha(&alpha[0], h_boundary_thermo_alpha_tmp, printFlag);
@@ -408,6 +414,8 @@ int main(int argc, char *argv[])
                     offset += patchsize;
                 }
             }
+            delete h_T_tmp;
+            delete h_boundary_T_tmp;
             #endif
 
             Info<< "min/max(T) = " << min(T).value() << ", " << max(T).value() << endl;
@@ -458,6 +466,15 @@ int main(int argc, char *argv[])
 #endif
 #else
         rho = thermo.rho();
+#endif
+
+#ifdef GPUSolverNew_
+        // write U for
+        double *h_U_tmp = new double[dfDataBase.num_cells * 3];
+        UEqn_GPU.postProcess(h_U_tmp);
+        memcpy(&U[0][0], h_U_tmp, dfDataBase.cell_value_vec_bytes);
+        U.correctBoundaryConditions();
+        delete h_U_tmp;
 #endif
 
         runTime.write();

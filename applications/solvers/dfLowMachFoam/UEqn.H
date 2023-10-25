@@ -24,7 +24,8 @@
     {
         const fvPatchTensorField& patchGradU = gradU.boundaryField()[patchi];
         int patchsize = patchGradU.size();
-        if (patchGradU.type() == "processor") {
+        if (patchGradU.type() == "processor"
+                || patchGradU.type() == "processorCyclic") {
             // print info
             if (dynamic_cast<const processorFvPatchField<tensor>&>(patchGradU).doTransform()) {
                 Info << "gradU transform = true" << endl;
@@ -81,7 +82,7 @@
         const double* boundary_coeff_ptr = &UEqn.boundaryCoeffs()[patchi][0][0];
         memcpy(h_internal_coeffs.data() + offset * 3, internal_coeff_ptr, patchsize * 3 * sizeof(double));
         memcpy(h_boundary_coeffs.data() + offset * 3, boundary_coeff_ptr, patchsize * 3 * sizeof(double));
-        if (patchU.type() == "processor") offset += 2 * patchsize;
+        if (patchU.type() == "processor" || patchU.type() == "processorCyclic") offset += 2 * patchsize;
         else offset += patchsize;
     }
 
@@ -92,7 +93,8 @@
         const fvPatchVectorField& patchU = U.boundaryField()[patchi];
         int patchsize = dfDataBase.patch_size[patchi];
 
-        if (patchU.type() == "processor") {
+        if (patchU.type() == "processor"
+            || patchU.type() == "processorCyclic") {
             memcpy(h_boundary_u_tmp + 3*offset, &patchU[0][0], 3*patchsize * sizeof(double));
             vectorField patchUInternal = 
                     dynamic_cast<const processorFvPatchField<vector>&>(patchU).patchInternalField()();
@@ -115,8 +117,8 @@
         // UEqn_GPU.compareResult(&UEqn.lower()[0], &UEqn.upper()[0], &UEqn.diag()[0], &UEqn.source()[0][0],
         //     h_internal_coeffs.data(), h_boundary_coeffs.data(), 
         //     // &gradU[0][0], h_boundary_gradU,
-        //     true);
-        // UEqn_GPU.compareU(&U[0][0], h_boundary_u_tmp, printFlag);
+        //     printFlag);
+        UEqn_GPU.compareU(&U[0][0], h_boundary_u_tmp, printFlag);
     }
     DEBUG_TRACE;
 #endif

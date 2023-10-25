@@ -24,7 +24,8 @@
 
 extern int myRank;
 
-#ifdef DEBUG_
+#define GPU_DEBUG_
+#ifdef GPU_DEBUG_
    #define DEBUG_TRACE fprintf(stderr, "myRank[%d] %s %d\n", myRank, __FILE__, __LINE__);
 #else
    #define DEBUG_TRACE
@@ -86,7 +87,9 @@ enum boundaryConditions{
     calculated,
     cyclic,
     processor,
-    extrapolated
+    extrapolated,
+    fixedEnergy,
+    processorCyclic
 };
 
 void constructBoundarySelectorPerPatch(int *patchTypeSelector, const std::string& patchTypeStr);
@@ -105,6 +108,10 @@ struct dfMatrixDataBase
     int localRank;
     std::vector<int> neighbProcNo;
 
+    // cyclic info
+    std::vector<int> cyclicNeighbor;
+    std::vector<int> patchSizeOffset;
+
     // constant values -- basic
     int num_cells = 0;
     int num_total_cells = 0;
@@ -119,6 +126,7 @@ struct dfMatrixDataBase
     std::vector<int> patch_type_extropolated;
     std::vector<int> patch_type_T;
     double rdelta_t = 0;
+    std::vector<int> lduCSRIndex;
 
     // constant values -- ldu bytesize
     size_t cell_value_bytes = 0;
@@ -284,6 +292,7 @@ struct dfMatrixDataBase
             const int *procCols, int globalOffset);
     void setAmgxSolvers(const std::string &mode_string, const std::string &u_setting_path, const std::string &p_setting_path);
     void solve(int num_iteration, AMGXSetting setting, double *d_A, double *d_x, double *d_b);
+    void setCyclicInfo(std::vector<int> &cyclicNeighbor); // when use cyclic boundary
 
     void createConstantFieldsInternal();
     void createConstantFieldsBoundary();

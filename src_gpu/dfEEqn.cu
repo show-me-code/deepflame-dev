@@ -215,14 +215,10 @@ void dfEEqn::process() {
         correct_boundary_conditions_scalar(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
                 dataBase_.num_boundary_surfaces, dataBase_.num_patches, dataBase_.patch_size.data(),
                 patch_type_he.data(), dataBase_.d_boundary_delta_coeffs, dataBase_.d_boundary_face_cell,
-                dataBase_.d_he, dataBase_.d_boundary_he, d_boundary_heGradient);
+                dataBase_.d_he, dataBase_.d_boundary_he, dataBase_.cyclicNeighbor.data(), 
+                dataBase_.patchSizeOffset.data(), dataBase_.d_boundary_weight,
+                dataBase_.d_boundary_T, dataBase_.d_boundary_y, d_boundary_heGradient, &thermo_);
         TICK_END_EVENT(EEqn post process correctBC);
-
-        TICK_START_EVENT;
-        // copy he and boundary_he to host
-        checkCudaErrors(cudaMemcpyAsync(dataBase_.h_he, dataBase_.d_he, dataBase_.cell_value_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
-        checkCudaErrors(cudaMemcpyAsync(dataBase_.h_boundary_he, dataBase_.d_boundary_he, dataBase_.boundary_surface_value_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
-        TICK_END_EVENT(EEqn post process copy back);
 
         TICK_START_EVENT;
 #ifdef STREAM_ALLOCATOR
@@ -269,7 +265,8 @@ void dfEEqn::eeqn_calculate_energy_gradient(dfThermo& GPUThermo, int num_cells, 
                     face2Cells, T, p, y, boundary_delta_coeffs, boundary_p, boundary_y, boundary_thermo_gradient);
             bou_offset += patch_size[i];
             gradient_offset += patch_size[i];
-        } else if (patch_type[i] == boundaryConditions::processor) {
+        } else if (patch_type[i] == boundaryConditions::processor
+                    || patch_type[i] == boundaryConditions::processorCyclic) {
             bou_offset += 2 * patch_size[i];
         } else {
             bou_offset += patch_size[i];
@@ -277,7 +274,7 @@ void dfEEqn::eeqn_calculate_energy_gradient(dfThermo& GPUThermo, int num_cells, 
     }
 }
 
-#if defined DEBUG_
+// #if defined DEBUG_
 void dfEEqn::compareResult(const double *lower, const double *upper, const double *diag, 
         const double *source, const double *internal_coeffs, const double *boundary_coeffs, bool printFlag)
 {
@@ -338,7 +335,7 @@ void dfEEqn::compareHe(const double *he, const double *boundary_he, bool printFl
     fprintf(stderr, "check h_boundary_he\n");
     checkVectorEqual(dataBase_.num_boundary_surfaces, boundary_he, h_boundary_he, 1e-14, printFlag);
 }
-#endif
+// #endif
 
 void dfEEqn::sync()
 {
