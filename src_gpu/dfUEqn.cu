@@ -302,6 +302,53 @@ __global__ void ueqn_divide_cell_volume_vec(int num_cells, const double* volume,
     output[num_cells * 2 + index] = output[num_cells * 2 + index] / vol;
 }
 
+__global__ void ueqn_calculate_turbulence_k_Smagorinsky(int num_cells, 
+        const double *grad_U_tsr, const double *volume, double Ce, double Ck, 
+        double *delta, double *output)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_cells)
+        return;
+    
+    double vol = volume[index];
+    double del = pow(vol, 1/3);
+
+    // D = 0.5*(T+T^T)
+    double D_xx = grad_U_tsr[num_cells * 0 + index];
+    double D_xy = 0.5 * (grad_U_tsr[num_cells * 1 + index] + grad_U_tsr[num_cells * 3 + index]);
+    double D_xz = 0.5 * (grad_U_tsr[num_cells * 2 + index] + grad_U_tsr[num_cells * 6 + index]);
+    double D_yy = grad_U_tsr[num_cells * 4 + index];
+    double D_yz = 0.5 * (grad_U_tsr[num_cells * 5 + index] + grad_U_tsr[num_cells * 7 + index]);
+    double D_zz = grad_U_tsr[num_cells * 8 + index];
+
+    // dev(D)
+    double trace = D_xx + D_yy + D_zz;
+    double dev_D_xx = D_xx - (1. / 3.) * trace;
+    double dev_D_yy = D_yy - (1. / 3.) * trace;
+    double dev_D_zz = D_zz - (1. / 3.) * trace;
+
+    // scalar a
+    double a = Ce * del;
+    // scalar b
+    double b = 1.5 * trace;
+    // scalar c
+    double c = 2 * Ck * del * (dev_D_xx * D_xx + dev_D_yy * D_yy + dev_D_zz * D_zz 
+                                    + D_xy * D_xy * 2 + D_xz * D_xz * 2 + D_yz * D_yz * 2);
+    
+    output[index] = pow((-b + pow(b * b + 4 * a * c, 0.5)) / (2 * a), 2);
+    delta[index] = del;
+}
+
+__global__ void ueqn_calculate_turbulence_epsilon_Smagorinsky(int num_cells,
+        const double *k, const double *delta, double Ce, double *output)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_cells)
+        return;
+    
+    output[index] = Ce * pow(k[index], 1.5) / delta[index];
+}
+
 void dfUEqn::setConstantValues(const std::string &mode_string, const std::string &setting_path) {
   this->stream = dataBase_.stream;
   this->mode_string = mode_string;
@@ -334,6 +381,8 @@ void dfUEqn::createNonConstantFieldsInternal() {
   checkCudaErrors(cudaMalloc((void**)&d_nu_eff, dataBase_.cell_value_bytes));
   // intermediate fields
   checkCudaErrors(cudaMalloc((void**)&d_grad_u, dataBase_.cell_value_tsr_bytes));
+  checkCudaErrors(cudaMalloc((void**)&d_delta, dataBase_.cell_value_bytes));
+
   checkCudaErrors(cudaMalloc((void**)&d_rho_nueff, dataBase_.cell_value_bytes));
   checkCudaErrors(cudaMalloc((void**)&d_fvc_output, dataBase_.cell_value_vec_bytes));
 #endif
@@ -441,6 +490,8 @@ void dfUEqn::process() {
         checkCudaErrors(cudaMallocAsync((void**)&d_nu_eff, dataBase_.cell_value_bytes, dataBase_.stream));
         // intermediate fields
         checkCudaErrors(cudaMallocAsync((void**)&d_grad_u, dataBase_.cell_value_tsr_bytes, dataBase_.stream));
+        checkCudaErrors(cudaMallocAsync((void**)&d_delta, dataBase_.cell_value_bytes, dataBase_.stream));
+
         checkCudaErrors(cudaMallocAsync((void**)&d_rho_nueff, dataBase_.cell_value_bytes, dataBase_.stream));
         checkCudaErrors(cudaMallocAsync((void**)&d_fvc_output, dataBase_.cell_value_vec_bytes, dataBase_.stream));
 
@@ -478,6 +529,8 @@ void dfUEqn::process() {
         checkCudaErrors(cudaMemsetAsync(d_grad_u, 0, dataBase_.cell_value_tsr_bytes, dataBase_.stream));
         checkCudaErrors(cudaMemsetAsync(d_boundary_grad_u, 0, dataBase_.boundary_surface_value_tsr_bytes, dataBase_.stream));
 
+        checkCudaErrors(cudaMemsetAsync(d_delta, 0, dataBase_.cell_value_bytes, dataBase_.stream));
+
         // permute_vector_h2d(dataBase_.stream, dataBase_.num_cells, d_u_host_order, dataBase_.d_u);
         // permute_vector_h2d(dataBase_.stream, dataBase_.num_boundary_surfaces, d_boundary_u_host_order, dataBase_.d_boundary_u);
         update_boundary_coeffs_vector(dataBase_.stream, dataBase_.num_boundary_surfaces, dataBase_.num_patches,
@@ -513,13 +566,16 @@ void dfUEqn::process() {
                 dataBase_.d_boundary_face_cell, dataBase_.d_boundary_u, dataBase_.d_boundary_sf, dataBase_.d_boundary_weight, 
                 dataBase_.d_volume, dataBase_.d_boundary_mag_sf, d_boundary_grad_u, dataBase_.cyclicNeighbor.data(),
                 dataBase_.patchSizeOffset.data(), dataBase_.d_boundary_delta_coeffs);
+        // calculate k & epsilon (if use turbulence model)
+        getTurbulenceKEpsilon_Smagorinsky(dataBase_.stream, dataBase_.num_cells, dataBase_.num_boundary_surfaces, d_grad_u, dataBase_.d_volume, 
+                d_delta, dataBase_.d_turbulence_k, dataBase_.d_turbulence_epsilon);
         scale_dev2T_tensor(dataBase_.stream, dataBase_.num_cells, dataBase_.d_mu, d_grad_u, // end for internal
-               dataBase_.num_boundary_surfaces, dataBase_.d_boundary_mu, d_boundary_grad_u);
+                dataBase_.num_boundary_surfaces, dataBase_.d_boundary_mu, d_boundary_grad_u);
         fvc_div_cell_tensor(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
-               dataBase_.d_owner, dataBase_.d_neighbor,
-               dataBase_.d_weight, dataBase_.d_sf, d_grad_u, d_source, // end for internal
-               dataBase_.num_patches, dataBase_.patch_size.data(), dataBase_.patch_type_calculated.data(), dataBase_.d_boundary_weight,
-               dataBase_.d_boundary_face_cell, d_boundary_grad_u, dataBase_.d_boundary_sf, dataBase_.d_volume);
+                dataBase_.d_owner, dataBase_.d_neighbor,
+                dataBase_.d_weight, dataBase_.d_sf, d_grad_u, d_source, // end for internal
+                dataBase_.num_patches, dataBase_.patch_size.data(), dataBase_.patch_type_calculated.data(), dataBase_.d_boundary_weight,
+                dataBase_.d_boundary_face_cell, d_boundary_grad_u, dataBase_.d_boundary_sf, dataBase_.d_volume);
         fvc_grad_cell_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
                 dataBase_.d_owner, dataBase_.d_neighbor,
                 dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_p, d_source,
@@ -573,6 +629,7 @@ void dfUEqn::process() {
         checkCudaErrors(cudaFreeAsync(d_nu_eff, dataBase_.stream));
         // intermediate fields
         checkCudaErrors(cudaFreeAsync(d_grad_u, dataBase_.stream));
+        checkCudaErrors(cudaFreeAsync(d_delta, dataBase_.stream));
         checkCudaErrors(cudaFreeAsync(d_rho_nueff, dataBase_.stream));
         checkCudaErrors(cudaFreeAsync(d_fvc_output, dataBase_.stream));
     
@@ -649,6 +706,19 @@ void dfUEqn::getrAU(cudaStream_t stream, ncclComm_t comm, int num_cells, int num
 
     correct_boundary_conditions_scalar(stream, comm, neighbor_peer, num_boundary_surfaces, num_patches, patch_size, patch_type, boundary_delta_coeffs,
             boundary_cell_face, rAU, boundary_rAU, dataBase_.cyclicNeighbor.data(), dataBase_.patchSizeOffset.data(), dataBase_.d_boundary_weight);
+}
+
+void dfUEqn::getTurbulenceKEpsilon_Smagorinsky(cudaStream_t stream, int num_cells, int num_boundary_surfaces, 
+        const double *grad_U_tsr, const double *volume, 
+        double *delta, double *turbulence_k, double *turbulence_epsilon)
+{
+    size_t threads_per_block = 1024;
+    size_t blocks_per_grid = (num_cells + threads_per_block - 1) / threads_per_block;
+    ueqn_calculate_turbulence_k_Smagorinsky<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, grad_U_tsr, volume,
+            1.048, 0.094, delta, turbulence_k);
+    
+    ueqn_calculate_turbulence_epsilon_Smagorinsky<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, turbulence_k, 
+            delta, 1.048, turbulence_epsilon);
 }
 
 void dfUEqn::UEqnGetHbyA(cudaStream_t stream, ncclComm_t comm, const int *neighbor_peer, 

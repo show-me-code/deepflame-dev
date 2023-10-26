@@ -226,6 +226,9 @@ struct dfMatrixDataBase
     // internal fields used between eqns
     double *d_rAU = nullptr;
     double *d_HbyA = nullptr;
+    // turbulence fields
+    double *d_turbulence_k = nullptr;
+    double *d_turbulence_epsilon = nullptr;
 
     // non-constant fields - boundary
     // TODO: further estimate
