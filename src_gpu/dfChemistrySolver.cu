@@ -29,7 +29,7 @@ __global__ void normalize_input(int num_cells, int dim, const double *input,
     }
 }
 
-__global__ void calculate_y_new(int num_cells, int num_species, const double *output_init, 
+__global__ void calculate_y_new(int num_cells, int num_modules, const double *output_init, 
         const double *y_input_BCT, const double *Ymu, const double *Ystd, double *output)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
@@ -37,7 +37,7 @@ __global__ void calculate_y_new(int num_cells, int num_species, const double *ou
         return;
 
     double RR_tmp;
-    for (int i = 0; i < num_species; ++i) {
+    for (int i = 0; i < num_modules; ++i) {
         RR_tmp = output_init[i * num_cells + index] * Ystd[i] + Ymu[i] + y_input_BCT[i * num_cells + index];
         RR_tmp = pow((RR_tmp * 0.1 + 1), 10); // rev-BCT: lambda = 0.1
         output[i * num_cells + index] = RR_tmp;
@@ -66,13 +66,14 @@ dfChemistrySolver::dfChemistrySolver(int num_cells, int num_species)
     : device_(torch::kCUDA), num_cells_(num_cells), num_species_(num_species)
 {
     dim_input_ = num_species + 2; // p, T, y
+    num_modules_ = num_species_ - 1;
     cudaMalloc(&init_input_, sizeof(double) * num_cells * dim_input_);
     cudaMalloc(&y_input_BCT, sizeof(double) * num_cells * num_species_);
     cudaMalloc(&Xmu_, sizeof(double) * dim_input_);
     cudaMalloc(&Xstd_, sizeof(double) * dim_input_);
-    cudaMalloc(&Ymu_, sizeof(double) * num_species_);
-    cudaMalloc(&Ystd_, sizeof(double) * num_species_);
-    modules_.reserve(num_species_);
+    cudaMalloc(&Ymu_, sizeof(double) * num_modules_);
+    cudaMalloc(&Ystd_, sizeof(double) * num_modules_);
+    modules_.reserve(num_modules_);
 
     // now norm paras are set in constructor manually
     at::TensorOptions opts = at::TensorOptions().dtype(at::kDouble).device(at::kCUDA);
@@ -84,13 +85,28 @@ dfChemistrySolver::dfChemistrySolver(int num_cells, int num_species)
                 7.9704668543e-01, 5.1327160125e-01, 4.6827591193e-03};
     std::vector<double> Ymu_vec = {0.0085609265, -0.0082998877, 0.0030108739,
                 -0.0067360325, 0.0037464590, 0.0024258509};
-    std::vector<double> Ystd_vec = {0.0085609265, -0.0082998877, 0.0030108739,
-                -0.0067360325, 0.0037464590, 0.0024258509};
+    std::vector<double> Ystd_vec = {0.05887569, 0.12253898, 0.01643904, 
+                0.0963155, 0.07127831, 0.04373392};
     
     cudaMemcpy(Xmu_, Xmu_vec.data(), sizeof(double) * dim_input_, cudaMemcpyHostToDevice);
     cudaMemcpy(Xstd_, Xstd_vec.data(), sizeof(double) * dim_input_, cudaMemcpyHostToDevice);
-    cudaMemcpy(Ymu_, Ymu_vec.data(), sizeof(double) * num_species_, cudaMemcpyHostToDevice);
-    cudaMemcpy(Ystd_, Ystd_vec.data(), sizeof(double) * num_species_, cudaMemcpyHostToDevice);
+    cudaMemcpy(Ymu_, Ymu_vec.data(), sizeof(double) * num_modules_, cudaMemcpyHostToDevice);
+    cudaMemcpy(Ystd_, Ystd_vec.data(), sizeof(double) * num_modules_, cudaMemcpyHostToDevice);
+
+    // input modules
+    std::string prefix = "new_Temporary_Chemical_";
+    std::string suffix = ".pt";
+    for (int i = 0; i < num_modules_; ++i) {
+        std::string model_path = prefix + std::to_string(i) + suffix;
+        try {
+            modules_.push_back(torch::jit::load(model_path));
+        }
+        catch (const c10::Error& e) {
+            std::cerr << "error loading the model\n";
+            exit(-1);
+        }
+        modules_[i].to(device_);
+    }
 }
 
 dfChemistrySolver::~dfChemistrySolver() {
@@ -100,29 +116,30 @@ dfChemistrySolver::~dfChemistrySolver() {
 void dfChemistrySolver::Inference(const double *T, const double *p, const double *y,
         const double *rho, double *RR) {
     // construct input
-    size_t threads_per_block = 1024;
+    size_t threads_per_block = 1;
     size_t blocks_per_grid = (num_cells_ + threads_per_block - 1) / threads_per_block;
     construct_init_input<<<blocks_per_grid, threads_per_block>>>(num_cells_, dim_input_, T, p, y, y_input_BCT, init_input_);
     normalize_input<<<blocks_per_grid, threads_per_block>>>(num_cells_, dim_input_, init_input_, Xmu_, Xstd_, init_input_);
 
     // inference by torch
-    at::Tensor torch_input = torch::from_blob(init_input_, {num_cells_, dim_input_}, device_);
+    at::Tensor torch_input = torch::from_blob(init_input_, {num_cells_, dim_input_}, torch::TensorOptions().device(device_).dtype(torch::kDouble));
     torch_input = torch_input.to(at::kFloat);
     std::vector<torch::jit::IValue> INPUTS;
     INPUTS.push_back(torch_input);
 
-    std::vector<at::Tensor> output(num_species_);
-    for (int i = 0; i < num_species_; ++i) {
+    std::vector<at::Tensor> output(num_modules_);
+    for (int i = 0; i < num_modules_; ++i) {
         output[i] = modules_[i].forward(INPUTS).toTensor();
         output[i] = output[i].to(at::kDouble);
     }
 
     // post process
     double *d_output;
-    for (int i = 0; i < num_species_; ++i) {
+    for (int i = 0; i < num_modules_; ++i) {
         d_output = output[i].data_ptr<double>();
         cudaMemcpy(RR + i * num_cells_, d_output, sizeof(double) * num_cells_, cudaMemcpyDeviceToDevice);
     }
-    calculate_y_new<<<blocks_per_grid, threads_per_block>>>(num_cells_, num_species_, RR, y_input_BCT, Ymu_, Ystd_, RR);
+
+    calculate_y_new<<<blocks_per_grid, threads_per_block>>>(num_cells_, num_modules_, RR, y_input_BCT, Ymu_, Ystd_, RR);
     calculate_RR<<<blocks_per_grid, threads_per_block>>>(num_cells_, num_species_, 1e-6, rho, y, RR, RR);
 }
