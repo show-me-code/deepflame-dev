@@ -13,9 +13,10 @@ private:
     double *Xmu_, *Xstd_, *Ymu_, *Ystd_;
 
     double *init_input_, *y_input_BCT;
-    int dim_input_, num_cells_, num_species_;
+    int dim_input_, num_cells_, num_species_, num_modules_;
+    int batch_size_;
 public:
-    dfChemistrySolver(int num_cells, int num_species);
+    dfChemistrySolver(int num_cells, int num_species, int batch_size);
     ~dfChemistrySolver();
 
     void loadModels(const std::string dir);
