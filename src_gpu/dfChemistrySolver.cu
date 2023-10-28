@@ -62,8 +62,8 @@ __global__ void calculate_RR(int num_cells, int num_species, double delta_t,
     }
 }
 
-dfChemistrySolver::dfChemistrySolver(int num_cells, int num_species)
-    : device_(torch::kCUDA), num_cells_(num_cells), num_species_(num_species)
+dfChemistrySolver::dfChemistrySolver(int num_cells, int num_species, int batch_size)
+    : device_(torch::kCUDA), num_cells_(num_cells), num_species_(num_species), batch_size_(batch_size)
 {
     dim_input_ = num_species + 2; // p, T, y
     num_modules_ = num_species_ - 1;
@@ -116,28 +116,28 @@ dfChemistrySolver::~dfChemistrySolver() {
 void dfChemistrySolver::Inference(const double *T, const double *p, const double *y,
         const double *rho, double *RR) {
     // construct input
-    size_t threads_per_block = 1;
+    size_t threads_per_block = 1024;
     size_t blocks_per_grid = (num_cells_ + threads_per_block - 1) / threads_per_block;
     construct_init_input<<<blocks_per_grid, threads_per_block>>>(num_cells_, dim_input_, T, p, y, y_input_BCT, init_input_);
     normalize_input<<<blocks_per_grid, threads_per_block>>>(num_cells_, dim_input_, init_input_, Xmu_, Xstd_, init_input_);
 
     // inference by torch
-    at::Tensor torch_input = torch::from_blob(init_input_, {num_cells_, dim_input_}, torch::TensorOptions().device(device_).dtype(torch::kDouble));
-    torch_input = torch_input.to(at::kFloat);
-    std::vector<torch::jit::IValue> INPUTS;
-    INPUTS.push_back(torch_input);
-
-    std::vector<at::Tensor> output(num_modules_);
-    for (int i = 0; i < num_modules_; ++i) {
-        output[i] = modules_[i].forward(INPUTS).toTensor();
-        output[i] = output[i].to(at::kDouble);
-    }
-
-    // post process
     double *d_output;
-    for (int i = 0; i < num_modules_; ++i) {
-        d_output = output[i].data_ptr<double>();
-        cudaMemcpy(RR + i * num_cells_, d_output, sizeof(double) * num_cells_, cudaMemcpyDeviceToDevice);
+    for (int sample_start = 0; sample_start < num_cells_; sample_start += batch_size_) {
+        int sample_end = std::min(sample_start + batch_size_, num_cells_);
+        int sample_len = sample_end - sample_start;
+        at::Tensor torch_input = torch::from_blob(init_input_ + sample_start * dim_input_, {sample_len, dim_input_}, torch::TensorOptions().device(device_).dtype(torch::kDouble));
+        torch_input = torch_input.to(at::kFloat);
+        std::vector<torch::jit::IValue> INPUTS;
+        INPUTS.push_back(torch_input);
+        std::vector<at::Tensor> output(num_modules_);
+
+        for (int i = 0; i < num_modules_; ++i) {
+            output[i] = modules_[i].forward(INPUTS).toTensor();
+            output[i] = output[i].to(at::kDouble);
+            d_output = output[i].data_ptr<double>();
+            cudaMemcpy(RR + (i * num_cells_ + sample_start), d_output, sizeof(double) * sample_len, cudaMemcpyDeviceToDevice);
+        }
     }
 
     calculate_y_new<<<blocks_per_grid, threads_per_block>>>(num_cells_, num_modules_, RR, y_input_BCT, Ymu_, Ystd_, RR);
