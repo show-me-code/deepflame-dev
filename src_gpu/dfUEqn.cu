@@ -311,7 +311,9 @@ __global__ void ueqn_calculate_turbulence_k_Smagorinsky(int num_cells,
         return;
     
     double vol = volume[index];
-    double del = pow(vol, 1/3);
+    double oneThird = (1. / 3.);
+
+    double del = pow(vol, oneThird);
 
     // D = 0.5*(T+T^T)
     double D_xx = grad_U_tsr[num_cells * 0 + index];
@@ -323,19 +325,20 @@ __global__ void ueqn_calculate_turbulence_k_Smagorinsky(int num_cells,
 
     // dev(D)
     double trace = D_xx + D_yy + D_zz;
-    double dev_D_xx = D_xx - (1. / 3.) * trace;
-    double dev_D_yy = D_yy - (1. / 3.) * trace;
-    double dev_D_zz = D_zz - (1. / 3.) * trace;
+    double dev_D_xx = D_xx - oneThird * trace;
+    double dev_D_yy = D_yy - oneThird * trace;
+    double dev_D_zz = D_zz - oneThird * trace;
 
     // scalar a
-    double a = Ce * del;
+    double a = Ce / del;
     // scalar b
-    double b = 1.5 * trace;
+    double b = 2 * oneThird * trace;
     // scalar c
     double c = 2 * Ck * del * (dev_D_xx * D_xx + dev_D_yy * D_yy + dev_D_zz * D_zz 
                                     + D_xy * D_xy * 2 + D_xz * D_xz * 2 + D_yz * D_yz * 2);
     
-    output[index] = pow((-b + pow(b * b + 4 * a * c, 0.5)) / (2 * a), 2);
+    double sqrt_result = (-b + pow(b * b + 4 * a * c, 0.5)) / (2 * a);
+    output[index] = sqrt_result * sqrt_result;
     delta[index] = del;
 }
 
@@ -566,9 +569,14 @@ void dfUEqn::process() {
                 dataBase_.d_boundary_face_cell, dataBase_.d_boundary_u, dataBase_.d_boundary_sf, dataBase_.d_boundary_weight, 
                 dataBase_.d_volume, dataBase_.d_boundary_mag_sf, d_boundary_grad_u, dataBase_.cyclicNeighbor.data(),
                 dataBase_.patchSizeOffset.data(), dataBase_.d_boundary_delta_coeffs);
-        // calculate k & epsilon (if use turbulence model)
+
+        // **if use turbulence model**
+        // calculate k & epsilon
         getTurbulenceKEpsilon_Smagorinsky(dataBase_.stream, dataBase_.num_cells, dataBase_.num_boundary_surfaces, d_grad_u, dataBase_.d_volume, 
                 d_delta, dataBase_.d_turbulence_k, dataBase_.d_turbulence_epsilon);
+        // calculate nut
+        // **end use turbulence model**
+
         scale_dev2T_tensor(dataBase_.stream, dataBase_.num_cells, dataBase_.d_mu, d_grad_u, // end for internal
                 dataBase_.num_boundary_surfaces, dataBase_.d_boundary_mu, d_boundary_grad_u);
         fvc_div_cell_tensor(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
