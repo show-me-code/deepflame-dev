@@ -62,7 +62,7 @@ Description
 
 #define GPUSolverNew_
 #define TIME
-// #define DEBUG_ 
+// #define DEBUG_
 
 #include "dfMatrixDataBase.H"
 
@@ -622,6 +622,7 @@ int main(int argc, char *argv[])
     UEqn_GPU.cleanCudaResources();
     rhoEqn_GPU.cleanCudaResources();
     thermo_GPU.cleanCudaResources();
+    dfDataBase.resetAmgxSolvers();
     dfDataBase.cleanCudaResources();
 #endif
 
