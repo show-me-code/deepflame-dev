@@ -32,7 +32,7 @@ Description
     pseudo-transient simulations.
 
 \*---------------------------------------------------------------------------*/
-
+#include "stdlib.h"
 #include "dfChemistryModel.H"
 #include "CanteraMixture.H"
 // #include "hePsiThermo.H"
@@ -63,6 +63,7 @@ Description
 #define GPUSolverNew_
 #define TIME
 // #define DEBUG_
+#define SHOW_MEMINFO
 
 #include "dfMatrixDataBase.H"
 
@@ -452,8 +453,6 @@ int main(int argc, char *argv[])
             }
             end = std::clock();
             time_monitor_turbulence_correct += double(end - start) / double(CLOCKS_PER_SEC);
-            //fprintf(stderr, "sleep for 5s...\n");
-            //usleep(5 * 1000 * 1000);
         }
         clock_t loop_end = std::clock();
         double loop_time = double(loop_end - loop_start) / double(CLOCKS_PER_SEC);
@@ -536,6 +535,19 @@ int main(int argc, char *argv[])
         Info<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
             << "  ClockTime = " << runTime.elapsedClockTime() << " s" << endl;
 
+#ifdef GPUSolverNew_
+#ifdef SHOW_MEMINFO
+	int rank = -1;
+	if (mpi_init_flag) {
+    	    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	}
+	if (!mpi_init_flag || rank == 0) {
+            fprintf(stderr, "show memory info...\n");
+            //usleep(1 * 1000 * 1000);
+	    system("nvidia-smi");
+	}
+#endif
+#endif
         time_monitor_other = 0;
         time_monitor_rho = 0;
         time_monitor_U = 0;
