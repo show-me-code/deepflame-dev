@@ -77,6 +77,7 @@ Description
     #include "dfMatrixOpBase.H"
     #include "dfNcclBase.H"
     #include "dfThermo.H"
+    #include "dfChemistrySolver.H"
     #include <cuda_runtime.h>
     #include <thread>
 
@@ -88,9 +89,13 @@ Description
     #include "upwind.H"
     #include "GenFvMatrix.H"
     #include "CanteraMixture.H"
+    #include "multivariateGaussConvectionScheme.H"
+    #include "limitedSurfaceInterpolationScheme.H"
 #else
     #include "processorFvPatchField.H"
     #include "cyclicFvPatchField.H"
+    #include "multivariateGaussConvectionScheme.H"
+    #include "limitedSurfaceInterpolationScheme.H"
     int myRank = -1;
     int mpi_init_flag = 0;
 #endif
@@ -217,7 +222,11 @@ int main(int argc, char *argv[])
 
     const volScalarField& mu = thermo.mu();
     const volScalarField& alpha = thermo.alpha();
-    createGPUThermo(CanteraTorchProperties, T, thermo.he(), psi, alpha, mu, K, dpdt);
+    createGPUThermo(CanteraTorchProperties, T, thermo.he(), psi, alpha, mu, K, dpdt, chemistry);
+    if (chemistry->ifChemstry())
+    {
+        chemistrySolver_GPU.setConstantValue(dfDataBase.num_cells, dfDataBase.num_species, 4096);
+    }
 #endif
 
     end1 = std::clock();
@@ -303,6 +312,7 @@ int main(int argc, char *argv[])
                 thermo_GPU.sync();
             #if defined DEBUG_
                 // check correctThermo
+                int speciesIndex = 6;
                 chemistry->correctThermo(); // reference
                 double *h_boundary_T_tmp = new double[dfDataBase.num_boundary_surfaces];
                 double *h_boundary_he_tmp = new double[dfDataBase.num_boundary_surfaces];
@@ -310,6 +320,7 @@ int main(int argc, char *argv[])
                 double *h_boundary_rho_tmp = new double[dfDataBase.num_boundary_surfaces];
                 double *h_boundary_thermo_alpha_tmp = new double[dfDataBase.num_boundary_surfaces];    
                 double *h_boundary_thermo_psi_tmp = new double[dfDataBase.num_boundary_surfaces];
+                double *h_boundary_thermo_rhoD_tmp = new double[dfDataBase.num_boundary_surfaces];
                 offset = 0;
                 forAll(T.boundaryField(), patchi)
                 {
@@ -319,6 +330,7 @@ int main(int argc, char *argv[])
                     const fvPatchScalarField& patchAlpha = alpha.boundaryField()[patchi];
                     const fvPatchScalarField& patchRho = thermo.rho()().boundaryField()[patchi];
                     const fvPatchScalarField& patchT = T.boundaryField()[patchi];
+                    const fvPatchScalarField& patchRhoD = chemistry->rhoD(speciesIndex).boundaryField()[patchi];
 
                     int patchsize = patchT.size();
                     if (patchT.type() == "processor") {
@@ -352,6 +364,11 @@ int main(int argc, char *argv[])
                                 dynamic_cast<const processorFvPatchField<scalar>&>(patchRho).patchInternalField()();
                         memcpy(h_boundary_rho_tmp + offset + patchsize, &patchRhoInternal[0], patchsize * sizeof(double));
 
+                        memcpy(h_boundary_thermo_rhoD_tmp + offset, &patchRhoD[0], patchsize * sizeof(double));
+                        scalarField patchRhoDInternal = 
+                                dynamic_cast<const processorFvPatchField<scalar>&>(patchRhoD).patchInternalField()();
+                        memcpy(h_boundary_thermo_rhoD_tmp + offset + patchsize, &patchRhoDInternal[0], patchsize * sizeof(double));
+
                         offset += patchsize * 2;
                     } else {
                         memcpy(h_boundary_T_tmp + offset, &patchT[0], patchsize * sizeof(double));
@@ -360,6 +377,7 @@ int main(int argc, char *argv[])
                         memcpy(h_boundary_thermo_alpha_tmp + offset, &patchAlpha[0], patchsize * sizeof(double));
                         memcpy(h_boundary_mu_tmp + offset, &patchMu[0], patchsize * sizeof(double));
                         memcpy(h_boundary_rho_tmp + offset, &patchRho[0], patchsize * sizeof(double));
+                        memcpy(h_boundary_thermo_rhoD_tmp + offset, &patchRhoD[0], patchsize * sizeof(double));
 
                         offset += patchsize;
                     }
@@ -370,12 +388,13 @@ int main(int argc, char *argv[])
                     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
                 }
                 if (!mpi_init_flag || rank == 0) {
-                    thermo_GPU.compareT(&T[0], h_boundary_T_tmp, printFlag);
+                    // thermo_GPU.compareT(&T[0], h_boundary_T_tmp, printFlag);
                     // thermo_GPU.compareHe(&thermo.he()[0], h_boundary_he_tmp, printFlag);
                     // thermo_GPU.comparePsi(&psi[0], h_boundary_thermo_psi_tmp, printFlag);
                     // thermo_GPU.compareAlpha(&alpha[0], h_boundary_thermo_alpha_tmp, printFlag);
                     // thermo_GPU.compareMu(&mu[0], h_boundary_mu_tmp, printFlag);
                     // thermo_GPU.compareRho(&thermo.rho()()[0], h_boundary_rho_tmp, printFlag);
+                    // thermo_GPU.compareRhoD(&chemistry->rhoD(speciesIndex)[0], h_boundary_thermo_rhoD_tmp, speciesIndex, printFlag);
                 }
 
                 delete h_boundary_T_tmp;
@@ -397,11 +416,10 @@ int main(int argc, char *argv[])
             }
             // update T for debug
             #ifdef GPUSolverNew_
-            double *h_T_tmp = new double[dfDataBase.num_cells];
+            double *h_T = dfDataBase.getFieldPointer("T", location::cpu, position::internal);
             double *h_boundary_T_tmp = new double[dfDataBase.num_boundary_surfaces];
-            thermo_GPU.updateCPUT(h_T_tmp, h_boundary_T_tmp);
-
-            memcpy(&T[0], h_T_tmp, T.size() * sizeof(double));
+            thermo_GPU.updateCPUT(h_T, h_boundary_T_tmp);
+            memcpy(&T[0], h_T, T.size() * sizeof(double));
             offset = 0;
             forAll(T.boundaryField(), patchi) {
                 const fvPatchScalarField& const_patchT = T.boundaryField()[patchi];
@@ -415,7 +433,6 @@ int main(int argc, char *argv[])
                     offset += patchsize;
                 }
             }
-            delete h_T_tmp;
             delete h_boundary_T_tmp;
             #endif
 
@@ -468,7 +485,7 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef GPUSolverNew_
-        // write U for
+        // write U
         UEqn_GPU.postProcess();
         memcpy(&U[0][0], dfDataBase.h_u, dfDataBase.cell_value_vec_bytes);
         U.correctBoundaryConditions();

@@ -68,8 +68,7 @@ else
     fvScalarMatrix pDDtEqn
     (
         fvc::ddt(rho) + 
-        // psi*correction(fvm::ddt(p)) // TODO: bugs in correction fvMatrix
-        psi*fvm::ddt(p)
+        psi*correction(fvm::ddt(p))
         + fvc::div(phiHbyA)
     );
 

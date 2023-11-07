@@ -156,6 +156,17 @@ void correct_boundary_conditions_vector(cudaStream_t stream, ncclComm_t comm,
 
 void compute_upwind_weight(cudaStream_t stream, int num_surfaces, const double *phi, double *weight);
 
+void compute_limitedLinear_weight(cudaStream_t stream, ncclComm_t comm, const int *neighbor_peer, 
+        int num_surfaces, int num_cells, int num_boundary_surfaces,
+        const int *lowerAddr, const int *upperAddr, const double *mesh_distance, 
+        const double *weight, const double *Sf, const double *vf, const double *phi,  double *output, // end for internal
+        int num_patches, const int *patch_size, const int *patch_type, const double *boundary_weight,
+        const int *boundary_cell_face, const double *boundary_vf, const double *boundary_Sf,
+        const double *volume, const double *boundary_mag_Sf, const double *boundary_phi, 
+        // const double *boundary_distance, double *boundary_output, 
+        const int *cyclicNeighbor, const int *patchSizeOffset,
+        const double *boundary_deltaCoeffs);
+
 // fvm ops
 
 void fvm_ddt_vol_scalar_vol_scalar(cudaStream_t stream, int num_cells, double rDeltaT,

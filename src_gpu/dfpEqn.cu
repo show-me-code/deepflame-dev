@@ -263,9 +263,9 @@ __global__ void correct_diag_mtx_multi_tpsi_kernel(int num_cells, const double *
         return;
 
     // correction: source += (-diag * psi + source)
-    // double srcVal = source[index];
-    // double APsi = - diag[index] * psi[index] + srcVal;
-    // source[index] += APsi;
+    double srcVal = source[index];
+    double APsi = - diag[index] * psi[index] + srcVal;
+    source[index] -= APsi;
 
     // multi psi
     double tPsiVal = thermo_psi[index];

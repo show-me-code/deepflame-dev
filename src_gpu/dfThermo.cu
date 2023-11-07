@@ -8,7 +8,7 @@
 
 #define GAS_CANSTANT 8314.46261815324
 #define SQRT8 2.8284271247461903
-#define NUM_SPECIES 7
+#define NUM_SPECIES 9
 
 // constant memory
 __constant__ __device__ double d_nasa_coeffs[NUM_SPECIES*15];
@@ -198,6 +198,47 @@ __global__ void calculate_thermoConductivity_kernel(int num_thread, int num_tota
     double cp = calculate_cp_device_kernel(num_total, num_species, startIndex, local_T, mass_fraction);
 
     thermal_conductivity[startIndex] = lambda_mix / cp;
+}
+
+__global__ void calculate_diffusion_kernel(int num_thread, int num_total, int num_species,
+        int offset, const double *T_poly, const double *mole_fraction, const double *p,
+        const double *mean_mole_weight, const double *rho, const double *T, double *d)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_thread)
+        return;
+    
+    int startIndex = offset + index;
+    
+    double D[NUM_SPECIES * NUM_SPECIES];
+    double sum1, sum2;
+    double tmp;
+
+    for (int i = 0; i < num_species; i++) {
+        for (int j = 0; j < num_species; j++) {
+            tmp = 0.;
+            for (int k = 0; k < 5; k++)
+                tmp += (d_binary_diffusion_coeffs[i * num_species * 5 + j * 5 + k] * T_poly[num_total * k + startIndex]);
+            D[i * num_species + j] = tmp * pow(T[startIndex], 1.5);
+        }
+    }
+    for (int i = 0; i < num_species; i++) {
+        if (mole_fraction[num_total * i + startIndex] + 1e-10 > 1.) {
+            d[num_total * i + startIndex] = 0.;
+            continue;
+        }
+        sum1 = 0.;
+        sum2 = 0.;
+        for (int j = 0; j < num_species; j++) {
+            if (i == j) continue;
+            sum1 += mole_fraction[num_total * j + startIndex] / D[i * num_species + j];
+            sum2 += mole_fraction[num_total * j + startIndex] * d_molecular_weights[j] / D[i * num_species + j];
+        }
+        sum1 *= p[startIndex];
+        sum2 *= p[startIndex] * mole_fraction[num_total * i + startIndex] / 
+                (mean_mole_weight[startIndex] - mole_fraction[num_total * i + startIndex] * d_molecular_weights[i]);
+        d[num_total * i + startIndex] = 1 / (sum1 + sum2) * rho[startIndex];
+    }
 }
 
 __device__ double calculate_enthalpy_device_kernel(int num_total, int num_species, int index, const double local_T,
@@ -404,8 +445,9 @@ void dfThermo::setConstantFields(const std::vector<int> patch_type)
 }
 
 void dfThermo::initNonConstantFields(const double *h_T, const double *h_he, const double *h_psi, const double *h_alpha, 
-        const double *h_mu, const double *h_k, const double *h_dpdt, const double *h_boundary_T, const double *h_boundary_he, 
-        const double *h_boundary_psi, const double *h_boundary_alpha, const double *h_boundary_mu, const double *h_boundary_k)
+        const double *h_mu, const double *h_k, const double *h_dpdt, const double *h_rhoD, const double *h_boundary_T, 
+        const double *h_boundary_he, const double *h_boundary_psi, const double *h_boundary_alpha, const double *h_boundary_mu, 
+        const double *h_boundary_k, const double *h_boundary_rhoD)
 {
     checkCudaErrors(cudaMemcpy(dataBase_.d_T, h_T, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(dataBase_.d_he, h_he, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice));
@@ -414,6 +456,7 @@ void dfThermo::initNonConstantFields(const double *h_T, const double *h_he, cons
     checkCudaErrors(cudaMemcpy(dataBase_.d_mu, h_mu, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(dataBase_.d_k, h_k, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(dataBase_.d_dpdt, h_dpdt, dataBase_.cell_value_bytes, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(dataBase_.d_thermo_rhoD, h_rhoD, dataBase_.cell_value_bytes * dataBase_.num_species, cudaMemcpyHostToDevice));
 
     checkCudaErrors(cudaMemcpy(dataBase_.d_boundary_T, h_boundary_T, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(dataBase_.d_boundary_he, h_boundary_he, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice));
@@ -421,6 +464,7 @@ void dfThermo::initNonConstantFields(const double *h_T, const double *h_he, cons
     checkCudaErrors(cudaMemcpy(dataBase_.d_boundary_thermo_alpha, h_boundary_alpha, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(dataBase_.d_boundary_mu, h_boundary_mu, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(dataBase_.d_boundary_k, h_boundary_k, dataBase_.boundary_surface_value_bytes, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(dataBase_.d_boundary_thermo_rhoD, h_boundary_rhoD, dataBase_.boundary_surface_value_bytes * dataBase_.num_species, cudaMemcpyHostToDevice));
 }
 
 void dfThermo::calculateTPolyGPU(int threads_per_block, int num_thread, int num_total, const double *T, double *T_poly, int offset)
@@ -458,6 +502,15 @@ void dfThermo::calculateThermoConductivityGPU(int threads_per_block, int num_thr
     size_t blocks_per_grid = (num_thread + threads_per_block - 1) / threads_per_block;
     calculate_thermoConductivity_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_thread, num_total, num_species, 
             offset, d_nasa_coeffs, d_y, T_poly, T, mole_fraction, species_thermal_conductivities, thermal_conductivity);
+}
+
+void dfThermo::calculateRhoDGPU(int threads_per_block, int num_thread, int num_total, const double *T, 
+        const double *T_poly, const double *p, const double *mole_fraction, 
+        const double *mean_mole_weight, const double *rho, double *rhoD, int offset)
+{
+    size_t blocks_per_grid = (num_thread + threads_per_block - 1) / threads_per_block;
+    calculate_diffusion_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_thread, num_total, num_species, offset, 
+            T_poly, mole_fraction, p, mean_mole_weight, rho, T, rhoD);
 }
 
 void dfThermo::calculateTemperatureGPU(int threads_per_block, int num_thread, int num_total, const double *T_init, const double *target_h, double *T, 
@@ -519,6 +572,8 @@ void dfThermo::correctThermo()
             d_T_poly, d_species_viscosities, dataBase_.d_mu); // calculate viscosity
     calculateThermoConductivityGPU(cell_thread, dataBase_.num_cells, dataBase_.num_cells, dataBase_.d_T, d_T_poly, dataBase_.d_y, d_mole_fraction, 
             d_species_thermal_conductivities, dataBase_.d_thermo_alpha); // calculate thermal conductivity
+    calculateRhoDGPU(cell_thread, dataBase_.num_cells, dataBase_.num_cells, dataBase_.d_T, d_T_poly, dataBase_.d_p, d_mole_fraction, 
+            d_mean_mole_weight, dataBase_.d_rho, dataBase_.d_thermo_rhoD); 
     // boundary field
     int offset = 0;
     for (int i = 0; i < dataBase_.num_patches; i++) {
@@ -533,6 +588,8 @@ void dfThermo::correctThermo()
                     d_boundary_T_poly, d_boundary_species_viscosities, dataBase_.d_boundary_mu, offset);
             calculateThermoConductivityGPU(boundary_thread, dataBase_.patch_size[i], dataBase_.num_boundary_surfaces, dataBase_.d_boundary_T, d_boundary_T_poly, 
                     dataBase_.d_boundary_y, d_boundary_mole_fraction, d_boundary_species_thermal_conductivities, dataBase_.d_boundary_thermo_alpha, offset);
+            calculateRhoDGPU(boundary_thread, dataBase_.patch_size[i], dataBase_.num_boundary_surfaces, dataBase_.d_boundary_T, d_boundary_T_poly,
+                    dataBase_.d_boundary_p, d_boundary_mole_fraction, d_boundary_mean_mole_weight, dataBase_.d_boundary_rho, dataBase_.d_boundary_thermo_rhoD, offset);
         } else {
             calculateTemperatureGPU(boundary_thread, dataBase_.patch_size[i], dataBase_.num_boundary_surfaces, dataBase_.d_boundary_T, dataBase_.d_boundary_he, 
                     dataBase_.d_boundary_T, dataBase_.d_boundary_y, offset);
@@ -543,6 +600,8 @@ void dfThermo::correctThermo()
                     d_boundary_T_poly, d_boundary_species_viscosities, dataBase_.d_boundary_mu, offset);
             calculateThermoConductivityGPU(boundary_thread, dataBase_.patch_size[i], dataBase_.num_boundary_surfaces, dataBase_.d_boundary_T, d_boundary_T_poly,
                     dataBase_.d_boundary_y, d_boundary_mole_fraction, d_boundary_species_thermal_conductivities, dataBase_.d_boundary_thermo_alpha, offset);
+            calculateRhoDGPU(boundary_thread, dataBase_.patch_size[i], dataBase_.num_boundary_surfaces, dataBase_.d_boundary_T, d_boundary_T_poly,
+                    dataBase_.d_boundary_p, d_boundary_mole_fraction, d_boundary_mean_mole_weight, dataBase_.d_boundary_rho, dataBase_.d_boundary_thermo_rhoD, offset);
         }
         // correct internal field of processor boundary
         if (dataBase_.patch_type_T[i] == boundaryConditions::processor
@@ -561,7 +620,11 @@ void dfThermo::correctThermo()
                     dataBase_.d_mu, dataBase_.d_boundary_face_cell, dataBase_.d_boundary_mu);
             correct_internal_boundary_field_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(dataBase_.patch_size[i], offset,
                     dataBase_.d_rho, dataBase_.d_boundary_face_cell, dataBase_.d_boundary_rho);
-
+            for (int j = 0; j < num_species; j++) {
+                correct_internal_boundary_field_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(dataBase_.patch_size[i], offset,
+                        dataBase_.d_thermo_rhoD + j * dataBase_.num_cells, dataBase_.d_boundary_face_cell, 
+                        dataBase_.d_boundary_thermo_rhoD + j * dataBase_.num_boundary_surfaces);
+            }
             offset += 2 * dataBase_.patch_size[i];
         } else {
             offset += dataBase_.patch_size[i]; }
@@ -738,6 +801,24 @@ void dfThermo::compareAlpha(const double *alpha, const double *boundary_alpha, b
 
     delete h_alpha;
     delete h_boundary_alpha;
+}
+
+void dfThermo::compareRhoD(const double *rhoD, const double *boundary_rhoD, int species_index, bool printFlag)
+{
+    double *h_rhoD = new double[dataBase_.num_cells];
+    double *h_boundary_rhoD = new double[dataBase_.num_boundary_surfaces];
+
+    checkCudaErrors(cudaMemcpy(h_rhoD, dataBase_.d_thermo_rhoD + species_index * dataBase_.num_cells, dataBase_.cell_value_bytes, cudaMemcpyDeviceToHost));
+    checkCudaErrors(cudaMemcpy(h_boundary_rhoD, dataBase_.d_boundary_thermo_rhoD + species_index * dataBase_.num_boundary_surfaces, 
+                dataBase_.boundary_surface_value_bytes, cudaMemcpyDeviceToHost));
+
+    fprintf(stderr, "check h_thermo_rhoD\n");
+    checkVectorEqual(dataBase_.num_cells, rhoD, h_rhoD, 1e-10, printFlag);
+    fprintf(stderr, "check h_thermo_boundary_rhoD\n");
+    checkVectorEqual(dataBase_.num_boundary_surfaces, boundary_rhoD, h_boundary_rhoD, 1e-10, printFlag);
+
+    delete h_rhoD;
+    delete h_boundary_rhoD;
 }
 
 void dfThermo::correctHe(const double *he, const double *boundary_he)

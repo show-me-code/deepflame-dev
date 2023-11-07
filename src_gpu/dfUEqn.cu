@@ -311,7 +311,9 @@ __global__ void ueqn_calculate_turbulence_k_Smagorinsky(int num_cells,
         return;
     
     double vol = volume[index];
-    double del = pow(vol, 1/3);
+    double oneThird = (1. / 3.);
+
+    double del = pow(vol, oneThird);
 
     // D = 0.5*(T+T^T)
     double D_xx = grad_U_tsr[num_cells * 0 + index];
@@ -323,19 +325,20 @@ __global__ void ueqn_calculate_turbulence_k_Smagorinsky(int num_cells,
 
     // dev(D)
     double trace = D_xx + D_yy + D_zz;
-    double dev_D_xx = D_xx - (1. / 3.) * trace;
-    double dev_D_yy = D_yy - (1. / 3.) * trace;
-    double dev_D_zz = D_zz - (1. / 3.) * trace;
+    double dev_D_xx = D_xx - oneThird * trace;
+    double dev_D_yy = D_yy - oneThird * trace;
+    double dev_D_zz = D_zz - oneThird * trace;
 
     // scalar a
-    double a = Ce * del;
+    double a = Ce / del;
     // scalar b
-    double b = 1.5 * trace;
+    double b = 2 * oneThird * trace;
     // scalar c
     double c = 2 * Ck * del * (dev_D_xx * D_xx + dev_D_yy * D_yy + dev_D_zz * D_zz 
                                     + D_xy * D_xy * 2 + D_xz * D_xz * 2 + D_yz * D_yz * 2);
     
-    output[index] = pow((-b + pow(b * b + 4 * a * c, 0.5)) / (2 * a), 2);
+    double sqrt_result = (-b + pow(b * b + 4 * a * c, 0.5)) / (2 * a);
+    output[index] = sqrt_result * sqrt_result;
     delta[index] = del;
 }
 
@@ -430,6 +433,11 @@ void dfUEqn::createNonConstantLduAndCsrFields() {
 #ifndef STREAM_ALLOCATOR
   checkCudaErrors(cudaMalloc((void**)&d_A, dataBase_.csr_value_vec_bytes));
   checkCudaErrors(cudaMalloc((void**)&d_b, dataBase_.cell_value_vec_bytes));
+  checkCudaErrors(cudaMalloc((void**)&d_ldu_solve, dataBase_.csr_value_bytes));
+  d_extern_solve = d_ldu_solve + dataBase_.num_cells + 2 * dataBase_.num_surfaces;
+  checkCudaErrors(cudaMalloc((void**)&d_source_solve, dataBase_.cell_value_vec_bytes));
+  checkCudaErrors(cudaMalloc((void**)&d_internal_coeffs_solve, dataBase_.boundary_surface_value_vec_bytes));
+  checkCudaErrors(cudaMalloc((void**)&d_boundary_coeffs_solve, dataBase_.boundary_surface_value_vec_bytes));
 #endif
   checkCudaErrors(cudaMalloc((void**)&d_A_pEqn, dataBase_.cell_value_bytes)); // TODO: delete redundant variables
   checkCudaErrors(cudaMalloc((void**)&d_H_pEqn, dataBase_.cell_value_vec_bytes));
@@ -508,6 +516,12 @@ void dfUEqn::process() {
 
         checkCudaErrors(cudaMallocAsync((void**)&d_A, dataBase_.csr_value_vec_bytes, dataBase_.stream));
         checkCudaErrors(cudaMallocAsync((void**)&d_b, dataBase_.cell_value_vec_bytes, dataBase_.stream));
+        checkCudaErrors(cudaMallocAsync((void**)&d_ldu_solve, dataBase_.csr_value_bytes, dataBase_.stream));
+        d_extern_solve = d_ldu_solve + dataBase_.num_cells + 2 * dataBase_.num_surfaces;
+        checkCudaErrors(cudaMallocAsync((void**)&d_source_solve, dataBase_.cell_value_vec_bytes, dataBase_.stream));
+        checkCudaErrors(cudaMallocAsync((void**)&d_internal_coeffs_solve, dataBase_.boundary_surface_value_vec_bytes, dataBase_.stream));
+        checkCudaErrors(cudaMallocAsync((void**)&d_boundary_coeffs_solve, dataBase_.boundary_surface_value_vec_bytes, dataBase_.stream));
+
 #endif
 
         // checkCudaErrors(cudaMemcpyAsync(d_u_host_order, dataBase_.h_u, dataBase_.cell_value_vec_bytes, cudaMemcpyHostToDevice, dataBase_.stream));
@@ -566,9 +580,14 @@ void dfUEqn::process() {
                 dataBase_.d_boundary_face_cell, dataBase_.d_boundary_u, dataBase_.d_boundary_sf, dataBase_.d_boundary_weight, 
                 dataBase_.d_volume, dataBase_.d_boundary_mag_sf, d_boundary_grad_u, dataBase_.cyclicNeighbor.data(),
                 dataBase_.patchSizeOffset.data(), dataBase_.d_boundary_delta_coeffs);
-        // calculate k & epsilon (if use turbulence model)
+
+        // **if use turbulence model**
+        // calculate k & epsilon
         getTurbulenceKEpsilon_Smagorinsky(dataBase_.stream, dataBase_.num_cells, dataBase_.num_boundary_surfaces, d_grad_u, dataBase_.d_volume, 
                 d_delta, dataBase_.d_turbulence_k, dataBase_.d_turbulence_epsilon);
+        // calculate nut
+        // **end use turbulence model**
+
         scale_dev2T_tensor(dataBase_.stream, dataBase_.num_cells, dataBase_.d_mu, d_grad_u, // end for internal
                 dataBase_.num_boundary_surfaces, dataBase_.d_boundary_mu, d_boundary_grad_u);
         fvc_div_cell_tensor(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
@@ -576,9 +595,15 @@ void dfUEqn::process() {
                 dataBase_.d_weight, dataBase_.d_sf, d_grad_u, d_source, // end for internal
                 dataBase_.num_patches, dataBase_.patch_size.data(), dataBase_.patch_type_calculated.data(), dataBase_.d_boundary_weight,
                 dataBase_.d_boundary_face_cell, d_boundary_grad_u, dataBase_.d_boundary_sf, dataBase_.d_volume);
+        
+        checkCudaErrors(cudaMemcpyAsync(d_ldu_solve, d_ldu, dataBase_.csr_value_bytes, cudaMemcpyDeviceToDevice, dataBase_.stream));
+        checkCudaErrors(cudaMemcpyAsync(d_source_solve, d_source, dataBase_.cell_value_vec_bytes, cudaMemcpyDeviceToDevice, dataBase_.stream));
+        checkCudaErrors(cudaMemcpyAsync(d_internal_coeffs_solve, d_internal_coeffs, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyDeviceToDevice, dataBase_.stream));
+        checkCudaErrors(cudaMemcpyAsync(d_boundary_coeffs_solve, d_boundary_coeffs, dataBase_.boundary_surface_value_vec_bytes, cudaMemcpyDeviceToDevice, dataBase_.stream));
+
         fvc_grad_cell_scalar(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
                 dataBase_.d_owner, dataBase_.d_neighbor,
-                dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_p, d_source,
+                dataBase_.d_weight, dataBase_.d_sf, dataBase_.d_p, d_source_solve,
                 dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(), dataBase_.d_boundary_weight,
                 dataBase_.d_boundary_face_cell, dataBase_.d_boundary_p, dataBase_.d_boundary_sf, dataBase_.d_volume, -1.);
         getrAU(dataBase_.stream, dataBase_.nccl_comm, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, 
@@ -589,7 +614,7 @@ void dfUEqn::process() {
         ueqn_ldu_to_csr(dataBase_.stream, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces, dataBase_.num_Nz,
             dataBase_.d_boundary_face_cell, dataBase_.d_ldu_to_csr_index, dataBase_.d_diag_to_csr_index, 
             dataBase_.num_patches, dataBase_.patch_size.data(), patch_type.data(), dataBase_.d_u, dataBase_.d_boundary_u,
-            d_ldu, d_extern, d_source, d_internal_coeffs, d_boundary_coeffs, dataBase_.cyclicNeighbor.data(), 
+            d_ldu_solve, d_extern_solve, d_source_solve, d_internal_coeffs_solve, d_boundary_coeffs_solve, dataBase_.cyclicNeighbor.data(), 
             dataBase_.patchSizeOffset.data(), d_A, d_b);
 #endif
 #ifdef USE_GRAPH
@@ -646,6 +671,10 @@ void dfUEqn::process() {
     
         checkCudaErrors(cudaFreeAsync(d_A, dataBase_.stream));
         checkCudaErrors(cudaFreeAsync(d_b, dataBase_.stream));
+        checkCudaErrors(cudaFreeAsync(d_ldu_solve, dataBase_.stream));
+        checkCudaErrors(cudaFreeAsync(d_source_solve, dataBase_.stream));
+        checkCudaErrors(cudaFreeAsync(d_internal_coeffs_solve, dataBase_.stream));
+        checkCudaErrors(cudaFreeAsync(d_boundary_coeffs_solve, dataBase_.stream));
 #endif
         TICK_END_EVENT(UEqn post process free);
 

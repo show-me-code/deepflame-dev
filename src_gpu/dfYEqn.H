@@ -4,11 +4,13 @@
 #include <amgx_c.h>
 #include "dfMatrixDataBase.H"
 #include "dfMatrixOpBase.H"
+#include "dfChemistrySolver.H"
 
 class dfYEqn
 {
 private:
 	dfMatrixDataBase &dataBase_;
+    dfChemistrySolver &chemistrySolver_;
 
     // cuda resource
     cudaStream_t stream;
@@ -48,6 +50,8 @@ private:
     double *d_phiUc = nullptr;
     double *d_DEff = nullptr;
     double *d_permute = nullptr;
+    // combustion fields
+    double *d_RR = nullptr;
     // computed on CPU, used on GPU, need memcpyh2d
 	double *h_hai = nullptr;
 	double *h_rhoD = nullptr;
@@ -92,8 +96,8 @@ private:
 
 public:
 	// 构造函数
-    dfYEqn(dfMatrixDataBase &dataBase)
-        : dataBase_(dataBase) {}
+    dfYEqn(dfMatrixDataBase &dataBase, dfChemistrySolver &chemistrySolver)
+        : dataBase_(dataBase), chemistrySolver_(chemistrySolver) {}
 
 	// 析构函数
 	~dfYEqn(){}
@@ -127,9 +131,11 @@ public:
     void yeqn_compute_thermo_alpha(cudaStream_t stream,
             int num_cells, const double *rhoD, double *thermo_alpha,
             int num_boundary_surfaces, const double *boundary_rhoD, double *boundary_thermo_alpha);
-    void yeqn_compute_DEff(cudaStream_t stream, int num_species, int num_cells, int num_boundary_surfaces, 
+    void yeqn_compute_DEff_via_lewisNumber(cudaStream_t stream, int num_species, int num_cells, int num_boundary_surfaces, 
             double *lewis_number, const double *alpha, const double *mut_sct, double *DEff,
             const double *boundary_alpha, const double *boundary_mut_sct, double *boundary_DEff);
+    void yeqn_compute_RR(dfChemistrySolver& chemistrySolver, cudaStream_t stream, const double *h_T, const double *d_T, 
+            const double *p, const double *y, const double *rho, double *RR);
     void yeqn_fvc_laplacian_scalar(cudaStream_t stream, ncclComm_t comm, const int *neighbor_peer,
             int num_species, int num_cells, int num_surfaces, int num_boundary_surfaces,
             const int *lowerAddr, const int *upperAddr,
@@ -140,9 +146,9 @@ public:
             const double *boundary_thermo_alpha, const double *boundary_hai, const double *boundary_vf,
             const int *cyclicNeighbor, const int *patchSizeOffset, double *boundary_output);
     void yeqn_compute_sumYDiffError_and_hDiffCorrFlux(cudaStream_t stream, int num_species, int num_cells, int num_boundary_surfaces,
-            const double *lewis_number, const double *thermo_alpha, const double *hai, const double *y, const double *grad_y,
+            const double *rhoD, const double *hai, const double *y, const double *grad_y,
             double *sumY_diff_error, double *hDiff_corr_flux,
-            const double *boundary_hai, const double *boundary_y, const double *boundary_grad_y, const double *boundary_thermo_alpha,
+            const double *boundary_hai, const double *boundary_y, const double *boundary_grad_y, const double *boundary_rhoD,
             double *boundary_sumY_diff_error, double *boundary_hDiff_corr_flux);
     void yeqn_compute_phiUc(cudaStream_t stream, int num_cells, int num_surfaces, int num_boundary_surfaces,
             const int *lowerAddr, const int *upperAddr,
