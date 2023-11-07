@@ -161,6 +161,7 @@ struct dfMatrixDataBase
 
     // constant fields - internal
     double *d_sf = nullptr;
+    double *d_mesh_dis = nullptr;
     double *d_mag_sf = nullptr;
     double *d_weight = nullptr;
     double *d_phi_weight = nullptr; // weight for mvConvection->fvmDiv
@@ -168,6 +169,7 @@ struct dfMatrixDataBase
     double *d_volume = nullptr;
     
     double *h_sf = nullptr;
+    double *h_mesh_dis = nullptr;
 
     // constant fields - boundary
     double *d_boundary_sf = nullptr;
@@ -207,8 +209,10 @@ struct dfMatrixDataBase
     double *d_dpdt = nullptr;
 
     double *d_T = nullptr;
+    double *h_T = nullptr;
     double *d_mu = nullptr;
     double *d_thermo_alpha = nullptr;
+    double *d_thermo_rhoD = nullptr;
 
     // computed on GPU, used on CPU, need memcpyd2h - host
     double *h_rho = nullptr;
@@ -258,6 +262,7 @@ struct dfMatrixDataBase
     double *d_boundary_T = nullptr;
     double *d_boundary_mu = nullptr;
     double *d_boundary_thermo_alpha = nullptr;
+    double *d_boundary_thermo_rhoD = nullptr;
     // boundary fields used between eqns
     double *d_boundary_rAU = nullptr;
     double *d_boundary_HbyA = nullptr;
@@ -300,7 +305,7 @@ struct dfMatrixDataBase
     void createConstantFieldsInternal();
     void createConstantFieldsBoundary();
     void initConstantFieldsInternal(const double *sf, const double *mag_sf, 
-            const double *weight, const double *delta_coeffs, const double *volume);
+            const double *weight, const double *delta_coeffs, const double *volume, const double *mesh_distance);
     void initConstantFieldsBoundary(const double *boundary_sf, const double *boundary_mag_sf, 
             const double *boundary_delta_coeffs, const double *boundary_weight, const int *boundary_face_cell, 
             std::vector<int> &patch_type_calculated, std::vector<int> &patch_type_extropolated);

@@ -5,6 +5,9 @@
 #include <cuda_runtime.h>
 #include "cuda_profiler_api.h"
 
+using std::min;
+using std::max;
+
 __global__ void warmup()
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
@@ -165,6 +168,112 @@ __global__ void compute_upwind_weight_internal(int num_faces, const double *phi,
         weight[index] = 1.;
     else
         weight[index] = 0.;
+}
+
+__device__ int sign(double x)
+{
+    return (x >= 0) ? 1: -1;
+}
+
+__device__ int pos0(double x)
+{
+    return (x >= 0) ? 1 : 0;
+}
+
+__global__ void compute_limiter_phi_internal(int num_cells, int num_surfaces, const double *vf, 
+        const int *lower_index, const int *upper_index, const double *mesh_distance, 
+        const double *phi, const double *mesh_weights, const double *gradc,
+        double *limiter)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_surfaces)
+        return;
+    
+    int owner = lower_index[index];
+    int neighbor = upper_index[index];
+    double faceFlux = phi[index];
+    double gradf = vf[neighbor] - vf[owner];
+    double gradcf, r;
+
+    // LimiterFunc::r
+    if (faceFlux > 0) {
+        gradcf = mesh_distance[index] * gradc[owner] + 
+                mesh_distance[num_surfaces + index] * gradc[num_cells + owner] +
+                mesh_distance[num_surfaces * 2 + index] * gradc[num_cells * 2 + owner];
+    } else {
+        gradcf = mesh_distance[index] * gradc[neighbor] + 
+                mesh_distance[num_surfaces + index] * gradc[num_cells + neighbor] +
+                mesh_distance[num_surfaces * 2 + index] * gradc[num_cells * 2 + neighbor];
+    }
+    if (fabs(gradcf) >= 1000 * fabs(gradf)) {
+        r = 2*1000*sign(gradcf)*sign(gradf) - 1;
+    } else {
+        r = 2 * (gradcf / gradf) - 1;
+    }
+
+    limiter[index] = max(min(r, 1.), 0.); // now twoByk_ = 1, fvScheme: limitedLinear 1; 
+}
+
+__global__ void compute_limiter_phi_boundary(int num, int offset, int num_boundary_surfaces, 
+        const double *boundary_weight, const double *boundary_vf, const double *boundary_gradc,
+        const double *boundary_distance, const double *boundary_phi, double *boundary_limiter)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
+        return;
+
+    int neighbor_start_index = offset + index;
+    int internal_start_index = offset + index + num;
+
+    double bouFaceFlux = boundary_phi[neighbor_start_index];
+    double bouGradf = boundary_vf[internal_start_index] - boundary_vf[neighbor_start_index];
+    double bouGradcf, r;
+
+
+    // LimiterFunc::r
+    if (bouFaceFlux > 0) {
+        bouGradcf = boundary_distance[neighbor_start_index] * boundary_gradc[internal_start_index] + 
+                boundary_distance[num_boundary_surfaces + neighbor_start_index] * boundary_gradc[num_boundary_surfaces + internal_start_index] +
+                boundary_distance[num_boundary_surfaces * 2 + neighbor_start_index] * boundary_gradc[num_boundary_surfaces * 2 + internal_start_index];
+    } else {
+        bouGradcf = boundary_distance[neighbor_start_index] * boundary_gradc[neighbor_start_index] + 
+                boundary_distance[num_boundary_surfaces + neighbor_start_index] * boundary_gradc[num_boundary_surfaces + neighbor_start_index] +
+                boundary_distance[num_boundary_surfaces * 2 + neighbor_start_index] * boundary_gradc[num_boundary_surfaces * 2 + neighbor_start_index];
+    }
+    if (fabs(bouGradcf) >= 1000 * fabs(bouGradf)) {
+        r = 2*1000*sign(bouGradcf)*sign(bouGradf) - 1;
+    } else {
+        r = 2 * (bouGradcf / bouGradf) - 1;
+    }
+
+    boundary_limiter[neighbor_start_index] = max(min(r, 1.), 0.); // now twoByk_ = 1, fvScheme: limitedLinear 1; 
+}
+
+__global__ void compute_limiter_weight_internal(int num_cells, int num_surfaces,
+        const double *phi, const double *mesh_weights, const double *limiter_weights, double *output_weights)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num_surfaces)
+        return;
+    
+    double limiterW = limiter_weights[index];
+    output_weights[index] = limiterW * mesh_weights[index] +
+            (1. - limiterW) * pos0(phi[index]);
+}
+
+__global__ void compute_limiter_weight_boundary(int num, int offset, int num_boundary_surfaces, 
+        const double *boundary_weight, const double *boundary_phi, 
+        const double *boundary_limiter_weights, double *boundary_output_weights)
+{
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    if (index >= num)
+        return;
+
+    int neighbor_start_index = offset + index;
+
+    double limiterW = boundary_limiter_weights[neighbor_start_index];
+    boundary_output_weights[neighbor_start_index] = limiterW * boundary_weight[neighbor_start_index] +
+            (1. - limiterW) * pos0(boundary_phi[neighbor_start_index]);
 }
 
 __global__ void update_boundary_coeffs_zeroGradient_scalar(int num, int offset,
@@ -2426,6 +2535,68 @@ void compute_upwind_weight(cudaStream_t stream, int num_surfaces, const double *
     size_t blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
     // only need internal upwind-weight
     compute_upwind_weight_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_surfaces, phi, weight);
+}
+
+void compute_limitedLinear_weight(cudaStream_t stream, ncclComm_t comm, const int *neighbor_peer, 
+        int num_surfaces, int num_cells, int num_boundary_surfaces,
+        const int *lowerAddr, const int *upperAddr, const double *mesh_distance, 
+        const double *weight, const double *Sf, const double *vf, const double *phi,  double *output, // end for internal
+        int num_patches, const int *patch_size, const int *patch_type, const double *boundary_weight,
+        const int *boundary_cell_face, const double *boundary_vf, const double *boundary_Sf,
+        const double *volume, const double *boundary_mag_Sf, const double *boundary_phi, 
+        // const double *boundary_distance, double *boundary_output, 
+        const int *cyclicNeighbor, const int *patchSizeOffset,
+        const double *boundary_deltaCoeffs)
+{
+    // calculate fvc::grad(vf) (now output stores fvc::grad(lPhi))
+    // fvc_grad_cell_scalar_withBC(stream, comm, neighbor_peer, num_cells, num_surfaces, num_boundary_surfaces,
+    //         lowerAddr, upperAddr, weight, Sf, vf, output, num_patches, patch_size, patch_type, boundary_weight,
+    //         boundary_cell_face, boundary_vf, boundary_Sf, volume, boundary_mag_Sf, boundary_output,
+    //         cyclicNeighbor, patchSizeOffset, boundary_deltaCoeffs);
+    fvc_grad_cell_scalar(stream, num_cells, num_surfaces, num_boundary_surfaces, lowerAddr, upperAddr, 
+            weight, Sf, vf, output, num_patches, patch_size, patch_type, boundary_weight,
+            boundary_cell_face, boundary_vf, boundary_Sf, volume, true);
+    // calculated limiter (now output stores this->limiter(phi))
+    size_t threads_per_block = 1024;
+    size_t blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
+    compute_limiter_phi_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_surfaces, vf, 
+            lowerAddr, upperAddr, mesh_distance, phi, weight, output, output);
+    
+    // int offset = 0;
+    // for (int i = 0; i < num_patches; i++) {
+    //     if (patch_size[i] == 0) continue;
+    //     if (patch_type[i] == boundaryConditions::processor
+    //         || patch_type[i] == boundaryConditions::processorCyclic) {
+    //         threads_per_block = 256;
+    //         blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
+    //         compute_limiter_phi_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
+    //                 num_boundary_surfaces, boundary_weight, boundary_vf, boundary_output, boundary_distance, 
+    //                 boundary_phi, boundary_output);
+    //         offset += 2 * patch_size[i];
+    //     } else {
+    //         cudaMemset(boundary_output + offset, 1., patch_size[i] * sizeof(double));
+    //         offset += patch_size[i];
+    //     }
+    // }
+    // calculate weight
+    // threads_per_block = 1024;
+    // blocks_per_grid = (num_surfaces + threads_per_block - 1) / threads_per_block;
+    // compute_limiter_weight_internal<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, num_surfaces, phi, 
+    //         weight, output, output);
+    // offset = 0;
+    // for (int i = 0; i < num_patches; i++) {
+    //     if (patch_size[i] == 0) continue;
+    //     threads_per_block = 256;
+    //     blocks_per_grid = (patch_size[i] + threads_per_block - 1) / threads_per_block;
+    //     compute_limiter_weight_boundary<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
+    //             num_boundary_surfaces, boundary_weight, boundary_phi, boundary_output, boundary_output);
+    //     if (patch_type[i] == boundaryConditions::processor
+    //         || patch_type[i] == boundaryConditions::processorCyclic) {
+    //         offset += 2 * patch_size[i];
+    //     } else {
+    //         offset += patch_size[i];
+    //     }
+    // }
 }
 
 void fvm_ddt_vol_scalar_vol_scalar(cudaStream_t stream, int num_cells, double rDeltaT,

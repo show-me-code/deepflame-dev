@@ -222,8 +222,8 @@ void dfEEqn::process() {
 
         TICK_START_EVENT;
         // copy he to host
-        checkCudaErrors(cudaMemcpyAsync(dataBase_.h_he, dataBase_.d_he, dataBase_.cell_value_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
-        checkCudaErrors(cudaMemcpyAsync(dataBase_.h_boundary_he, dataBase_.d_boundary_he, dataBase_.boundary_surface_value_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
+        // checkCudaErrors(cudaMemcpyAsync(dataBase_.h_he, dataBase_.d_he, dataBase_.cell_value_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
+        // checkCudaErrors(cudaMemcpyAsync(dataBase_.h_boundary_he, dataBase_.d_boundary_he, dataBase_.boundary_surface_value_bytes, cudaMemcpyDeviceToHost, dataBase_.stream));
         TICK_END_EVENT(EEqn post process copy back);
 
         TICK_START_EVENT;

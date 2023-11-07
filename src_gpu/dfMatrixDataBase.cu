@@ -267,12 +267,14 @@ void dfMatrixDataBase::setConstantIndexes(const int *owner, const int *neighbor,
 
 void dfMatrixDataBase::createConstantFieldsInternal() {
     checkCudaErrors(cudaMalloc((void**)&d_sf, surface_value_vec_bytes));
+    checkCudaErrors(cudaMalloc((void**)&d_mesh_dis, surface_value_vec_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_mag_sf, surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_weight, surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_phi_weight, surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_delta_coeffs, surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_volume, cell_value_bytes));
     fieldPointerMap["d_sf"] = d_sf;
+    fieldPointerMap["d_mesh_dis"] = d_mesh_dis;
     fieldPointerMap["d_mag_sf"] = d_mag_sf;
     fieldPointerMap["d_weight"] = d_weight;
     fieldPointerMap["d_phi_weight"] = d_phi_weight;
@@ -280,7 +282,9 @@ void dfMatrixDataBase::createConstantFieldsInternal() {
     fieldPointerMap["d_volume"] = d_volume;
 
     checkCudaErrors(cudaMallocHost((void**)&h_sf, surface_value_vec_bytes));
+    checkCudaErrors(cudaMallocHost((void**)&h_mesh_dis, surface_value_vec_bytes));
     fieldPointerMap["h_sf"] = h_sf;
+    fieldPointerMap["h_mesh_dis"] = h_mesh_dis;
 }
 
 void dfMatrixDataBase::createConstantFieldsBoundary() {
@@ -299,14 +303,18 @@ void dfMatrixDataBase::createConstantFieldsBoundary() {
 }
 
 void dfMatrixDataBase::initConstantFieldsInternal(const double *sf, const double *mag_sf, 
-        const double *weight, const double *delta_coeffs, const double *volume) {
+        const double *weight, const double *delta_coeffs, const double *volume, const double *mesh_distance) {
     // permute sf
     for (int i = 0; i < num_surfaces; i++) {
         h_sf[num_surfaces * 0 + i] = sf[i * 3 + 0];
         h_sf[num_surfaces * 1 + i] = sf[i * 3 + 1];
         h_sf[num_surfaces * 2 + i] = sf[i * 3 + 2];
+        h_mesh_dis[num_surfaces * 0 + i] = mesh_distance[i * 3 + 0];
+        h_mesh_dis[num_surfaces * 1 + i] = mesh_distance[i * 3 + 1];
+        h_mesh_dis[num_surfaces * 2 + i] = mesh_distance[i * 3 + 2];
     }
     checkCudaErrors(cudaMemcpyAsync(d_sf, h_sf, surface_value_vec_bytes, cudaMemcpyHostToDevice, stream));
+    checkCudaErrors(cudaMemcpyAsync(d_mesh_dis, h_mesh_dis, surface_value_vec_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_mag_sf, mag_sf, surface_value_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_weight, weight, surface_value_bytes, cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_delta_coeffs, delta_coeffs, surface_value_bytes, cudaMemcpyHostToDevice, stream));
@@ -366,6 +374,8 @@ void dfMatrixDataBase::createNonConstantFieldsInternal() {
     // thermophysical fields
     checkCudaErrors(cudaMalloc((void**)&d_thermo_psi, cell_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_thermo_alpha, cell_value_bytes));
+    checkCudaErrors(cudaMalloc((void**)&d_thermo_rhoD, num_species * cell_value_bytes));
+
     checkCudaErrors(cudaMalloc((void**)&d_hDiff_corr_flux, cell_value_vec_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_diff_alphaD, cell_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_dpdt, cell_value_bytes));
@@ -381,6 +391,7 @@ void dfMatrixDataBase::createNonConstantFieldsInternal() {
     checkCudaErrors(cudaMalloc((void**)&d_HbyA, cell_value_vec_bytes));
 
     // computed on GPU, used on CPU, need memcpyd2h
+    checkCudaErrors(cudaMallocHost((void**)&h_T, cell_value_bytes));
     checkCudaErrors(cudaMallocHost((void**)&h_rho, cell_value_bytes));
     checkCudaErrors(cudaMallocHost((void**)&h_rho_old, cell_value_bytes));
     checkCudaErrors(cudaMallocHost((void**)&h_u, cell_value_vec_bytes));
@@ -389,6 +400,7 @@ void dfMatrixDataBase::createNonConstantFieldsInternal() {
     checkCudaErrors(cudaMallocHost((void**)&h_he, cell_value_bytes));
     checkCudaErrors(cudaMallocHost((void**)&h_k, cell_value_bytes));
     checkCudaErrors(cudaMallocHost((void**)&h_k_old, cell_value_bytes));
+    fieldPointerMap["h_T"] = h_T;
     fieldPointerMap["h_rho"] = h_rho;
     fieldPointerMap["h_rho_old"] = h_rho_old;
     fieldPointerMap["h_u"] = h_u;
@@ -440,6 +452,7 @@ void dfMatrixDataBase::createNonConstantFieldsBoundary() {
     // thermophysical fields
     checkCudaErrors(cudaMalloc((void**)&d_boundary_thermo_psi, boundary_surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_thermo_alpha, boundary_surface_value_bytes));
+    checkCudaErrors(cudaMalloc((void**)&d_boundary_thermo_rhoD, num_species * boundary_surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_hDiff_corr_flux, boundary_surface_value_vec_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_diff_alphaD, boundary_surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_boundary_T, boundary_surface_value_bytes));
