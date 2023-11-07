@@ -335,7 +335,7 @@ void AmgXSolver::solve(
     getIters(nIters);
     getResidual(nIters, rnorm);
     if (!isMPIEnabled || myRank == 0)
-    printf("Initial residual = %.10lf, Final residual = %.5e, No Iterations %d\n", irnorm, rnorm, nIters);
+        fprintf(stderr, "Initial residual = %.10lf, Final residual = %.5e, No Iterations %d\n", irnorm, rnorm, nIters);
 
 }
 

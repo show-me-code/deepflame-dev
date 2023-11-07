@@ -294,6 +294,7 @@ struct dfMatrixDataBase
     void setConstantIndexes(const int *owner, const int *neighbor, const int *procRows, 
             const int *procCols, int globalOffset);
     void setAmgxSolvers(const std::string &mode_string, const std::string &u_setting_path, const std::string &p_setting_path);
+    void resetAmgxSolvers();
     void solve(int num_iteration, AMGXSetting setting, double *d_A, double *d_x, double *d_b);
     void setCyclicInfo(std::vector<int> &cyclicNeighbor); // when use cyclic boundary
 

@@ -151,6 +151,17 @@ void dfMatrixDataBase::setAmgxSolvers(const std::string &mode_string, const std:
     u_setting_solver = new AmgXSolver(mode_string, u_setting_path, localRank);
     p_setting_solver = new AmgXSolver(mode_string, p_setting_path, localRank);
 }
+
+void dfMatrixDataBase::resetAmgxSolvers() {
+    if (u_setting_solver) {
+        delete u_setting_solver;
+        u_setting_solver = nullptr;
+    }
+    if (p_setting_solver) {
+        delete p_setting_solver;
+        p_setting_solver = nullptr;
+    }
+}
     
 void dfMatrixDataBase::solve(int num_iteration, AMGXSetting setting, double *d_A, double *d_x, double *d_b) {
     AmgXSolver *solver = (setting == AMGXSetting::u_setting) ? u_setting_solver : p_setting_solver;
