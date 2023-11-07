@@ -63,8 +63,9 @@ public:
     void setConstantValue(std::string mechanism_file, int num_cells, int num_species);
     void setConstantFields(const std::vector<int> patch_type);
     void initNonConstantFields(const double *h_T, const double *h_he, const double *h_psi, const double *h_alpha, 
-            const double *h_mu, const double *h_k, const double *h_dpdt, const double *h_boundary_T, const double *h_boundary_he, 
-            const double *h_boundary_psi, const double *h_boundary_alpha, const double *h_boundary_mu, const double *h_boundary_k);
+            const double *h_mu, const double *h_k, const double *h_dpdt, const double *h_rhoD, const double *h_boundary_T, 
+            const double *h_boundary_he, const double *h_boundary_psi, const double *h_boundary_alpha, const double *h_boundary_mu, 
+            const double *h_boundary_k, const double *h_boundary_rhoD);
 
     // set mass fraction
     void setMassFraction(const double *d_y, const double *d_boundary_y);
@@ -79,6 +80,9 @@ public:
     void calculateThermoConductivityGPU(int thread_per_block, int num_thread, int num_total, const double *T, const double *T_poly,
             const double *d_y, const double *mole_fraction, double *species_thermal_conductivities,
             double *thermal_conductivity, int offset = 0);
+    void calculateRhoDGPU(int threads_per_block, int num_thread, int num_total, const double *T, 
+            const double *T_poly, const double *p, const double *mole_fraction, 
+            const double *mean_mole_weight, const double *rho, double *rhoD, int offset = 0);
     void calculateEnthalpyGPU(int thread_per_block, int num_thread, const double *T, double *enthalpy, const double *d_mass_fraction, int offset = 0);
     void calculateTemperatureGPU(int thread_per_block, int num_thread, int num_total, const double *T_init, const double *target_h, 
             double *T, const double *d_mass_fraction, int offset = 0,
@@ -98,6 +102,7 @@ public:
     void compareMu(const double *mu, const double *boundary_mu, bool printFlag);
     void compareAlpha(const double *alpha, const double *boundary_alpha, bool printFlag);
     void compareHe(const double *he, const double *boundary_he, bool printFlag);
+    void compareRhoD(const double *rhoD, const double *boundary_rhoD, int species_index, bool printFlag);
 
     void correctHe(const double *he, const double *boundary_he);
     void correctPsi(const double *psi, const double *boundary_psi);
