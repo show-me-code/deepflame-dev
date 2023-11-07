@@ -22,6 +22,15 @@
     //randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(5)));
     //randomInitField<volScalarField>(const_cast<volScalarField&>(chemistry->hai(6)));
 
+    // auto& mgcs = dynamic_cast<fv::multivariateGaussConvectionScheme<scalar>&>(mvConvection.ref());
+    // tmp<surfaceInterpolationScheme<scalar>> tinterpScheme_ = mgcs.interpolationScheme()()(Y[0]);
+    // tmp<surfaceScalarField> tweights = tinterpScheme_().weights(Y[0]);
+    // const surfaceScalarField& weights = tweights();
+    // Info << "CPU weights\n" << weights << endl;
+
+    // auto& limitedScheme_ = dynamic_cast<const limitedSurfaceInterpolationScheme<scalar>&>(tinterpScheme_());
+    // Info << "CPU limiter\n" << limitedScheme_.limiter(Y[0]) << endl;
+
     forAll(Y, i)
     {
         sumYDiffError += chemistry->rhoD(i)*fvc::grad(Y[i]);
@@ -44,6 +53,12 @@
         )
     );
 
+    // auto& mgcs = dynamic_cast<fv::multivariateGaussConvectionScheme<scalar>&>(mvConvection.ref());
+    // tmp<surfaceInterpolationScheme<scalar>> tinterpScheme_ = mgcs.interpolationScheme()()(Y[0]);
+    // tmp<surfaceScalarField> tweights = tinterpScheme_().weights(Y[0]);
+    // const surfaceScalarField& weights = tweights();
+    // Info << "CPU weights\n" << weights << endl;
+
     start1 = std::clock();
     forAll(Y, i)
     {
@@ -62,17 +77,6 @@ MPI_Initialized(&flag_mpi_init);
 if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
 
 {
-    if (!splitting)
-    {
-        std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-        combustion->correct();
-        //label flag_mpi_init;
-        //MPI_Initialized(&flag_mpi_init);
-        if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
-        std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now();
-        std::chrono::duration<double> processingTime = std::chrono::duration_cast<std::chrono::duration<double>>(stop - start);
-        time_monitor_chem += processingTime.count();
-    }
 
 #ifdef GPUSolverNew_
 #if defined DEBUG_
@@ -265,6 +269,18 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
 
     fflush(stderr);
 #else
+    if (!splitting)
+    {
+        std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+        combustion->correct();
+        //label flag_mpi_init;
+        //MPI_Initialized(&flag_mpi_init);
+        if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
+        std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now();
+        std::chrono::duration<double> processingTime = std::chrono::duration_cast<std::chrono::duration<double>>(stop - start);
+        time_monitor_chem += processingTime.count();
+    }
+
     start2 = std::clock();
     volScalarField Yt(0.0*Y[0]);
     int speciesIndex = 0;

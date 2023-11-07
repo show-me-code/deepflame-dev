@@ -11,7 +11,6 @@
         fvm::div(phi, U)
         +  
         turbulence->divDevRhoReff(U)
-        == -fvc::grad(p)
     );
     fvVectorMatrix& UEqn = tUEqn.ref();
     TICK_STOP(CPU assembly time);
@@ -64,7 +63,7 @@
 #if defined DEBUG_
     // UEqn.relax();
     TICK_START;
-    UEqn.solve();
+    solve(UEqn == -fvc::grad(p));
     K.oldTime();
     K = 0.5*magSqr(U);
     TICK_STOP(CPU solve time);
@@ -118,7 +117,7 @@
         //     h_internal_coeffs.data(), h_boundary_coeffs.data(), 
         //     // &gradU[0][0], h_boundary_gradU,
         //     printFlag);
-        //UEqn_GPU.compareU(&U[0][0], h_boundary_u_tmp, printFlag);
+        // UEqn_GPU.compareU(&U[0][0], h_boundary_u_tmp, printFlag);
     }
     DEBUG_TRACE;
 #endif
@@ -129,7 +128,6 @@
     (
         fvm::ddt(rho, U) + fvm::div(phi, U)
     + turbulence->divDevRhoReff(U) 
-    == -fvc::grad(p)
     );
     fvVectorMatrix& UEqn = tUEqn.ref();
     end1 = std::clock();
@@ -140,7 +138,7 @@
     start1 = std::clock();
     if (pimple.momentumPredictor())
     {
-        solve(UEqn);
+        solve(UEqn == -fvc::grad(p));
         K.oldTime();
         K = 0.5*magSqr(U);
     }

@@ -84,6 +84,11 @@ private:
 	// non-constant fields - csr
 	double *d_A = nullptr;
 	double *d_b = nullptr; // TODO: needless
+    double *d_ldu_solve = nullptr;
+    double *d_extern_solve = nullptr;
+	double *d_source_solve = nullptr;
+	double *d_internal_coeffs_solve = nullptr;
+	double *d_boundary_coeffs_solve = nullptr;
 
     // field pointer map
     std::unordered_map<std::string, double*> fieldPointerMap;

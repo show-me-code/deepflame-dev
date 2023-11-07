@@ -6,9 +6,10 @@ int nRanks, myRank, localRank, mpi_init_flag = 0;
 
 dfMatrixDataBase dfDataBase;
 dfThermo thermo_GPU(dfDataBase);
+dfChemistrySolver chemistrySolver_GPU(dfDataBase);
 dfRhoEqn rhoEqn_GPU(dfDataBase);
 dfUEqn UEqn_GPU(dfDataBase);
-dfYEqn YEqn_GPU(dfDataBase);
+dfYEqn YEqn_GPU(dfDataBase, chemistrySolver_GPU);
 dfEEqn EEqn_GPU(dfDataBase, thermo_GPU);
 dfpEqn pEqn_GPU(dfDataBase);
 
@@ -325,7 +326,17 @@ void createGPUBase(const IOdictionary& CanteraTorchProperties, fvMesh& mesh, Ptr
 
     dfDataBase.createConstantFieldsInternal();
     dfDataBase.createConstantFieldsBoundary();
-    dfDataBase.initConstantFieldsInternal(&mesh.Sf()[0][0], &mesh.magSf()[0], &mesh.surfaceInterpolation::weights()[0], &mesh.deltaCoeffs()[0], &mesh.V()[0]);
+
+    // construct mesh distance for limitedLinear scheme
+    vectorField meshDistance = mesh.Sf();
+    forAll(meshDistance, facei) {
+        label own = owner[facei];
+        label nei = neighbour[facei];
+        meshDistance[facei] = mesh.C()[nei] - mesh.C()[own];
+    }
+
+    dfDataBase.initConstantFieldsInternal(&mesh.Sf()[0][0], &mesh.magSf()[0], &mesh.surfaceInterpolation::weights()[0], 
+            &mesh.deltaCoeffs()[0], &mesh.V()[0], &meshDistance[0][0]);
     dfDataBase.initConstantFieldsBoundary(boundary_sf, boundary_mag_sf, boundary_delta_coeffs, boundary_weights, boundary_face_cell, 
             patch_type_calculated, patch_type_extropolated);
     
@@ -586,7 +597,7 @@ void createGPUpEqn(const IOdictionary& CanteraTorchProperties, volScalarField& p
 
 void createGPUThermo(const IOdictionary& CanteraTorchProperties, volScalarField& T, volScalarField& he, 
         const volScalarField& psi, const volScalarField& alpha, const volScalarField& mu,
-        const volScalarField& K, const volScalarField& dpdt) {
+        const volScalarField& K, const volScalarField& dpdt, dfChemistryModel<basicThermo>* chemistry) {
     DEBUG_TRACE;
     // initialize dfThermo
     string mechanismFile;
@@ -604,6 +615,8 @@ void createGPUThermo(const IOdictionary& CanteraTorchProperties, volScalarField&
     double *h_boundary_thermo_alpha = new double[dfDataBase.num_boundary_surfaces];
     double *h_boundary_mu = new double[dfDataBase.num_boundary_surfaces];
     double *h_boundary_k = new double[dfDataBase.num_boundary_surfaces];
+    double *h_boundary_thermo_rhoD = new double[dfDataBase.num_boundary_surfaces * dfDataBase.num_species];
+    double *h_thermo_rhoD = new double[dfDataBase.num_cells * dfDataBase.num_species];
 
     // initialize thermo boundary
     std::vector<int> patch_type_T(dfDataBase.num_patches);
@@ -651,6 +664,14 @@ void createGPUThermo(const IOdictionary& CanteraTorchProperties, volScalarField&
                     dynamic_cast<const processorFvPatchField<scalar>&>(patchK).patchInternalField()();
             memcpy(h_boundary_k + offset + patchsize, &patchKInternal[0], patchsize * sizeof(double));
 
+            for (int i = 0; i < dfDataBase.num_species; i++) {
+                const fvPatchScalarField& patchRhoD = chemistry->rhoD(i).boundaryField()[patchi];
+                memcpy(h_boundary_thermo_rhoD + i * dfDataBase.num_boundary_surfaces + offset, &patchRhoD[0], patchsize * sizeof(double));
+                scalarField patchRhoDInternal = 
+                        dynamic_cast<const processorFvPatchField<scalar>&>(patchRhoD).patchInternalField()();
+                memcpy(h_boundary_thermo_rhoD + i * dfDataBase.num_boundary_surfaces + offset + patchsize, &patchRhoDInternal[0], patchsize * sizeof(double));
+            }
+
             offset += patchsize * 2;
         } else {
             memcpy(h_boundary_T + offset, &patchT[0], patchsize * sizeof(double));
@@ -660,13 +681,29 @@ void createGPUThermo(const IOdictionary& CanteraTorchProperties, volScalarField&
             memcpy(h_boundary_mu + offset, &patchMu[0], patchsize * sizeof(double));
             memcpy(h_boundary_k + offset, &patchK[0], patchsize * sizeof(double));
 
+            for (int i = 0; i < dfDataBase.num_species; i++) {
+                const fvPatchScalarField& patchRhoD = chemistry->rhoD(i).boundaryField()[patchi];
+                memcpy(h_boundary_thermo_rhoD + i * dfDataBase.num_boundary_surfaces + offset, &patchRhoD[0], patchsize * sizeof(double));
+            }
             offset += patchsize;
         }
     }
+    for (int i = 0; i < dfDataBase.num_species; i++) {
+        memcpy(h_thermo_rhoD + i * dfDataBase.num_cells, &chemistry->rhoD(i)[0], dfDataBase.num_cells * sizeof(double));
+    }
+    double *h_T = dfDataBase.getFieldPointer("T", location::cpu, position::internal);
+    memcpy(h_T, &T[0], dfDataBase.cell_value_bytes);
+
     thermo_GPU.setConstantFields(patch_type_T);
-    thermo_GPU.initNonConstantFields(&T[0], &he[0], &psi[0], &alpha[0], &mu[0], &K[0], &dpdt[0],
-            h_boundary_T, h_boundary_he, h_boundary_thermo_psi, h_boundary_thermo_alpha, h_boundary_mu, h_boundary_k);
+    thermo_GPU.initNonConstantFields(h_T, &he[0], &psi[0], &alpha[0], &mu[0], &K[0], &dpdt[0], h_thermo_rhoD,
+            h_boundary_T, h_boundary_he, h_boundary_thermo_psi, h_boundary_thermo_alpha, h_boundary_mu, h_boundary_k, h_boundary_thermo_rhoD);
 
     delete h_boundary_T;
     delete h_boundary_he;
+    delete h_boundary_thermo_psi;
+    delete h_boundary_thermo_alpha;
+    delete h_boundary_mu;
+    delete h_boundary_k;
+    delete h_boundary_thermo_rhoD;
+    delete h_thermo_rhoD;
 }
