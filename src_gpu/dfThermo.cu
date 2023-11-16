@@ -116,33 +116,38 @@ __global__ void calculate_viscosity_kernel(int num_thread, int num_total, int nu
     if (index >= num_thread)
         return;
     
+    extern __shared__ double sdata[];
+    double* sv = sdata;
+    double* mf = &sdata[blockDim.x * num_species];
+
     int startIndex = index + offset;
 
-    double dot_product;
-    double local_T = T[startIndex];
+    double sqrt_local_T = sqrt(T[startIndex]);
 
-    for (int i = 0; i < num_species; i++) {
-        dot_product = 0.;
-        for (int j = 0; j < 5; j++) {
-            dot_product += d_viscosity_coeffs[i * 5 + j] * T_poly[num_total * j + startIndex];
-        }
-        species_viscosities[i * num_total + startIndex] = (dot_product * dot_product) * sqrt(local_T);
+    double poly[5];
+    for (int j = 0; j < 5; j++) {
+        poly[j] = T_poly[num_total * j + startIndex];
     }
 
+    for (int i = 0; i < num_species; i++) {
+        double dot_product = 0.;
+        for (int j = 0; j < 5; j++) {
+            dot_product += d_viscosity_coeffs[i * 5 + j] * poly[j];
+        }
+        sv[threadIdx.x * num_species + i] = dot_product;
+        mf[threadIdx.x * num_species + i] = mole_fraction[num_total * i + startIndex];
+    }
     double mu_mix = 0.;
     for (int i = 0; i < num_species; i++) {
-        double temp = 0.;
+        double sum = 0.;
         for (int j = 0; j < num_species; j++) {
-            temp += mole_fraction[num_total * j + startIndex] / SQRT8 *
-            d_viscosity_conatant1[i * NUM_SPECIES + j] * // constant 1
-            pow(1.0 + sqrt(species_viscosities[i * num_total + startIndex] / species_viscosities[j * num_total + startIndex]) *
-            d_viscosity_conatant2[i * NUM_SPECIES + j], 2.0); // constant 2
+            double temp = 1.0 + (sv[threadIdx.x * num_species + i] / sv[threadIdx.x * num_species + j]) *
+                          d_viscosity_conatant2[i * NUM_SPECIES + j];
+            sum += mf[threadIdx.x * num_species + j] / SQRT8 * d_viscosity_conatant1[i * NUM_SPECIES + j] * (temp * temp);
         }
-        mu_mix += mole_fraction[num_total * i + startIndex] * species_viscosities[i * num_total + startIndex] / temp;
+        mu_mix += mf[threadIdx.x * num_species + i] * (sv[threadIdx.x * num_species + i] * sv[threadIdx.x * num_species + i]) / sum;
     }
-    
-
-    mu[startIndex] = mu_mix;
+    mu[startIndex] = mu_mix * sqrt_local_T;
 }
 
 __device__ double calculate_cp_device_kernel(int num_total, int num_species, int index, 
@@ -487,12 +492,17 @@ void dfThermo::calculateRhoGPU(int threads_per_block, int num_thread, const doub
     calculate_rho_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, offset, p, psi, rho);
 }
 
-void dfThermo::calculateViscosityGPU(int threads_per_block, int num_thread, int num_total, const double *T, const double *mole_fraction, 
+void dfThermo::calculateViscosityGPU(int num_thread, int num_total, const double *T, const double *mole_fraction,
         const double *T_poly, double *species_viscosities, double *viscosity, int offset)
 {
+    TICK_INIT_EVENT;
+    TICK_START_EVENT;
+    int threads_per_block = 32;
     size_t blocks_per_grid = (num_thread + threads_per_block - 1) / threads_per_block;
-    calculate_viscosity_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_thread, num_total, num_species, offset, 
+    size_t num_bytes_dyn_shm = threads_per_block * num_species * 2 * sizeof(double);
+    calculate_viscosity_kernel<<<blocks_per_grid, threads_per_block, num_bytes_dyn_shm, stream>>>(num_thread, num_total, num_species, offset,
             T_poly, T, mole_fraction, species_viscosities, viscosity);
+    TICK_END_EVENT(calculate_viscosity_kernel);
 }
 
 void dfThermo::calculateThermoConductivityGPU(int threads_per_block, int num_thread, int num_total, const double *T, 
@@ -568,7 +578,7 @@ void dfThermo::correctThermo()
     calculateTPolyGPU(cell_thread, dataBase_.num_cells, dataBase_.num_cells, dataBase_.d_T, d_T_poly); // calculate T_poly
     calculatePsiGPU(cell_thread, dataBase_.num_cells, dataBase_.d_T, d_mean_mole_weight, dataBase_.d_thermo_psi); // calculate psi
     calculateRhoGPU(cell_thread, dataBase_.num_cells, dataBase_.d_p, dataBase_.d_thermo_psi, dataBase_.d_rho); // calculate rho
-    calculateViscosityGPU(cell_thread, dataBase_.num_cells, dataBase_.num_cells, dataBase_.d_T, d_mole_fraction, 
+    calculateViscosityGPU(dataBase_.num_cells, dataBase_.num_cells, dataBase_.d_T, d_mole_fraction,
             d_T_poly, d_species_viscosities, dataBase_.d_mu); // calculate viscosity
     calculateThermoConductivityGPU(cell_thread, dataBase_.num_cells, dataBase_.num_cells, dataBase_.d_T, d_T_poly, dataBase_.d_y, d_mole_fraction, 
             d_species_thermal_conductivities, dataBase_.d_thermo_alpha); // calculate thermal conductivity
@@ -584,7 +594,7 @@ void dfThermo::correctThermo()
                     dataBase_.d_boundary_y, offset);
             calculatePsiGPU(boundary_thread, dataBase_.patch_size[i], dataBase_.d_boundary_T, d_boundary_mean_mole_weight, dataBase_.d_boundary_thermo_psi, offset);
             calculateRhoGPU(boundary_thread, dataBase_.patch_size[i], dataBase_.d_boundary_p, dataBase_.d_boundary_thermo_psi, dataBase_.d_boundary_rho, offset);
-            calculateViscosityGPU(boundary_thread, dataBase_.patch_size[i], dataBase_.num_boundary_surfaces, dataBase_.d_boundary_T, d_boundary_mole_fraction,
+            calculateViscosityGPU(dataBase_.patch_size[i], dataBase_.num_boundary_surfaces, dataBase_.d_boundary_T, d_boundary_mole_fraction,
                     d_boundary_T_poly, d_boundary_species_viscosities, dataBase_.d_boundary_mu, offset);
             calculateThermoConductivityGPU(boundary_thread, dataBase_.patch_size[i], dataBase_.num_boundary_surfaces, dataBase_.d_boundary_T, d_boundary_T_poly, 
                     dataBase_.d_boundary_y, d_boundary_mole_fraction, d_boundary_species_thermal_conductivities, dataBase_.d_boundary_thermo_alpha, offset);
@@ -596,7 +606,7 @@ void dfThermo::correctThermo()
             calculateTPolyGPU(boundary_thread, dataBase_.patch_size[i], dataBase_.num_boundary_surfaces, dataBase_.d_boundary_T, d_boundary_T_poly, offset);
             calculatePsiGPU(boundary_thread, dataBase_.patch_size[i], dataBase_.d_boundary_T, d_boundary_mean_mole_weight, dataBase_.d_boundary_thermo_psi, offset);
             calculateRhoGPU(boundary_thread, dataBase_.patch_size[i], dataBase_.d_boundary_p, dataBase_.d_boundary_thermo_psi, dataBase_.d_boundary_rho, offset);
-            calculateViscosityGPU(boundary_thread, dataBase_.patch_size[i], dataBase_.num_boundary_surfaces, dataBase_.d_boundary_T, d_boundary_mole_fraction,
+            calculateViscosityGPU(dataBase_.patch_size[i], dataBase_.num_boundary_surfaces, dataBase_.d_boundary_T, d_boundary_mole_fraction,
                     d_boundary_T_poly, d_boundary_species_viscosities, dataBase_.d_boundary_mu, offset);
             calculateThermoConductivityGPU(boundary_thread, dataBase_.patch_size[i], dataBase_.num_boundary_surfaces, dataBase_.d_boundary_T, d_boundary_T_poly,
                     dataBase_.d_boundary_y, d_boundary_mole_fraction, d_boundary_species_thermal_conductivities, dataBase_.d_boundary_thermo_alpha, offset);

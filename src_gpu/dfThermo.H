@@ -75,7 +75,7 @@ public:
     void calculatePsiGPU(int threads_per_block, int num_thread, const double *T, const double *mean_mole_weight, 
             double *d_psi, int offset = 0);
     void calculateRhoGPU(int thread_per_block, int num_thread, const double *p, const double *psi, double *rho, int offset = 0);
-    void calculateViscosityGPU(int thread_per_block, int num_thread, int num_total, const double *T, const double *mole_fraction, 
+    void calculateViscosityGPU(int num_thread, int num_total, const double *T, const double *mole_fraction,
             const double *T_poly, double *species_viscosities, double *viscosity, int offset = 0);
     void calculateThermoConductivityGPU(int thread_per_block, int num_thread, int num_total, const double *T, const double *T_poly,
             const double *d_y, const double *mole_fraction, double *species_thermal_conductivities,
