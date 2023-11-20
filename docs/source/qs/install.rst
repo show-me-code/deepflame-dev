@@ -26,7 +26,7 @@ OpenFOAM-7 and ParaView-5.6.0 will be installed in the ``/opt`` directory.
 
     conda create -n deepflame python=3.8
     conda activate deepflame
-    conda install -c cantera libcantera-devel
+    conda install -c conda-forge libcantera-devel 
     conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
     conda install pybind11 
     conda install -c conda-forge easydict
@@ -129,7 +129,7 @@ DeepFlame also provides users with LibTorch and CVODE (no DNN version) options.
 
     conda create -n df-libtorch python=3.8
     conda activate df-libtorch
-    conda install -c cantera libcantera-devel
+    conda install -c conda-forge libcantera-devel 
 
 Then you can pass your own libtorch path to DeepFlame.
 
@@ -149,7 +149,7 @@ Then you can pass your own libtorch path to DeepFlame.
 
     conda create -n df-notorch python=3.8
     conda activate df-notorch
-    conda install -c cantera libcantera-devel
+    conda install -c conda-forge libcantera-devel 
 
 If the conda env ``df-notorch`` is activated, install DeepFlame by running:
 
