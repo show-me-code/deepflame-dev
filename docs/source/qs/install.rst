@@ -108,7 +108,14 @@ Finally you can build and install DeepFlame:
 
     . install.sh  
 
-.. Note:: You may come accross an error regarding shared library ``libmkl_rt.so.2`` when libcantera is installed through cantera channel. If so, go to your conda environment and check the existance of ``libmkl_rt.so.2`` and ``libmkl_rt.so.1``, and then link ``libmkl_rt.so.2`` to ``libmkl_rt.so.1``.
+.. Note:: You may see an error ``fmt`` or ``eigen`` files cannot be found. If so, go to your conda environment and install the packages as follows.
+    
+.. code-block:: bash
+
+    conda install fmt 
+    conda install eigen 
+
+.. Note:: You may also come accross an error regarding shared library ``libmkl_rt.so.2`` when libcantera is installed through cantera channel. If so, go to your conda environment and check the existance of ``libmkl_rt.so.2`` and ``libmkl_rt.so.1``, and then link ``libmkl_rt.so.2`` to ``libmkl_rt.so.1``.
     
 .. code-block:: bash
 
