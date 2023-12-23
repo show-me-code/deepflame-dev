@@ -150,6 +150,12 @@ void dfEEqn::process() {
             dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_he.data(),
             dataBase_.d_boundary_delta_coeffs, dataBase_.d_boundary_p, dataBase_.d_boundary_y,
             d_boundary_heGradient);
+    correct_boundary_conditions_scalar(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
+            dataBase_.num_boundary_surfaces, dataBase_.num_patches, dataBase_.patch_size.data(),
+            patch_type_he.data(), dataBase_.d_boundary_delta_coeffs, dataBase_.d_boundary_face_cell,
+            dataBase_.d_he, dataBase_.d_boundary_he, dataBase_.cyclicNeighbor.data(), 
+            dataBase_.patchSizeOffset.data(), dataBase_.d_boundary_weight,
+            dataBase_.d_boundary_T, dataBase_.d_boundary_y, d_boundary_heGradient, &thermo_);
     update_boundary_coeffs_scalar(dataBase_.stream,
             dataBase_.num_patches, dataBase_.patch_size.data(), patch_type_he.data(),
             dataBase_.d_boundary_delta_coeffs, dataBase_.d_boundary_he, dataBase_.d_boundary_weight,

@@ -343,6 +343,8 @@ public:
             }
         }
 
+        bool ifChemstry() const {return chemistry_;}
+
     // profiling
 #if defined USE_LIBTORCH || defined USE_PYTORCH
     double time_allsolve() {return time_allsolve_;}

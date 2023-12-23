@@ -83,7 +83,7 @@ public:
     void calculateRhoDGPU(int threads_per_block, int num_thread, int num_total, const double *T, 
             const double *T_poly, const double *p, const double *mole_fraction, 
             const double *mean_mole_weight, const double *rho, double *rhoD, int offset = 0);
-    void calculateEnthalpyGPU(int thread_per_block, int num_thread, const double *T, double *enthalpy, const double *d_mass_fraction, int offset = 0);
+    void calculateEnthalpyGPU(int thread_per_block, int num_thread, int num_total, const double *T, double *enthalpy, const double *d_mass_fraction, int offset = 0);
     void calculateTemperatureGPU(int thread_per_block, int num_thread, int num_total, const double *T_init, const double *target_h, 
             double *T, const double *d_mass_fraction, int offset = 0,
             double atol = 1e-7, double rtol = 1e-7, int max_iter = 20);

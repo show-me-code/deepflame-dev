@@ -121,13 +121,15 @@ void dfChemistrySolver::setConstantValue(int num_cells, int num_species, int bat
             std::cerr << "error loading the model\n";
             exit(-1);
         }
-        modules_[i].to(device_);
+        // modules_[i].to(device_);
+        modules_[i].to(device_, torch::kHalf);
     }
 }
 
 void dfChemistrySolver::Inference(const double *h_T, const double *d_T,const double *p, const double *y,
         const double *rho, double *RR) {
     // construct input
+    clock_t start = clock();
     inputsize_ = 0;
     std::vector<int> reactCellIndex;
     for (int i = 0; i < num_cells_; i++) {
@@ -136,6 +138,10 @@ void dfChemistrySolver::Inference(const double *h_T, const double *d_T,const dou
         }
     }
     inputsize_ = reactCellIndex.size();
+    clock_t end = clock();
+    double elapsed_secs = double(end - start) / CLOCKS_PER_SEC;
+    std::cout << "construct input time: " << elapsed_secs << std::endl;
+
 #ifdef STREAM_ALLOCATOR
     checkCudaErrors(cudaMallocAsync((void**)&init_input_, sizeof(double) * inputsize_ * dim_input_, stream));
     checkCudaErrors(cudaMallocAsync((void**)&y_input_BCT, sizeof(double) * inputsize_ * num_species_, stream));
@@ -157,13 +163,16 @@ void dfChemistrySolver::Inference(const double *h_T, const double *d_T,const dou
             Xmu_, Xstd_, init_input_);
 
     // inference by torch
+    TICK_INIT_EVENT;
+    TICK_START_EVENT;
     double *d_output;
     for (int sample_start = 0; sample_start < inputsize_; sample_start += batch_size_) {
         int sample_end = std::min(sample_start + batch_size_, inputsize_);
         int sample_len = sample_end - sample_start;
         at::Tensor torch_input = torch::from_blob(init_input_ + sample_start * dim_input_, {sample_len, dim_input_}, 
                 torch::TensorOptions().device(device_).dtype(torch::kDouble));
-        torch_input = torch_input.to(at::kFloat);
+        // torch_input = torch_input.to(at::kFloat);
+        torch_input = torch_input.to(at::kHalf);
         std::vector<torch::jit::IValue> INPUTS;
         INPUTS.push_back(torch_input);
         std::vector<at::Tensor> output(num_modules_);
@@ -175,6 +184,7 @@ void dfChemistrySolver::Inference(const double *h_T, const double *d_T,const dou
             cudaMemcpy(NN_output_ + (i * inputsize_ + sample_start), d_output, sizeof(double) * sample_len, cudaMemcpyDeviceToDevice);
         }
     }
+    TICK_END_EVENT(Inference);
 
     calculate_y_new<<<blocks_per_grid, threads_per_block, 0, stream>>>(inputsize_, num_modules_, NN_output_, 
             y_input_BCT, Ymu_, Ystd_, NN_output_);

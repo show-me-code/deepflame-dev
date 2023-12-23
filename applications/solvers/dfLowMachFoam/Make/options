@@ -27,7 +27,7 @@ EXE_INC = -std=c++14 \
     $(if $(LIBTORCH_ROOT),-I$(LIBTORCH_ROOT)/include/torch/csrc/api/include,) \
     $(PYTHON_INC_DIR) \
     $(if $(AMGX_DIR), -I$(DF_ROOT)/src_gpu,) \
-    $(if $(AMGX_DIR), -I/usr/local/cuda-11.6/include,) \
+    $(if $(AMGX_DIR), -I/usr/local/cuda/include,) \
     $(if $(AMGX_DIR), -I$(AMGX_DIR)/include,) \
 	-I$(DF_ROOT)/GPUTestRef/lnInclude \
 
@@ -43,7 +43,6 @@ EXE_LIBS = \
     -ldfCanteraMixture \
     -ldfChemistryModel \
     -ldfCombustionModels  \
-	-ldfGenMatrix \
     $(CANTERA_ROOT)/lib/libcantera.so \
     $(if $(LIBTORCH_ROOT),$(LIBTORCH_ROOT)/lib/libtorch.so,) \
     $(if $(LIBTORCH_ROOT),$(LIBTORCH_ROOT)/lib/libc10.so,) \
@@ -52,8 +51,8 @@ EXE_LIBS = \
     $(if $(LIBTORCH_ROOT),$(DF_SRC)/dfChemistryModel/DNNInferencer/build/libDNNInferencer.so,) \
     $(if $(PYTHON_LIB_DIR),-L$(PYTHON_LIB_DIR),) \
     $(if $(PYTHON_LIB_DIR),-lpython3.8,) \
-    $(if $(AMGX_DIR), /usr/local/cuda-11.6/lib64/libcudart.so,) \
-	$(if $(AMGX_DIR), /usr/local/cuda-11.6/lib64/libnccl.so,) \
+    $(if $(AMGX_DIR), /usr/local/cuda/lib64/libcudart.so,) \
+	$(if $(AMGX_DIR), /usr/local/cuda/lib64/libnccl.so,) \
     $(if $(AMGX_DIR), $(DF_ROOT)/src_gpu/build/libdfMatrix.so,) \
     $(if $(AMGX_DIR), $(AMGX_DIR)/build/libamgxsh.so,)
 

@@ -60,10 +60,10 @@ Description
 #include "basicThermo.H"
 #include "CombustionModel.H"
 
-#define GPUSolverNew_
-#define TIME
+// #define GPUSolverNew_
+// #define TIME
 // #define DEBUG_
-#define SHOW_MEMINFO
+// #define SHOW_MEMINFO
 
 #include "dfMatrixDataBase.H"
 
@@ -87,7 +87,6 @@ Description
     #include "createGPUSolver.H"
 
     #include "upwind.H"
-    #include "GenFvMatrix.H"
     #include "CanteraMixture.H"
     #include "multivariateGaussConvectionScheme.H"
     #include "limitedSurfaceInterpolationScheme.H"

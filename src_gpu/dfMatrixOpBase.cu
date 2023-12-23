@@ -849,7 +849,7 @@ __global__ void fvm_laplacian_scalar_boundary(int num, int offset,
     int start_index = offset + index;
     double boundary_value = boundary_gamma[start_index] * boundary_mag_sf[start_index];
     internal_coeffs[start_index] += boundary_value * gradient_internal_coeffs[start_index] * sign;
-    boundary_coeffs[start_index] -= boundary_value * gradient_boundary_coeffs[start_index] * sign;
+    boundary_coeffs[start_index] -= boundary_value * gradient_boundary_coeffs[start_index] * sign; 
 }
 
 __global__ void fvm_laplacian_surface_scalar_boundary(int num, int offset,
@@ -2438,7 +2438,7 @@ void correct_boundary_conditions_scalar(cudaStream_t stream, ncclComm_t comm,
                     gradient_offset, vf, boundary_cell_face, thermo_gradient, boundary_delta_coeffs, boundary_vf);
             gradient_offset += patch_size[i];
         } else if (patch_type[i] == boundaryConditions::fixedEnergy) {
-            GPUThermo->calculateEnthalpyGPU(threads_per_block, patch_size[i], boundary_T, boundary_vf, boundary_y, offset);
+            GPUThermo->calculateEnthalpyGPU(threads_per_block, patch_size[i], num_boundary_surfaces, boundary_T, boundary_vf, boundary_y, offset);
         } else if (patch_type[i] == boundaryConditions::cyclic) {
             correct_boundary_conditions_cyclic_scalar<<<blocks_per_grid, threads_per_block, 0, stream>>>(patch_size[i], offset,
                     patchSizeOffset[cyclicNeighbor[i]], vf, boundary_cell_face, boundary_weight, boundary_vf);
