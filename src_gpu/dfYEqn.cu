@@ -346,9 +346,8 @@ void dfYEqn::createNonConstantFieldsInternal() {
     checkCudaErrors(cudaMalloc((void**)&d_phiUc, dataBase_.surface_value_bytes));
     checkCudaErrors(cudaMalloc((void**)&d_DEff, dataBase_.cell_value_bytes * dataBase_.num_species));
     checkCudaErrors(cudaMalloc((void**)&d_permute, dataBase_.cell_value_vec_bytes));
-
-    checkCudaErrors(cudaMalloc((void**)&d_RR, dataBase_.cell_value_bytes * dataBase_.num_species));
 #endif
+    checkCudaErrors(cudaMalloc((void**)&d_RR, dataBase_.cell_value_bytes * dataBase_.num_species));
     // computed on CPU, used on GPU, need memcpyh2d
     checkCudaErrors(cudaMallocHost((void**)&h_rhoD, dataBase_.cell_value_bytes * dataBase_.num_species));
     // UnityLewis
@@ -442,7 +441,14 @@ void dfYEqn::preProcess(const double *h_rhoD, const double *h_boundary_rhoD,
 }
 
 void dfYEqn::process() {
-    TICK_INIT_EVENT;
+     TICK_INIT_EVENT;
+
+    // calculate reaction rates
+    TICK_START_EVENT;
+    checkCudaErrors(cudaMemset(d_RR, 0, dataBase_.cell_value_bytes * dataBase_.num_species));
+    yeqn_compute_RR(chemistrySolver_, dataBase_.stream, dataBase_.h_T, dataBase_.d_T, dataBase_.d_p, dataBase_.d_y, dataBase_.d_rho_old, d_RR);
+    TICK_END_EVENT(YEqn compute RR);
+
     TICK_START_EVENT;
 #ifdef USE_GRAPH
     if(!graph_created) {
@@ -460,8 +466,6 @@ void dfYEqn::process() {
         checkCudaErrors(cudaMallocAsync((void**)&d_phiUc, dataBase_.surface_value_bytes, dataBase_.stream));
         checkCudaErrors(cudaMallocAsync((void**)&d_DEff, dataBase_.cell_value_bytes * dataBase_.num_species, dataBase_.stream));
         checkCudaErrors(cudaMallocAsync((void**)&d_permute, dataBase_.cell_value_vec_bytes, dataBase_.stream));
-        // combustion fields
-        checkCudaErrors(cudaMallocAsync((void**)&d_RR, dataBase_.cell_value_bytes * dataBase_.num_species, dataBase_.stream));
         // thermophysical fields
         checkCudaErrors(cudaMallocAsync((void**)&d_boundary_hai, dataBase_.boundary_surface_value_bytes * dataBase_.num_species, dataBase_.stream));
         checkCudaErrors(cudaMallocAsync((void**)&d_boundary_mut_sct, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
@@ -493,11 +497,6 @@ void dfYEqn::process() {
         checkCudaErrors(cudaMemsetAsync(dataBase_.d_boundary_diff_alphaD, 0, dataBase_.boundary_surface_value_bytes, dataBase_.stream));
         checkCudaErrors(cudaMemsetAsync(d_grad_y, 0, dataBase_.cell_value_vec_bytes * dataBase_.num_species, dataBase_.stream));
         checkCudaErrors(cudaMemsetAsync(d_boundary_grad_y, 0, dataBase_.boundary_surface_value_vec_bytes * dataBase_.num_species, dataBase_.stream));
-        // combustion fields
-        checkCudaErrors(cudaMemsetAsync(d_RR, 0, dataBase_.cell_value_bytes * dataBase_.num_species, dataBase_.stream));
-        // calculate reaction rates
-        checkCudaErrors(cudaStreamSynchronize(dataBase_.stream));
-        yeqn_compute_RR(chemistrySolver_, dataBase_.stream, dataBase_.h_T, dataBase_.d_T, dataBase_.d_p, dataBase_.d_y, dataBase_.d_rho_old, d_RR);
         // compute diffAlphaD
         yeqn_fvc_laplacian_scalar(dataBase_.stream, dataBase_.nccl_comm, dataBase_.neighbProcNo.data(),
                 dataBase_.num_species, dataBase_.num_cells, dataBase_.num_surfaces, dataBase_.num_boundary_surfaces,
@@ -668,8 +667,6 @@ void dfYEqn::process() {
     checkCudaErrors(cudaFreeAsync(d_phiUc, dataBase_.stream));
     checkCudaErrors(cudaFreeAsync(d_DEff, dataBase_.stream));
     checkCudaErrors(cudaFreeAsync(d_permute, dataBase_.stream));
-
-    checkCudaErrors(cudaFreeAsync(d_RR, dataBase_.stream));
 
     // thermophysical fields
     //checkCudaErrors(cudaFreeAsync(d_boundary_rhoD, dataBase_.stream));

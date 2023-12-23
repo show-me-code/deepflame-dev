@@ -8,7 +8,7 @@
 
 #define GAS_CANSTANT 8314.46261815324
 #define SQRT8 2.8284271247461903
-#define NUM_SPECIES 9
+#define NUM_SPECIES 7
 
 // constant memory
 __constant__ __device__ double d_nasa_coeffs[NUM_SPECIES*15];
@@ -213,36 +213,44 @@ __global__ void calculate_diffusion_kernel(int num_thread, int num_total, int nu
     if (index >= num_thread)
         return;
     
-    int startIndex = offset + index;
+    extern __shared__ double shared_data[];
+    double *mole_fraction_shared = shared_data;
     
-    double D[NUM_SPECIES * NUM_SPECIES];
-    double sum1, sum2;
-    double tmp;
+    int startIndex = offset + index;
 
     for (int i = 0; i < num_species; i++) {
-        for (int j = 0; j < num_species; j++) {
-            tmp = 0.;
-            for (int k = 0; k < 5; k++)
-                tmp += (d_binary_diffusion_coeffs[i * num_species * 5 + j * 5 + k] * T_poly[num_total * k + startIndex]);
-            D[i * num_species + j] = tmp * pow(T[startIndex], 1.5);
-        }
+        mole_fraction_shared[i * blockDim.x + threadIdx.x] = mole_fraction[i * num_total + startIndex];
     }
+
+    double poly[5];
+    for (int j = 0; j < 5; j++) {
+        poly[j] = T_poly[num_total * j + startIndex];
+    }
+    
+    double powT = T[startIndex] * sqrt(T[startIndex]);
+
+    double local_mean_mole_weight = mean_mole_weight[startIndex];
+    double local_rho_div_p = rho[startIndex] / p[startIndex];
     for (int i = 0; i < num_species; i++) {
-        if (mole_fraction[num_total * i + startIndex] + 1e-10 > 1.) {
+        if (mole_fraction_shared[i * blockDim.x + threadIdx.x] + 1e-10 > 1.) {
             d[num_total * i + startIndex] = 0.;
             continue;
         }
-        sum1 = 0.;
-        sum2 = 0.;
+        double sum1 = 0.;
+        double sum2 = 0.;
         for (int j = 0; j < num_species; j++) {
             if (i == j) continue;
-            sum1 += mole_fraction[num_total * j + startIndex] / D[i * num_species + j];
-            sum2 += mole_fraction[num_total * j + startIndex] * d_molecular_weights[j] / D[i * num_species + j];
+            // calculate D
+            double tmp = 0.;
+            for (int k = 0; k < 5; k++)
+                tmp += (d_binary_diffusion_coeffs[i * num_species * 5 + j * 5 + k] * poly[k]);
+            double local_D = tmp * powT;
+            sum1 += mole_fraction_shared[j * blockDim.x + threadIdx.x] / local_D;
+            sum2 += mole_fraction_shared[j * blockDim.x + threadIdx.x] * d_molecular_weights[j] / local_D;
         }
-        sum1 *= p[startIndex];
-        sum2 *= p[startIndex] * mole_fraction[num_total * i + startIndex] / 
-                (mean_mole_weight[startIndex] - mole_fraction[num_total * i + startIndex] * d_molecular_weights[i]);
-        d[num_total * i + startIndex] = 1 / (sum1 + sum2) * rho[startIndex];
+        sum2 *= mole_fraction_shared[i * blockDim.x + threadIdx.x] / 
+                (local_mean_mole_weight - mole_fraction_shared[i * blockDim.x + threadIdx.x] * d_molecular_weights[i]);
+        d[num_total * i + startIndex] = 1 / (sum1 + sum2) * local_rho_div_p;
     }
 }
 
@@ -314,7 +322,7 @@ __global__ void calculate_temperature_kernel(int num_thread, int num_total, int 
 extern void __global__ correct_internal_boundary_field_scalar(int num, int offset,
         const double *vf_internal, const int *face2Cells, double *vf_boundary);
 
-__global__ void calculate_enthalpy_kernel(int num_thread, int offset, int num_cells, int num_species, 
+__global__ void calculate_enthalpy_kernel(int num_thread, int offset, int num_total, int num_species, 
         const double *T, const double *mass_fraction, double *enthalpy)
 {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
@@ -323,7 +331,7 @@ __global__ void calculate_enthalpy_kernel(int num_thread, int offset, int num_ce
     
     int startIndex = index + offset;
     
-    enthalpy[startIndex] = calculate_enthalpy_device_kernel(num_cells, num_species, startIndex, T[startIndex], mass_fraction);
+    enthalpy[startIndex] = calculate_enthalpy_device_kernel(num_total, num_species, startIndex, T[startIndex], mass_fraction);
 }
 
 __global__ void calculate_psip0_kernel(int num_thread, int offset, const double *p, const double *psi, double *psip0)
@@ -489,7 +497,7 @@ void dfThermo::calculatePsiGPU(int threads_per_block, int num_thread, const doub
 void dfThermo::calculateRhoGPU(int threads_per_block, int num_thread, const double *p, const double *psi, double *rho, int offset)
 {
     size_t blocks_per_grid = (num_thread + threads_per_block - 1) / threads_per_block;
-    calculate_rho_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_cells, offset, p, psi, rho);
+    calculate_rho_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_thread, offset, p, psi, rho);
 }
 
 void dfThermo::calculateViscosityGPU(int num_thread, int num_total, const double *T, const double *mole_fraction,
@@ -514,13 +522,19 @@ void dfThermo::calculateThermoConductivityGPU(int threads_per_block, int num_thr
             offset, d_nasa_coeffs, d_y, T_poly, T, mole_fraction, species_thermal_conductivities, thermal_conductivity);
 }
 
-void dfThermo::calculateRhoDGPU(int threads_per_block, int num_thread, int num_total, const double *T, 
-        const double *T_poly, const double *p, const double *mole_fraction, 
+void dfThermo::calculateRhoDGPU(int threads_per_block, int num_thread, int num_total, const double *T,
+        const double *T_poly, const double *p, const double *mole_fraction,
         const double *mean_mole_weight, const double *rho, double *rhoD, int offset)
 {
+    threads_per_block = 32;
     size_t blocks_per_grid = (num_thread + threads_per_block - 1) / threads_per_block;
-    calculate_diffusion_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_thread, num_total, num_species, offset, 
+    size_t sharedMemSize = sizeof(double) * threads_per_block * num_species;
+
+    TICK_INIT_EVENT;
+    TICK_START_EVENT;
+    calculate_diffusion_kernel<<<blocks_per_grid, threads_per_block, sharedMemSize, stream>>>(num_thread, num_total, num_species, offset,
             T_poly, mole_fraction, p, mean_mole_weight, rho, T, rhoD);
+    TICK_END_EVENT("calculate_diffusion_kernel");
 }
 
 void dfThermo::calculateTemperatureGPU(int threads_per_block, int num_thread, int num_total, const double *T_init, const double *target_h, double *T, 
@@ -532,17 +546,17 @@ void dfThermo::calculateTemperatureGPU(int threads_per_block, int num_thread, in
             T_init, target_h, d_mass_fraction, T, atol, rtol, max_iter);
 }
 
-void dfThermo::calculateEnthalpyGPU(int threads_per_block, int num_thread, const double *T, double *enthalpy, const double *d_mass_fraction, int offset)
+void dfThermo::calculateEnthalpyGPU(int threads_per_block, int num_thread, int num_total, const double *T, double *enthalpy, const double *d_mass_fraction, int offset)
 {
     size_t blocks_per_grid = (num_thread + threads_per_block - 1) / threads_per_block;
 
-    calculate_enthalpy_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_thread, offset, num_cells, num_species, 
+    calculate_enthalpy_kernel<<<blocks_per_grid, threads_per_block, 0, stream>>>(num_thread, offset, num_total, num_species, 
             T, d_mass_fraction, enthalpy);
 }
 
 void dfThermo::updateEnergy()
 {
-    calculateEnthalpyGPU(1024, num_cells, dataBase_.d_T, dataBase_.d_he, dataBase_.d_y);
+    calculateEnthalpyGPU(1024, num_cells, num_cells, dataBase_.d_T, dataBase_.d_he, dataBase_.d_y);
     
     // int offset = 0;
     // for (int i = 0; i < dataBase_.num_patches; i++) {
@@ -574,6 +588,7 @@ void dfThermo::correctThermo()
     setMassFraction(dataBase_.d_y, dataBase_.d_boundary_y);
     // internal field
     int cell_thread = 512, boundary_thread = 32;
+    fprintf(stderr, "\n\n");
     calculateTemperatureGPU(cell_thread, dataBase_.num_cells, dataBase_.num_cells, dataBase_.d_T, dataBase_.d_he, dataBase_.d_T, dataBase_.d_y); // calculate temperature
     calculateTPolyGPU(cell_thread, dataBase_.num_cells, dataBase_.num_cells, dataBase_.d_T, d_T_poly); // calculate T_poly
     calculatePsiGPU(cell_thread, dataBase_.num_cells, dataBase_.d_T, d_mean_mole_weight, dataBase_.d_thermo_psi); // calculate psi
@@ -584,13 +599,14 @@ void dfThermo::correctThermo()
             d_species_thermal_conductivities, dataBase_.d_thermo_alpha); // calculate thermal conductivity
     calculateRhoDGPU(cell_thread, dataBase_.num_cells, dataBase_.num_cells, dataBase_.d_T, d_T_poly, dataBase_.d_p, d_mole_fraction, 
             d_mean_mole_weight, dataBase_.d_rho, dataBase_.d_thermo_rhoD); 
+    fprintf(stderr, "\n\n");
     // boundary field
     int offset = 0;
     for (int i = 0; i < dataBase_.num_patches; i++) {
         if (dataBase_.patch_size[i] == 0) continue;
         if (dataBase_.patch_type_T[i] == boundaryConditions::fixedValue) {
             calculateTPolyGPU(boundary_thread, dataBase_.patch_size[i], dataBase_.num_boundary_surfaces, dataBase_.d_boundary_T, d_boundary_T_poly, offset);
-            calculateEnthalpyGPU(boundary_thread, dataBase_.patch_size[i], dataBase_.d_boundary_T, dataBase_.d_boundary_he, 
+            calculateEnthalpyGPU(boundary_thread, dataBase_.patch_size[i], dataBase_.num_boundary_surfaces, dataBase_.d_boundary_T, dataBase_.d_boundary_he, 
                     dataBase_.d_boundary_y, offset);
             calculatePsiGPU(boundary_thread, dataBase_.patch_size[i], dataBase_.d_boundary_T, d_boundary_mean_mole_weight, dataBase_.d_boundary_thermo_psi, offset);
             calculateRhoGPU(boundary_thread, dataBase_.patch_size[i], dataBase_.d_boundary_p, dataBase_.d_boundary_thermo_psi, dataBase_.d_boundary_rho, offset);
