@@ -512,19 +512,20 @@ void Foam::dfChemistryModel<ThermoType>::correctThermo()
 
                 mu_[celli] = mixture_.CanteraTransport()->viscosity(); // Pa-s
 
+                alpha_[celli] = mixture_.CanteraTransport()->thermalConductivity()/(CanteraGas_->cp_mass()); // kg/(m*s)
+                // thermalConductivity() W/m/K
+                // cp_mass()   J/kg/K
+
                 if (mixture_.transportModelName() == "UnityLewis")
                 {
-                    alpha_[celli] = mu_[celli] / 0.7;
                     forAll(rhoD_, i)
                     {
-                        rhoD_[i][celli] = alpha_[celli];
+                            rhoD_[i][celli] = alpha_[celli];
+                        }
                     }
-                }
+
                 else
                 {
-                    alpha_[celli] = mixture_.CanteraTransport()->thermalConductivity()/(CanteraGas_->cp_mass()); // kg/(m*s)
-                    // thermalConductivity() W/m/K
-                    // cp_mass()   J/kg/K
                     mixture_.CanteraTransport()->getMixDiffCoeffsMass(dTemp_.begin()); // m2/s
 
                     CanteraGas_->getEnthalpy_RT(hrtTemp_.begin()); //hrtTemp_=m_h0_RT non-dimension
@@ -593,9 +594,10 @@ void Foam::dfChemistryModel<ThermoType>::correctThermo()
 
                     pmu[facei] = mixture_.CanteraTransport()->viscosity();
 
+                    palpha[facei] = mixture_.CanteraTransport()->thermalConductivity()/(CanteraGas_->cp_mass());
+
                     if (mixture_.transportModelName() == "UnityLewis")
                     {
-                        palpha[facei] = pmu[facei] / 0.7;
                         forAll(rhoD_, i)
                         {
                             rhoD_[i].boundaryFieldRef()[patchi][facei] = palpha[facei];
@@ -603,7 +605,6 @@ void Foam::dfChemistryModel<ThermoType>::correctThermo()
                     }
                     else
                     {
-                        palpha[facei] = mixture_.CanteraTransport()->thermalConductivity()/(CanteraGas_->cp_mass());
                         mixture_.CanteraTransport()->getMixDiffCoeffsMass(dTemp_.begin());
 
                         CanteraGas_->getEnthalpy_RT(hrtTemp_.begin());
@@ -698,9 +699,10 @@ void Foam::dfChemistryModel<ThermoType>::correctThermo()
 
                         pmu[facei] = mixture_.CanteraTransport()->viscosity();
 
+                        palpha[facei] = mixture_.CanteraTransport()->thermalConductivity()/(CanteraGas_->cp_mass());
+
                         if (mixture_.transportModelName() == "UnityLewis")
                         {
-                            palpha[facei] = pmu[facei] / 0.7;
                             forAll(rhoD_, i)
                             {
                                 rhoD_[i].boundaryFieldRef()[patchi][facei] = palpha[facei];
@@ -708,7 +710,6 @@ void Foam::dfChemistryModel<ThermoType>::correctThermo()
                         }
                         else
                         {
-                            palpha[facei] = mixture_.CanteraTransport()->thermalConductivity()/(CanteraGas_->cp_mass());
                             mixture_.CanteraTransport()->getMixDiffCoeffsMass(dTemp_.begin());
 
                             CanteraGas_->getEnthalpy_RT(hrtTemp_.begin());
