@@ -313,6 +313,9 @@ public:
         const volScalarField& rhoD(const label i) const {return rhoD_[i];}
 
         const volScalarField& hai(const label i) {return hai_[i];}
+        
+        const scalar & hci(const label i) {return hc_[i];}
+
         // update T, psi, mu, alpha, rhoD, hai (if needed)
         void correctThermo();
 
@@ -350,6 +353,8 @@ public:
                 }
             }
         }
+
+        bool ifChemstry() const {return chemistry_;}
 
     // profiling
 #if defined USE_LIBTORCH || defined USE_PYTORCH
