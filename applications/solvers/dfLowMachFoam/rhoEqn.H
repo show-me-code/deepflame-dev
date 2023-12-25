@@ -103,6 +103,4 @@ Description
     time_monitor_rhoEqn_solve += double(end1 - start1) / double(CLOCKS_PER_SEC);
 }
 #endif
-//#undef CPUSolver_
-//#define GPUSolverNew_
 // ************************************************************************* //
