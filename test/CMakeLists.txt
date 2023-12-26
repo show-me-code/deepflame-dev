@@ -22,7 +22,7 @@ file(COPY ./dfLowMachFoam/twoD_reactingTGV/H2/cvodeSolver/postProcessing/sample/
 file(COPY ./dfLowMachFoam/twoD_reactingTGV/H2/cvodeSolver/postProcessing/sample/0.0001/data_T.xy DESTINATION 2DTGV/1)
 
 file(COPY ./dfLowMachFoam/2DSandiaD_flareFGM/postProcessing/sample/1.1/data_T.xy DESTINATION 2DSandia)
-
+file(COPY ./Tu500K-Phi1/fs DESTINATION flameSpeed)
 
 enable_testing()
 

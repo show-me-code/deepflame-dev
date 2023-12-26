@@ -15,7 +15,7 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-chemistry            on;
+chemistry            off;
 
 CanteraMechanismFile "ES80_H2-7-16.yaml";
 
@@ -38,6 +38,12 @@ TorchSettings
     log              off;
     torchModel       "HE04_Hydrogen_ESH2_GMS_sub_20221101"; 
     coresPerNode     4;
+}
+
+AmgxSettings
+{
+    UEqnSettingPath "system/amgxUOptions";
+    pEqnSettingPath "system/amgxpOptions";
 }
 
 loadbalancing

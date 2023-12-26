@@ -37,23 +37,6 @@ float T9 = readSandia(9,"2DSandia/data_T.xy");
 float T10 = readSandia(10,"2DSandia/data_T.xy");
 float T11 = readSandia(11,"2DSandia/data_T.xy");
 
-// TEST(corrtest,df0DFoam_H2){
-//     EXPECT_FLOAT_EQ(H2maxT,2588.48);   // compare the maximum temperature of H2 case 
-//     EXPECT_FLOAT_EQ(H2midT,1021.41); // compare the temperature of H2 case at the maximum gradient when t = 0.000245s
-//     //EXPECT_FLOAT_EQ(H2maxT,2586.21);   // compare the maximum temperature of H2 case 
-//     //EXPECT_FLOAT_EQ(H2midT,1020.71); // compare the temperature of H2 case at the maximum gradient when t = 0.000245s
-// }
-
-
-
-//TEST(corrtest,dfLowMachFoam_TGV){
-//    EXPECT_FLOAT_EQ(TGV500,1533.48);   // compare the maximum temperature along y direction in 2D TGV after 500 time steps
-//    EXPECT_FLOAT_EQ(TGV400,1296.99);   //  ..........400 time steps
-//    EXPECT_FLOAT_EQ(TGV300,878.07);
-//    EXPECT_FLOAT_EQ(TGV200,545.818);
-//    EXPECT_FLOAT_EQ(TGV100,364.018);
-//}
-
 
 
 TEST(corrtest,dfHighSpeedFoam){
@@ -227,6 +210,41 @@ float readSandia(int k, string file){
             i ++ ;
             if (i == k){  
                 b = T;
+            }
+        }
+    
+    }
+    else { //Error message
+        cerr << "Can't find input file " << inFileName << endl;
+    }
+
+    return b;
+}
+
+float readflameSpeed(int k, string file);
+float fs = readflameSpeed(3,"flameSpeed/fs");
+
+
+TEST(corrtest,flameSpeed){
+    EXPECT_FLOAT_EQ(fs,6);   // compare the maximum temperature along y direction in 2D TGV after 500 time steps
+}
+
+float readflameSpeed(int k, string file){
+    
+    float fs;
+    float b;
+    int i = 0;
+    
+    string inFileName = file;
+    ifstream inFile;
+    inFile.open(inFileName.c_str());
+
+    if (inFile.is_open())  
+    {
+        while (inFile >> fs){
+            i ++ ;
+            if (i == k){  
+                b = fs;
             }
         }
     
