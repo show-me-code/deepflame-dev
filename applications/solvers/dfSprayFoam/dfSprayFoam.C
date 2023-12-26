@@ -154,7 +154,7 @@ int main(int argc, char *argv[])
         {
             #include "UEqn.H"
 
-            if(combModelName!="ESF" && combModelName!="flareFGM" )
+            if(combModelName!="ESF" && combModelName!="flareFGM"  && combModelName!="DeePFGM" )
             {
                 #include "YEqn.H"
                 #include "EEqn.H"
