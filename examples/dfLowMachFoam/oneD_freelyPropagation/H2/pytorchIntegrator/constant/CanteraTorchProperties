@@ -17,7 +17,7 @@ FoamFile
 
 chemistry            on;
 
-CanteraMechanismFile "ES80_H2-7-16.yaml";
+CanteraMechanismFile "Burke2012_s9r23.yaml";
 
 transportModel       "Mix";
 
@@ -33,11 +33,13 @@ splittingStrategy    off;
 
 TorchSettings
 {
-    torch            on;
-    GPU              on;
-    log              on;
-    torchModel       "HE04_Hydrogen_ESH2_GMS_sub_20221101"; 
-    coresPerNode     4;
+    torch             on;
+    GPU               on;
+    log               on;
+    torchModel        "DNN_model.pt"; 
+    frozenTemperature 510;
+    inferenceDeltaTime 1e-6;
+    coresPerNode      4;
 }
 
 loadbalancing
