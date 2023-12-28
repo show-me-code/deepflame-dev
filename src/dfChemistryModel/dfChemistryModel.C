@@ -73,7 +73,7 @@ Foam::dfChemistryModel<ThermoType>::dfChemistryModel
     (
         IOobject
         (
-            "Z",
+            "mixfrac",
             mesh_.time().timeName(),
             mesh_,
             IOobject::NO_READ,
