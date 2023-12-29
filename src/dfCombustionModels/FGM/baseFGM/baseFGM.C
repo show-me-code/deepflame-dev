@@ -38,7 +38,7 @@ Foam::combustionModels::baseFGM<ReactionThermo>::baseFGM
 )
 :
     laminar<ReactionThermo>(modelType, thermo, turb, combustionProperties),
-    fvOptions(fv::options::New(this->mesh())),
+    // fvOptions(fv::options::New(this->mesh())),
     buffer_(this->coeffs().lookupOrDefault("buffer", false)),
     scaledPV_(this->coeffs().lookupOrDefault("scaledPV", false)),
     incompPref_(this->coeffs().lookupOrDefault("incompPref", -10.0)),
@@ -535,11 +535,11 @@ void Foam::combustionModels::baseFGM<ReactionThermo>::transport()
                 )
                 -fvm::laplacian( mut/Sct_ + mu/Sc_, c_)
                 -omega_c_
-                + fvOptions(rho_, c_)
+                // + fvOptions(rho_, c_)
                 ==
                 c_ * S_c
             );  
-            fvOptions.correct(c_);
+            // fvOptions.correct(c_);
             
             if(relaxation_)
             {
@@ -609,9 +609,9 @@ void Foam::combustionModels::baseFGM<ReactionThermo>::transport()
                 )
                 -fvm::laplacian( mut/Sct_ + mu/Sc_, c_)
                 -omega_c_
-                + fvOptions(rho_, c_)
+                // + fvOptions(rho_, c_)
             );  
-            fvOptions.correct(c_);
+            // fvOptions.correct(c_);
             
             if(relaxation_)
             {
