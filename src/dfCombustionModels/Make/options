@@ -36,7 +36,6 @@ LIB_LIBS = \
     -lturbulenceModels \
     -llagrangian \
     -lfiniteVolume \
-    -lfvOptions \
     -lmeshTools \
     -L$(DF_LIBBIN) \
     -ldfCompressibleTurbulenceModels \
