@@ -33,11 +33,7 @@ splittingStrategy    off;
 
 TorchSettings
 {
-    torch            off;//on;
-    GPU              on;
-    log              on;
-    torchModel       ""; 
-    coresPerNode     4;
+    torch            off;
 }
 
 loadbalancing
