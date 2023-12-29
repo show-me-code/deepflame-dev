@@ -27,7 +27,7 @@ The neural network models used in the tutorial examples can be found at– [AIS 
 Detailed guide for installation and tutorials is available on [our documentation website](https://deepflame.deepmodeling.com).
 
 ## Features
-New in v1.3.0:
+New in v1.3.0 (2023/12/29):
 - Complete the full-loop GPU implementation of the `dfLowMachFoam` solver, enabling efficient execution of all computations on GPU
 - Introduce `DF-ODENet` model, which utilizes sampling from typical combustion simulation benchmarks to reduce training costs and improve computational efficiency
 - Support Large Eddy Simulation (LES) and two-phase combustion simulation capabilities
