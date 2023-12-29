@@ -7,17 +7,17 @@
 \*---------------------------------------------------------------------------*/
 FoamFile
 {
-    version     2.0;
-    format      ascii;
-    class       dictionary;
-    location    "constant";
-    object      chemistryProperties;
+    version          2.0;
+    format           ascii;
+    class            dictionary;
+    location         "constant";
+    object           CanteraTorchProperties;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-chemistry            off;
+chemistry            on;
 
-CanteraMechanismFile "H2_AR.yaml";
+CanteraMechanismFile "ES80_H2-7-16.yaml";
 
 transportModel       "Mix";
 
@@ -27,13 +27,13 @@ odeCoeffs
     "absTol"         1e-10;
 }
 
-inertSpecie          "AR";
+inertSpecie          "N2";
 
 splittingStrategy    off;
 
 TorchSettings
 {
-    torch            off;
+    torch              off;
 }
 
 loadbalancing
@@ -42,5 +42,6 @@ loadbalancing
     log              false;
     algorithm        allAverage;//headTail;
 }
+
 
 // ************************************************************************* //

@@ -7,19 +7,19 @@
 \*---------------------------------------------------------------------------*/
 FoamFile
 {
-    version     2.0;
-    format      ascii;
-    class       dictionary;
-    location    "constant";
-    object      chemistryProperties;
+    version          2.0;
+    format           ascii;
+    class            dictionary;
+    location         "constant";
+    object           CanteraTorchProperties;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-chemistry            off;
+chemistry       off;
 
-CanteraMechanismFile "H2_AR.yaml";
+CanteraMechanismFile "gri30.yaml";
 
-transportModel       "Mix";
+transportModel       "mixture-averaged";
 
 odeCoeffs
 {
@@ -27,7 +27,7 @@ odeCoeffs
     "absTol"         1e-10;
 }
 
-inertSpecie          "AR";
+inertSpecie          "N2";
 
 splittingStrategy    off;
 
@@ -42,5 +42,6 @@ loadbalancing
     log              false;
     algorithm        allAverage;//headTail;
 }
+
 
 // ************************************************************************* //
