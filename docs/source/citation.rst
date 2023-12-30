@@ -7,4 +7,4 @@ Runze Mao, Minqi Lin, Yan Zhang, Tianhan Zhang, Zhi-Qin John Xu, Zhi X. Chen. De
 
 **If you have used the DNN model provided from us, please use the citation:**
 
-Han Li, Ruixin Yang, Min Zhang, Runze Mao, Zhi X. Chen. A comprehensive study on the accuracy and generalization of deep learning-generated chemical ODE integrators.`arXiv:2312.16387 <https://arxiv.org/abs/2312.16387>`_
+Han Li, Ruixin Yang, Min Zhang, Runze Mao, Zhi X. Chen. A comprehensive study on the accuracy and generalization of deep learning-generated chemical ODE integrators. `arXiv:2312.16387 <https://arxiv.org/abs/2312.16387>`_
