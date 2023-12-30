@@ -42,7 +42,7 @@ SourceFiles
 #include "../laminar/laminar.H"
 #include "uniformDimensionedFields.H"
 #include "CanteraMixture.H"
-#include "fvOptions.H"
+// #include "fvOptions.H"
 #include "LESfilter.H"
 //#include "basicThermo.H"
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -63,7 +63,7 @@ class baseFGM
 {
     // Protected Data
  protected:
-    fv::options& fvOptions; 
+    // fv::options& fvOptions; 
     //- buffer switch
     Switch buffer_;
 

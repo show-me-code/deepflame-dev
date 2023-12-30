@@ -151,29 +151,9 @@ Finally you can build and install DeepFlame:
 
 Other Options
 -------------------------------
-DeepFlame also provides users with LibTorch and CVODE (no DNN version) options.
+DeepFlame also provides users with full GPU version and CVODE (no DNN version) options.
 
-**1. If you choose to use LibTorch (C++ API for Torch), first create the conda env and install** `LibCantera <https://anaconda.org/conda-forge/libcantera-devel>`_:
-
-.. code-block:: bash
-
-    conda create -n df-libtorch python=3.8
-    conda activate df-libtorch
-    conda install -c conda-forge libcantera-devel 
-
-Then you can pass your own libtorch path to DeepFlame.
-
-.. code-block:: bash
-
-    cd deepflame-dev
-    . configure.sh --libtorch_dir /path/to/libtorch/
-    source ./bashrc
-    . install.sh
-
-.. Note::  Some compiling issues may happen due to system compatability. Instead of using conda installed Cantera C++ lib and the downloaded Torch C++ lib, try to compile your own Cantera and Torch C++ libraries.
-
-
-**2. If you just need DeepFlame's CVODE solver without DNN model, just install LibCantera via** `conda <https://docs.conda.io/en/latest/miniconda.html#linux-installers>`_.
+**1. If you just need DeepFlame's CVODE solver without DNN model, just install LibCantera via** `conda <https://docs.conda.io/en/latest/miniconda.html#linux-installers>`_.
 
 .. code-block:: bash
 
@@ -199,7 +179,7 @@ If ``df-notorch`` not activated (or you have a self-compiled libcantera), specif
     . install.sh
 
 
-**3. If you wish to employ dfMatrix and the AMGX library for accelerating PDE solving using GPU:**
+**2. If you wish to employ dfMatrix and the AMGX library for accelerating PDE solving using GPU:**
 
 .. Note:: This is still under developement.
 
@@ -208,7 +188,7 @@ To begin, you will need to install AMGX. You can find the instructions for insta
 .. code-block:: bash
 
     cd deepflame-dev
-    . configure.sh --amgx_dir /your/path/to/AMGX/
+    . configure.sh --amgx_dir /your/path/to/AMGX/ --libtorch_dir /path/to/libtorch/
     source ./bashrc
     . install.sh
 
@@ -224,7 +204,7 @@ Also, you will need to add configuration files for AMGX for each euqation under 
      = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 
-**4. If you wish to install DeepFlame with CMake**
+**3. If you wish to install DeepFlame with CMake**
 
 .. Note:: This is still under developement.
 
