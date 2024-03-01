@@ -44,11 +44,10 @@ forAll(RRGPU, fieldi)
 int num_cells = T.size();
 int num_species = Y.size();
 
-double* h_T   = new double[num_cells];
-double* h_p   = new double[num_cells];
-double* h_y   = new double[num_cells * num_species];
-double* h_y_t = new double[num_cells * num_species];
-int* h_size = new int[1];
+std::unique_ptr<double[]> unique_T(new double[num_cells]); double* h_T = unique_T.get();
+std::unique_ptr<double[]> unique_p(new double[num_cells]); double* h_p = unique_p.get();
+std::unique_ptr<double[]> unique_y(new double[num_cells * num_species]); double* h_y = unique_y.get();
+std::unique_ptr<double[]> unique_y_t(new double[num_cells * num_species]); double* h_y_t = unique_y_t.get();
 
 memcpy(h_T, &T[0], num_cells * sizeof(double));
 memcpy(h_p, &p[0], num_cells * sizeof(double));
@@ -57,8 +56,6 @@ forAll(Y, speciesI) {
     volScalarField& Yi = Y[speciesI];
     memcpy(h_y + speciesI * num_cells, &Yi[0], num_cells * sizeof(double));
 }
-
-h_size[0] = num_cells;
 
 int sp_num = num_species;
 
