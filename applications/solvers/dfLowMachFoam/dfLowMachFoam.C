@@ -49,6 +49,10 @@ Description
 #include "DNNInferencer.H"
 #endif
 
+#ifdef ODE_GPU_SOLVER
+#include "opencc.h"
+#endif
+
 #include "fvCFD.H"
 #include "fluidThermo.H"
 #include "turbulentFluidThermoModel.H"
@@ -136,6 +140,10 @@ int main(int argc, char *argv[])
     #include "initContinuityErrs.H"
     #include "createFields.H"
     #include "createRhoUfIfPresent.H"
+
+    #ifdef ODE_GPU_SOLVER
+    #include "createFields_GPU.H"
+    #endif
 
     double time_monitor_init = 0;
 

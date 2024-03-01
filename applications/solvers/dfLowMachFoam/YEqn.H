@@ -85,6 +85,24 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
             start1 = std::clock();
             tmp<volScalarField> DEff = chemistry->rhoD(i) + turbulence->mut()/Sct;
 
+            #ifdef ODE_GPU_SOLVER
+            fvScalarMatrix YiEqn
+            (
+                fvm::ddt(rho, Yi)
+            +
+                (
+                    turbName == "laminar"
+                    ?  (mvConvection->fvmDiv(phi, Yi) + mvConvection->fvmDiv(phiUc, Yi))
+                    :   mvConvection->fvmDiv(phi, Yi)
+                )
+            ==
+                (
+                    splitting
+                    ?   fvm::laplacian(DEff(), Yi)
+                    :  (fvm::laplacian(DEff(), Yi) + RR_GPU[i])
+                    )
+            );
+            #else
             fvScalarMatrix YiEqn
             (
                 fvm::ddt(rho, Yi)
@@ -101,6 +119,7 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
                     :  (fvm::laplacian(DEff(), Yi) + combustion->R(Yi))
                     )
             );
+            #endif
             
             end1 = std::clock();
             time_monitor_YEqn_mtxAssembly += double(end1 - start1) / double(CLOCKS_PER_SEC);
@@ -264,7 +283,43 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
     if (!splitting)
     {
         std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+        
+        #ifdef ODE_GPU_SOLVER
+	scalar dt = runTime.deltaTValue();
+
+        memcpy(h_T, &T[0], num_cells * sizeof(double));
+        memcpy(h_p, &p[0], num_cells * sizeof(double));
+
+        forAll(Y, speciesI) {
+            volScalarField& Yi = Y[speciesI];
+            memcpy(h_y + speciesI * num_cells, &Yi[0], num_cells * sizeof(double));
+        }
+
+        for (int i = 0; i < num_cells; i++) {
+            for (int j = 0; j < sp_num; j++) {
+                h_y_t[j + i*sp_num] = h_y[i + j*num_cells];
+            }
+        }
+
+        opencc_ode_all(h_T, h_p, h_y_t, 1e-10, dt, CPU);
+
+        for (int i = 0; i < num_cells; i++) {
+            for (int j = 0; j < sp_num; j++) {
+                Ynew[i + j*num_cells] = h_y_t[j + i*sp_num];
+            }
+        }
+
+        QdotGPU = Zero;
+        forAll(QdotGPU,celli)
+        {
+            for (int sp = 0; sp < sp_num; sp++)
+            {
+                RRGPU[sp][celli] = (Ynew[sp*num_cells+celli]-Y[sp][celli])*rho[celli]/dt;
+            }
+        }
+        #else
         combustion->correct();
+        #endif
         //label flag_mpi_init;
         //MPI_Initialized(&flag_mpi_init);
         if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);

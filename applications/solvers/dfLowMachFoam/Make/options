@@ -28,7 +28,9 @@ EXE_INC = -std=c++14 \
     $(PYTHON_INC_DIR) \
     $(if $(AMGX_DIR), -I$(DF_ROOT)/src_gpu,) \
     $(if $(AMGX_DIR), -I/usr/local/cuda/include,) \
-    $(if $(AMGX_DIR), -I$(AMGX_DIR)/include,)
+    $(if $(AMGX_DIR), -I$(AMGX_DIR)/include,) \
+    $(if $(ODE_GPU_SOLVER), -I$(OPENCC_PATH)/include,) \
+    $(if $(ODE_GPU_SOLVER), -DODE_GPU_SOLVER,)
 
 EXE_LIBS = \
     -lcompressibleTransportModels \
@@ -52,4 +54,5 @@ EXE_LIBS = \
     $(if $(AMGX_DIR), /usr/local/cuda/lib64/libcudart.so,) \
 	$(if $(AMGX_DIR), /usr/local/cuda/lib64/libnccl.so,) \
     $(if $(AMGX_DIR), $(DF_ROOT)/src_gpu/build/libdfMatrix.so,) \
-    $(if $(AMGX_DIR), $(AMGX_DIR)/build/libamgxsh.so,)
+    $(if $(AMGX_DIR), $(AMGX_DIR)/build/libamgxsh.so,) \
+    $(if $(ODE_GPU_SOLVER), $(ODE_GPU_SOLVER)/lib/libopencc.so,)
