@@ -27,7 +27,7 @@ The neural network models used in the tutorial examples can be found at– [AIS 
 Detailed guide for installation and tutorials is available on [our documentation website](https://deepflame.deepmodeling.com).
 
 ## Features
-New in v1.3.0 (2023/12/30):
+New in v1.3 (2023/12/30):
 - Complete the full-loop GPU implementation of the `dfLowMachFoam` solver, enabling efficient execution of all computations on GPU
 - Introduce `DF-ODENet` model, which utilizes sampling from canonical combustion simulation configurations to reduce training costs and improve computational efficiency
 - Support Large Eddy Simulation (LES) and two-phase combustion simulation capabilities
@@ -36,7 +36,7 @@ New in v1.3.0 (2023/12/30):
 - Modify Cantera's approach to transport property calculations to support real fluid thermophysical property calculation of multi-component reactive flows and integrate neural networks for updating real fluid thermophysical properties
 - Add new example cases and update the documentation homepage to provide more comprehensive installation and usage instructions 
 
-New in v1.2.0 (2023/06/30):
+New in v1.2 (2023/06/30):
 - Enable GPU acceleration for fast and efficient discrete matrix construction for solving partial differential equations
 - Introduce `DeePFGM` model: a neural network-based approach to replace the flamelet database of the FGM model and reduce memory requirement
 - Support real fluid density calculation with Cantera's PR/RK equation of state and updated the calculation of isentropic compression coefficient (psi)
@@ -48,7 +48,7 @@ New in v1.2.0 (2023/06/30):
 - Implement mechanism file detection function to verify the validity of the mechanism file input
 - Capture and report Cantera errors for better error handling and user experience
 
-New in v1.1.0 (2023/03/31):
+New in v1.1 (2023/03/31):
 - Add FGM model
 - Add GPU-compatible linear solver [AmgX](https://github.com/NVIDIA/AMGX) (adopted from [petsc4Foam](https://develop.openfoam.com/modules/external-solver) and [FOAM2CSR](https://gitlab.hpc.cineca.it/openfoam/foam2csr))
 - Add new load balancing algorithm
@@ -58,28 +58,28 @@ New in v1.1.0 (2023/03/31):
 - Reconstruct `dfChemistryModel`
 - Update chemical and mixing time scale models in PaSR combustion model
 
-New in v1.0.0 (2022/11/15):
+New in v1.0 (2022/11/15):
 - Add support for the parallel computation of DNN using libtorch on multiple GPUs 
 - Add TCI model
 
-New in v0.5.0 (2022/10/15):
+New in v0.5 (2022/10/15):
 - Add support for the parallel computation of DNN via single and multiple GPUs
 - Add access for utilising PyTorch
 
-New in v0.4.0 (2022/09/26):
+New in v0.4 (2022/09/26):
 - Adapt combustion library from OpenFOAM into DeepFlame
 - `laminar`; `EDC`; `PaSR` combustion models
 
-New in v0.3.0 (2022/08/29):
+New in v0.3 (2022/08/29):
 - 1/2/3D adaptive mesh refinement (2/3D adopted from [SOFTX_2018_143](https://github.com/ElsevierSoftwareX/SOFTX_2018_143) and [multiDimAMR](https://github.com/HenningScheufler/multiDimAMR))
 - Add Sigma/dynSmag LES turbulence models
 - Add functionObjects/field library
 - New example reactiveShockTube for `dfHighSpeedFoam`
 
-New in v0.2.0 (2022/07/25):
+New in v0.2 (2022/07/25):
 - Dynamic load balancing for chemistry solver (adopted from [DLBFoam](https://github.com/blttkgl/DLBFoam-1.0))
 
-From v0.1.0 (2022/06/15):
+From v0.1 (2022/06/15):
 - Native Cantera reader for chemical mechanisms in `.cti`, `.xml` or `.yaml` formats
 - Full compatiblity with Cantera's `UnityLewis`, `Mix` and `Multi` transport models
 - Zero-dimensional constant pressure or constant volume reactor solver `df0DFoam`
