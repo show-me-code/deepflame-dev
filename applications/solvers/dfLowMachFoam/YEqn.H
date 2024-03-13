@@ -287,9 +287,6 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
         #ifdef ODE_GPU_SOLVER
 	scalar dt = runTime.deltaTValue();
 
-        memcpy(h_T, &T[0], num_cells * sizeof(double));
-        memcpy(h_p, &p[0], num_cells * sizeof(double));
-
         forAll(Y, speciesI) {
             volScalarField& Yi = Y[speciesI];
             memcpy(h_y + speciesI * num_cells, &Yi[0], num_cells * sizeof(double));
@@ -301,7 +298,7 @@ if(flag_mpi_init) MPI_Barrier(PstreamGlobals::MPI_COMM_FOAM);
             }
         }
 
-        opencc_ode_all(h_T, h_p, h_y_t, 1e-10, dt, CPU);
+        opencc_ode_all(&T[0], &p[0], h_y_t, 1e-10, dt, CPU);
 
         for (int i = 0; i < num_cells; i++) {
             for (int j = 0; j < sp_num; j++) {
