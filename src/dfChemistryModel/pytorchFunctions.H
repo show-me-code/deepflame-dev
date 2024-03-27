@@ -119,7 +119,10 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(const DeltaTType &del
             std::chrono::steady_clock::time_point start7 = std::chrono::steady_clock::now();
             std::chrono::steady_clock::time_point start8 = std::chrono::steady_clock::now();
 
-            pybind11::array_t<double> vec0 = pybind11::array_t<double>({DNNinputs[0].size()}, {8}, &DNNinputs[0][0]); // cast vector to np.array
+            // cast vector to np.array
+            auto input = pybind11::array_t<double>({DNNinputs[0].size()},
+                                                   {sizeof(double)},
+                                                   DNNinputs[0].data());
 
             std::chrono::steady_clock::time_point stop8 = std::chrono::steady_clock::now();
             std::chrono::duration<double> processingTime8 = std::chrono::duration_cast<std::chrono::duration<double>>(stop8 - start8);
@@ -132,7 +135,7 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(const DeltaTType &del
 
             pybind11::array_t<double, pybind11::array::c_style |
                                       pybind11::array::forcecast>
-                result = call_torch.attr("inference")(vec0); // call python function
+                result = call_torch.attr("inference")(input); // call python function
             // Data in NumPy arrays is not guaranteed to packed in a dense manner.
             // https://pybind11.readthedocs.io/en/stable/advanced/pycpp/numpy.html#arrays
 
