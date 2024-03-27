@@ -1,3 +1,5 @@
+// #include <cassert>
+
 template <class ThermoType>
 template <class DeltaTType>
 Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(const DeltaTType &deltaT)
@@ -128,8 +130,11 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(const DeltaTType &del
 
             std::chrono::steady_clock::time_point start9 = std::chrono::steady_clock::now();
 
-            pybind11::object result = call_torch.attr("inference")(vec0); // call python function
-            const double* star = result.cast<pybind11::array_t<double>>().data();
+            pybind11::array_t<double, pybind11::array::c_style |
+                                      pybind11::array::forcecast>
+                result = call_torch.attr("inference")(vec0); // call python function
+            // Data in NumPy arrays is not guaranteed to packed in a dense manner.
+            // https://pybind11.readthedocs.io/en/stable/advanced/pycpp/numpy.html#arrays
 
             std::chrono::steady_clock::time_point stop9 = std::chrono::steady_clock::now();
             std::chrono::duration<double> processingTime9 = std::chrono::duration_cast<std::chrono::duration<double>>(stop9 - start9);
@@ -143,7 +148,9 @@ Foam::scalar Foam::dfChemistryModel<ThermoType>::solve_DNN(const DeltaTType &del
 
             /*=============================construct solutions=============================*/
             std::chrono::steady_clock::time_point start6 = std::chrono::steady_clock::now();
-            std::vector<double> outputsVec0(star, star+outputLength[0] * mixture_.nSpecies()); //the float number is sample_length*sample_number
+            const int size = outputLength[0] * mixture_.nSpecies(); // sample_length * sample_number
+            // assert(size == result.size());
+            std::vector<double> outputsVec0(result.data(), result.data() + size);
             std::vector<std::vector<double>> results = {outputsVec0};
             updateSolutionBuffer(solutionBuffer, results, cellIDBuffer, problemCounter);
             std::chrono::steady_clock::time_point stop6 = std::chrono::steady_clock::now();
