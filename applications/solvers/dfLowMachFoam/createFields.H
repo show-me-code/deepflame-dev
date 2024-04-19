@@ -101,7 +101,7 @@ chemistry->setEnergyName("ha");
 chemistry->updateEnergy();
 
 
-if (combModelName != "flareFGM")
+if(combModelName!="ESF" && combModelName!="flareFGM"  && combModelName!="DeePFGM" && combModelName!="FSD")
 {
     chemistry->correctThermo();
     Info<< "At initial time, min/max(T) = " << min(T).value() << ", " << max(T).value() << endl;
@@ -115,7 +115,7 @@ volScalarField K("K", 0.5*magSqr(U));
 
 multivariateSurfaceInterpolationScheme<scalar>::fieldTable fields;
 
-if(combModelName!="flareFGM")
+if(combModelName!="ESF" && combModelName!="flareFGM"  && combModelName!="DeePFGM" && combModelName!="FSD")
 {
 forAll(Y, i)
 {

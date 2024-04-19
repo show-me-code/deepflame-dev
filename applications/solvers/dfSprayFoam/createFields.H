@@ -110,7 +110,7 @@ const label inertIndex(chemistry->species()[inertSpecie]);
 chemistry->setEnergyName("ha");
 chemistry->updateEnergy();
 
-if (combModelName != "flareFGM" && combModelName != "DeePFGM")
+if(combModelName!="ESF" && combModelName!="flareFGM"  && combModelName!="DeePFGM" && combModelName!="FSD")
 {
     chemistry->correctThermo();
     Info<< "At initial time, min/max(T) = " << min(T).value() << ", " << max(T).value() << endl;
