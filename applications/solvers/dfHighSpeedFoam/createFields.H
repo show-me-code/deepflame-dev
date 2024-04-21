@@ -190,7 +190,7 @@ const word combModelName(mesh.objectRegistry::lookupObject<IOdictionary>("combus
 Info << "Combustion Model Name is confirmed as "<< combModelName << endl;
 
 
-if (combModelName != "flareFGM")
+if(combModelName!="ESF" && combModelName!="flareFGM"  && combModelName!="DeePFGM" && combModelName!="FSD")
 {
     chemistry->correctThermo();
     Info<< "At initial time, min/max(T) = " << min(T).value() << ", " << max(T).value() << endl;
