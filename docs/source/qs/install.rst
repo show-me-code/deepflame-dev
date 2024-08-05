@@ -151,7 +151,7 @@ Finally you can build and install DeepFlame:
 
 Other Options
 -------------------------------
-DeepFlame also provides users with full GPU version and CVODE (no DNN version) options.
+DeepFlame also provides users with full GPU version, CVODE (no DNN version) and PaddlePaddle options. 
 
 **1. If you just need DeepFlame's CVODE solver without DNN model, just install LibCantera via** `conda <https://docs.conda.io/en/latest/miniconda.html#linux-installers>`_.
 
@@ -236,3 +236,7 @@ Compilition of solvers are separated. Choose the solver you want to use and then
     cmake -B build
     cd build
     make install
+
+**4. If you prefer using the PaddlePaddle framework for DNN model training and inference:**
+
+Please ensure that PaddlePaddle has been successfully installed. You can refer to the official `PaddlePaddle <https://www.paddlepaddle.org.cn/>`_ website for installation instructions.
