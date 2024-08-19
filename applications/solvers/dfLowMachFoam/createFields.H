@@ -1,4 +1,5 @@
 #include "createRDeltaT.H"
+#include "readGravitationalAcceleration.H"
 
 Info<< "Reading thermophysical properties\n" << endl;
 
@@ -6,6 +7,8 @@ Info<< "Reading thermophysical properties\n" << endl;
 fluidThermo* pThermo = new heRhoThermo<rhoThermo, CanteraMixture>(mesh, word::null);
 fluidThermo& thermo = *pThermo;
 // thermo.validate(args.executable(), "ha");
+
+SLGThermo slgThermo(mesh, thermo);
 
 const volScalarField& psi = thermo.psi();
 volScalarField& p = thermo.p();
@@ -114,6 +117,9 @@ Info<< "Creating field kinetic energy K\n" << endl;
 volScalarField K("K", 0.5*magSqr(U));
 
 multivariateSurfaceInterpolationScheme<scalar>::fieldTable fields;
+
+#include "createMRF.H"
+#include "createClouds.H"
 
 if(combModelName!="ESF" && combModelName!="flareFGM"  && combModelName!="DeePFGM" && combModelName!="FSD")
 {

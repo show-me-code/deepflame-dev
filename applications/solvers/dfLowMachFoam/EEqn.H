@@ -1,5 +1,13 @@
 {
     volScalarField& he = thermo.he();
+    tmp<fvScalarMatrix> thcSource(new fvScalarMatrix(he, dimEnergy/dimTime));
+    fvScalarMatrix& hcSource = thcSource.ref();
+    forAll(Y, i)
+    {
+        hcSource.source() -= parcels.rhoTrans(i)*chemistry->mixture().Hc(i)/runTime.deltaT();
+    }
+    //hSource.source() -= parcels.hsTrans()/runTime.deltaT();// equivalent to parcels.Sh(he)
+
     start1 = std::clock();
     fvScalarMatrix EEqn
     (
@@ -15,10 +23,16 @@
                 fvm::laplacian(turbulence->alpha(), he)
             -   diffAlphaD
             +   fvc::div(hDiffCorrFlux)
+            // +   rho*(U&g)
+            +   parcels.Sh(he)
+            +   hcSource
             )
             :
             (
                 fvm::laplacian(turbulence->alphaEff(), he)
+            // +   rho*(U&g)
+            +   parcels.Sh(he)
+            +   hcSource
             )
         )
     );

@@ -4,6 +4,9 @@
     (
         fvm::ddt(rho, U) + fvm::div(phi, U)
     + turbulence->divDevRhoReff(U) 
+    ==
+    //   rho()*g
+      parcels.SU(U)
     );
     fvVectorMatrix& UEqn = tUEqn.ref();
     end1 = std::clock();
