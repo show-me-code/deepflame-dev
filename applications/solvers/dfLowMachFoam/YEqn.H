@@ -107,8 +107,8 @@
             ==
                 (
                     splitting
-                    ?   fvm::laplacian(DEff(), Yi)
-                    :  (fvm::laplacian(DEff(), Yi) + combustion->R(Yi))
+                    ?  (fvm::laplacian(DEff(), Yi) + parcels.SYi(i, Yi) )
+                    :  (fvm::laplacian(DEff(), Yi) + parcels.SYi(i, Yi) + combustion->R(Yi))
                     )
             );
             

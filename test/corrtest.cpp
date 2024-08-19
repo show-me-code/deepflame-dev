@@ -37,6 +37,11 @@ float T9 = readSandia(9,"2DSandia/data_T.xy");
 float T10 = readSandia(10,"2DSandia/data_T.xy");
 float T11 = readSandia(11,"2DSandia/data_T.xy");
 
+float readBomb(int k, string file);
+float aachenBomb1  = readBomb(158,"aachenBomb2D/data_T.xy");
+float aachenBomb2 =  readBomb(168,"aachenBomb2D/data_T.xy");
+float aachenBomb3 =  readBomb(174,"aachenBomb2D/data_T.xy");
+float aachenBomb4 =  readBomb(194,"aachenBomb2D/data_T.xy");
 
 
 TEST(corrtest,dfHighSpeedFoam){
@@ -63,6 +68,13 @@ TEST(corrtest,2DSandia){
     EXPECT_FLOAT_EQ(T9,1797.2623);
     EXPECT_FLOAT_EQ(T10,1488.0969);
     EXPECT_FLOAT_EQ(T11,1081.8983);
+}
+
+TEST(corrtest,dfLowMachFoam_2DaachenBomb){
+    EXPECT_FLOAT_EQ(aachenBomb1,813.718018);   
+    EXPECT_FLOAT_EQ(aachenBomb2,1988.500000);  
+    EXPECT_FLOAT_EQ(aachenBomb3,937.171021);
+    EXPECT_FLOAT_EQ(aachenBomb4,2523.860107);
 }
 
 float readmaxTH2(){
@@ -210,6 +222,33 @@ float readSandia(int k, string file){
             i ++ ;
             if (i == k){  
                 b = T;
+            }
+        }
+    
+    }
+    else { //Error message
+        cerr << "Can't find input file " << inFileName << endl;
+    }
+
+    return b;
+}
+
+float readBomb(int k, string file){
+    
+    float a;
+    float b;
+    int i = 0;
+    
+    string inFileName = file;
+    ifstream inFile;
+    inFile.open(inFileName.c_str());
+
+    if (inFile.is_open())  
+    {
+        while (inFile >> a){
+            i ++ ;
+            if (i == k){  
+                b = a;
             }
         }
     

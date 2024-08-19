@@ -34,6 +34,8 @@ Description
     (
         fvm::ddt(rho)
       + fvc::div(phi)
+      ==
+        parcels.Srho(rho)
     );
     end1 = std::clock();
     time_monitor_rhoEqn += double(end1 - start1) / double(CLOCKS_PER_SEC);

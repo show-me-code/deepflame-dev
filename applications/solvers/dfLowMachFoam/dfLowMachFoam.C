@@ -64,6 +64,9 @@ Description
 #include "basicThermo.H"
 #include "CombustionModel.H"
 
+#include "basicSprayCloud.H"
+#include "SLGThermo.H"
+
 //#define GPUSolver_
 // #define TIME
 // #define DEBUG_
@@ -153,6 +156,7 @@ int main(int argc, char *argv[])
     double time_monitor_Y = 0;
     double time_monitor_E = 0;
     double time_monitor_p = 0;
+    double time_monitor_parcels=0;
     double time_monitor_chemistry_correctThermo = 0;
     double time_monitor_turbulence_correct = 0;
     double time_monitor_chem = 0; // combustion correct
@@ -261,6 +265,19 @@ int main(int argc, char *argv[])
         runTime++;
 
         Info<< "Time = " << runTime.timeName() << nl << endl;
+
+        if (parcels.solution().active())
+        {
+            start = std::clock();
+
+            // Store the particle positions
+            parcels.storeGlobalPositions();
+
+            parcels.evolve();
+
+            end = std::clock();
+            time_monitor_parcels += double(end - start) / double(CLOCKS_PER_SEC);
+        }
         
         // store old time fields
 #ifdef GPUSolver_
@@ -522,6 +539,10 @@ int main(int argc, char *argv[])
         Info<< "Y Equations                  = " << time_monitor_Y - time_monitor_chem << " s" << endl;
         Info<< "E Equations                  = " << time_monitor_E << " s" << endl;
         Info<< "p Equations                  = " << time_monitor_p << " s" << endl;
+        if (parcels.solution().active())
+        {
+            Info<< "calculate parcels            = " << time_monitor_parcels << " s" << endl;
+        }
         Info<< "chemistry correctThermo      = " << time_monitor_chemistry_correctThermo << " s" << endl;
         Info<< "turbulence correct           = " << time_monitor_turbulence_correct << " s" << endl;
         Info<< "combustion correct(in Y)     = " << time_monitor_chem << " s" << endl;
