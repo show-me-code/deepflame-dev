@@ -23,14 +23,14 @@
                 fvm::laplacian(turbulence->alpha(), he)
             -   diffAlphaD
             +   fvc::div(hDiffCorrFlux)
-            +   rho*(U&g)
+            // +   rho*(U&g)
             +   parcels.Sh(he)
             +   hcSource
             )
             :
             (
                 fvm::laplacian(turbulence->alphaEff(), he)
-            +   rho*(U&g)
+            // +   rho*(U&g)
             +   parcels.Sh(he)
             +   hcSource
             )
