@@ -258,6 +258,7 @@ float readBomb(int k, string file){
     }
 
     cout << b << endl;
+    
     return b;
 }
 
