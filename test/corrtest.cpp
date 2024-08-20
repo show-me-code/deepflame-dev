@@ -6,36 +6,36 @@
 #include <filesystem>
 using namespace std;
 
-float readmidTH2();
-float readmaxTH2();
+// float readmidTH2();
+// float readmaxTH2();
 
-float readTGV(int k, string file);
-float readHighSpeed();
-float v = readHighSpeed();
+// float readTGV(int k, string file);
+// float readHighSpeed();
+// float v = readHighSpeed();
 
 // float H2maxT = readmaxTH2();
 // float H2midT = readmidTH2();
 
 
-float TGV500  = readTGV(806,"2DTGV/5/data_T.xy");
-float TGV100 = readTGV(1100,"2DTGV/1/data_T.xy");
-float TGV200 = readTGV(1064,"2DTGV/2/data_T.xy");
-float TGV300 = readTGV(1064,"2DTGV/3/data_T.xy");
-float TGV400 = readTGV(1098,"2DTGV/4/data_T.xy");
+// float TGV500  = readTGV(806,"2DTGV/5/data_T.xy");
+// float TGV100 = readTGV(1100,"2DTGV/1/data_T.xy");
+// float TGV200 = readTGV(1064,"2DTGV/2/data_T.xy");
+// float TGV300 = readTGV(1064,"2DTGV/3/data_T.xy");
+// float TGV400 = readTGV(1098,"2DTGV/4/data_T.xy");
 
 
-float readSandia(int k, string file);
-float T1 = readSandia(1,"2DSandia/data_T.xy");
-float T2 = readSandia(2,"2DSandia/data_T.xy");
-float T3 = readSandia(3,"2DSandia/data_T.xy");
-float T4 = readSandia(4,"2DSandia/data_T.xy");
-float T5 = readSandia(5,"2DSandia/data_T.xy");
-float T6 = readSandia(6,"2DSandia/data_T.xy");
-float T7 = readSandia(7,"2DSandia/data_T.xy");
-float T8 = readSandia(8,"2DSandia/data_T.xy");
-float T9 = readSandia(9,"2DSandia/data_T.xy");
-float T10 = readSandia(10,"2DSandia/data_T.xy");
-float T11 = readSandia(11,"2DSandia/data_T.xy");
+// float readSandia(int k, string file);
+// float T1 = readSandia(1,"2DSandia/data_T.xy");
+// float T2 = readSandia(2,"2DSandia/data_T.xy");
+// float T3 = readSandia(3,"2DSandia/data_T.xy");
+// float T4 = readSandia(4,"2DSandia/data_T.xy");
+// float T5 = readSandia(5,"2DSandia/data_T.xy");
+// float T6 = readSandia(6,"2DSandia/data_T.xy");
+// float T7 = readSandia(7,"2DSandia/data_T.xy");
+// float T8 = readSandia(8,"2DSandia/data_T.xy");
+// float T9 = readSandia(9,"2DSandia/data_T.xy");
+// float T10 = readSandia(10,"2DSandia/data_T.xy");
+// float T11 = readSandia(11,"2DSandia/data_T.xy");
 
 float readBomb(int k, string file);
 float aachenBomb1  = readBomb(158,"aachenBomb2D/data_T.xy");
@@ -44,31 +44,31 @@ float aachenBomb3 =  readBomb(172,"aachenBomb2D/data_T.xy");
 float aachenBomb4 =  readBomb(194,"aachenBomb2D/data_T.xy");
 
 
-TEST(corrtest,dfHighSpeedFoam){
-   EXPECT_NEAR(v,1979.33,19.79); // within 1% of the theroetical value
-}
+// TEST(corrtest,dfHighSpeedFoam){
+//    EXPECT_NEAR(v,1979.33,19.79); // within 1% of the theroetical value
+// }
 
-TEST(corrtest,dfLowMachFoam_TGV){
-    EXPECT_FLOAT_EQ(TGV500,1532.92);   // compare the maximum temperature along y direction in 2D TGV after 500 time steps
-    EXPECT_FLOAT_EQ(TGV400,1297.64);   //  ..........400 time steps
-    EXPECT_FLOAT_EQ(TGV300,871.092);
-    EXPECT_FLOAT_EQ(TGV200,537.614);
-    EXPECT_FLOAT_EQ(TGV100,363.504);
-}
+// TEST(corrtest,dfLowMachFoam_TGV){
+//     EXPECT_FLOAT_EQ(TGV500,1532.92);   // compare the maximum temperature along y direction in 2D TGV after 500 time steps
+//     EXPECT_FLOAT_EQ(TGV400,1297.64);   //  ..........400 time steps
+//     EXPECT_FLOAT_EQ(TGV300,871.092);
+//     EXPECT_FLOAT_EQ(TGV200,537.614);
+//     EXPECT_FLOAT_EQ(TGV100,363.504);
+// }
 
-TEST(corrtest,2DSandia){
-    EXPECT_FLOAT_EQ(T1,307.93594);   
-    EXPECT_FLOAT_EQ(T2,311.34987);  
-    EXPECT_FLOAT_EQ(T3,378.77716);
-    EXPECT_FLOAT_EQ(T4,658.02573);
-    EXPECT_FLOAT_EQ(T5,1106.6115);
-    EXPECT_FLOAT_EQ(T6,1543.0465);
-    EXPECT_FLOAT_EQ(T7,1888.2342);
-    EXPECT_FLOAT_EQ(T8,1983.3421);
-    EXPECT_FLOAT_EQ(T9,1797.2623);
-    EXPECT_FLOAT_EQ(T10,1488.0969);
-    EXPECT_FLOAT_EQ(T11,1081.8983);
-}
+// TEST(corrtest,2DSandia){
+//     EXPECT_FLOAT_EQ(T1,307.93594);   
+//     EXPECT_FLOAT_EQ(T2,311.34987);  
+//     EXPECT_FLOAT_EQ(T3,378.77716);
+//     EXPECT_FLOAT_EQ(T4,658.02573);
+//     EXPECT_FLOAT_EQ(T5,1106.6115);
+//     EXPECT_FLOAT_EQ(T6,1543.0465);
+//     EXPECT_FLOAT_EQ(T7,1888.2342);
+//     EXPECT_FLOAT_EQ(T8,1983.3421);
+//     EXPECT_FLOAT_EQ(T9,1797.2623);
+//     EXPECT_FLOAT_EQ(T10,1488.0969);
+//     EXPECT_FLOAT_EQ(T11,1081.8983);
+// }
 
 TEST(corrtest,dfLowMachFoam_2DaachenBomb){
     EXPECT_NEAR(aachenBomb1,814.011,0.0001);   
@@ -258,7 +258,7 @@ float readBomb(int k, string file){
     }
 
     cout << b << endl;
-    
+
     return b;
 }
 

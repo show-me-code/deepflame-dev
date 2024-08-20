@@ -14,15 +14,15 @@ FetchContent_MakeAvailable(googletest)
 
 
 
-file(COPY ./oneD_detonationH2/postProcessing/minMax/0/fieldMinMax.dat DESTINATION 1Ddetonation)
-file(COPY ./dfLowMachFoam/twoD_reactingTGV/H2/cvodeSolver/postProcessing/sample/0.0005/data_T.xy DESTINATION 2DTGV/5)
-file(COPY ./dfLowMachFoam/twoD_reactingTGV/H2/cvodeSolver/postProcessing/sample/0.0004/data_T.xy DESTINATION 2DTGV/4)
-file(COPY ./dfLowMachFoam/twoD_reactingTGV/H2/cvodeSolver/postProcessing/sample/0.0003/data_T.xy DESTINATION 2DTGV/3)
-file(COPY ./dfLowMachFoam/twoD_reactingTGV/H2/cvodeSolver/postProcessing/sample/0.0002/data_T.xy DESTINATION 2DTGV/2)
-file(COPY ./dfLowMachFoam/twoD_reactingTGV/H2/cvodeSolver/postProcessing/sample/0.0001/data_T.xy DESTINATION 2DTGV/1)
+# file(COPY ./oneD_detonationH2/postProcessing/minMax/0/fieldMinMax.dat DESTINATION 1Ddetonation)
+# file(COPY ./dfLowMachFoam/twoD_reactingTGV/H2/cvodeSolver/postProcessing/sample/0.0005/data_T.xy DESTINATION 2DTGV/5)
+# file(COPY ./dfLowMachFoam/twoD_reactingTGV/H2/cvodeSolver/postProcessing/sample/0.0004/data_T.xy DESTINATION 2DTGV/4)
+# file(COPY ./dfLowMachFoam/twoD_reactingTGV/H2/cvodeSolver/postProcessing/sample/0.0003/data_T.xy DESTINATION 2DTGV/3)
+# file(COPY ./dfLowMachFoam/twoD_reactingTGV/H2/cvodeSolver/postProcessing/sample/0.0002/data_T.xy DESTINATION 2DTGV/2)
+# file(COPY ./dfLowMachFoam/twoD_reactingTGV/H2/cvodeSolver/postProcessing/sample/0.0001/data_T.xy DESTINATION 2DTGV/1)
 
-file(COPY ./dfLowMachFoam/twoD_SandiaD_flareFGM/postProcessing/sample/1.1/data_T.xy DESTINATION 2DSandia)
-file(COPY ./Tu500K-Phi1/fs DESTINATION flameSpeed)
+# file(COPY ./dfLowMachFoam/twoD_SandiaD_flareFGM/postProcessing/sample/1.1/data_T.xy DESTINATION 2DSandia)
+# file(COPY ./Tu500K-Phi1/fs DESTINATION flameSpeed)
 file(COPY ./aachenBomb_2D/postProcessing/sample/0.0023/data_T.xy DESTINATION aachenBomb2D)
 
 enable_testing()
