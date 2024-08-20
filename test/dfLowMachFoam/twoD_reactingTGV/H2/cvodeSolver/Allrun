@@ -8,7 +8,7 @@ application=dfLowMachFoam
 
 runApplication blockMesh
 runApplication decomposePar
-runApplication mpirun -np 4 $application -parallel
+runApplication /usr/bin/mpirun -np 4 $application -parallel
 
 runApplication reconstructPar 
 runApplication postProcess -func sample
