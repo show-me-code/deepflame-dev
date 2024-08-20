@@ -40,8 +40,8 @@ using namespace std;
 float readBomb(int k, string file);
 float aachenBomb1  = readBomb(158,"aachenBomb2D/data_T.xy");
 float aachenBomb2 =  readBomb(168,"aachenBomb2D/data_T.xy");
-float aachenBomb3 =  readBomb(172,"aachenBomb2D/data_T.xy");
-float aachenBomb4 =  readBomb(194,"aachenBomb2D/data_T.xy");
+float aachenBomb3 =  readBomb(174,"aachenBomb2D/data_T.xy");
+float aachenBomb4 =  readBomb(192,"aachenBomb2D/data_T.xy");
 
 
 // TEST(corrtest,dfHighSpeedFoam){
@@ -71,10 +71,10 @@ float aachenBomb4 =  readBomb(194,"aachenBomb2D/data_T.xy");
 // }
 
 TEST(corrtest,dfLowMachFoam_2DaachenBomb){
-    EXPECT_NEAR(aachenBomb1,814.228,0.0001);   
-    EXPECT_NEAR(aachenBomb2,2145.99,0.0001);  
-    EXPECT_NEAR(aachenBomb3,939.509,0.0001);
-    EXPECT_NEAR(aachenBomb4,2475.45,0.0001);
+    EXPECT_NEAR(aachenBomb1,809.095,0.0001);   
+    EXPECT_NEAR(aachenBomb2,1770.21,0.0001);  
+    EXPECT_NEAR(aachenBomb3,917.437,0.0001);
+    EXPECT_NEAR(aachenBomb4,2474.36,0.0001);
 }
 
 float readmaxTH2(){
