@@ -7,8 +7,8 @@ cd ${0%/*} || exit 1    # Run from this directory
 application=dfLowMachFoam
 
 runApplication blockMesh
-# runApplication decomposePar
-runApplication $application
+runApplication decomposePar
+runApplication mpirun -np 2 --allow-run-as-root $application -parallel
 
-# runApplication reconstructPar 
+runApplication reconstructPar 
 runApplication postProcess -func sample
