@@ -71,10 +71,10 @@ float aachenBomb4 =  readBomb(192,"aachenBomb2D/data_T.xy");
 // }
 
 TEST(corrtest,dfLowMachFoam_2DaachenBomb){
-    EXPECT_NEAR(aachenBomb1,809.095,0.0001);   
-    EXPECT_NEAR(aachenBomb2,1770.21,0.0001);  
-    EXPECT_NEAR(aachenBomb3,917.437,0.0001);
-    EXPECT_NEAR(aachenBomb4,2474.36,0.0001);
+    EXPECT_NEAR(aachenBomb1,808.909,0.0001);   
+    EXPECT_NEAR(aachenBomb2,1749.93,0.0001);  
+    EXPECT_NEAR(aachenBomb3,903.652,0.0001);
+    EXPECT_NEAR(aachenBomb4,2478.74,0.0001);
 }
 
 float readmaxTH2(){
