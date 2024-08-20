@@ -257,6 +257,7 @@ float readBomb(int k, string file){
         cerr << "Can't find input file " << inFileName << endl;
     }
 
+    cout << b << endl;
     return b;
 }
 
