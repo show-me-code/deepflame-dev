@@ -8,10 +8,7 @@ on:
      - master
 jobs:
   build_validation:
-    runs-on: [self-hosted, linux, x64]   
-    container: 
-      image: ubuntu:20.04
-      options: --shm-size=5g  # shared memory size = 5GB
+    runs-on: ubuntu:20.04
     steps:
      - name: Checkout
        uses: actions/checkout@v3
