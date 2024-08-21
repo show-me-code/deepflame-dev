@@ -1,6 +1,6 @@
 if ((ddtSchemes == "RK2SSP") || (ddtSchemes == "RK3SSP"))
 {
-    rho_rhs = -fvc::div(phi);
+    rho_rhs = -fvc::div(rhoPhi);
 
     rho =   rkcoe1[nrk]*rho_save
           + rkcoe2[nrk]*rho 
@@ -13,7 +13,9 @@ else
     solve
     (
         fvm::ddt(rho)
-      + fvc::div(phi)
+      + fvc::div(rhoPhi)
+      ==
+        parcels.Srho(rho)
     );
 }
 

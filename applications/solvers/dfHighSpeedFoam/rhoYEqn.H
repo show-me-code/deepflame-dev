@@ -18,7 +18,7 @@ tmp<fv::convectionScheme<scalar>> mvConvection
     (
         mesh,
         fields,
-        phi,
+        rhoPhi,
         mesh.divScheme("div(phi,Yi_h)")
     )
 );
@@ -53,6 +53,7 @@ time_monitor_corrDiff += double(end - start) / double(CLOCKS_PER_SEC);
     forAll(Y, i)
     {
         volScalarField& Yi = Y[i];
+        surfaceScalarField rhoPhiYi(rhoPhi*fvc::interpolate(Yi, "Yi").ref());
 
         if (!inviscid)
         {
@@ -60,11 +61,11 @@ time_monitor_corrDiff += double(end - start) / double(CLOCKS_PER_SEC);
             diffAlphaD += fvc::laplacian(thermo.alpha()*chemistry->hai(i), Yi);
         }
 
-        if (i != inertIndex)
+        // if (i != inertIndex)
         {   
             if((ddtSchemes == "RK2SSP") || (ddtSchemes == "RK3SSP"))
             {
-                rhoYi_rhs = -fvc::div(phiYi[i]);
+                rhoYi_rhs = -fvc::div(rhoPhiYi);
 
                 if(chemScheme == "direct")
                 {
@@ -74,39 +75,17 @@ time_monitor_corrDiff += double(end - start) / double(CLOCKS_PER_SEC);
                 
 
                 rhoYi[i] =   rkcoe1[nrk]*rhoYi_save[i]
-                        + rkcoe2[nrk]*rhoYi[i]
-                        + rkcoe3[nrk]*rhoYi_rhs*runTime.deltaT();
-            } 
-            else
-            {
-                // original convection term
-                // fvScalarMatrix YiEqn
-                // (
-                //      fvm::ddt(rho, Yi)
-                //    + mvConvection->fvmDiv(phi, Yi)
-                //   ==
-                //     combustion->R(Yi)
-                // );
+                         + rkcoe2[nrk]*rhoYi[i]
+                         + rkcoe3[nrk]*rhoYi_rhs*runTime.deltaT();
+                
+                Yi=rhoYi[i]/rho;
+                Yi.max(0.0);
 
-                solve
-                (
-                    fvm::ddt(rhoYi[i])
-                    + fvc::div(phiYi[i])
-                == 
-                    chemistry->RR(i)
-                );
-            }      
-
-            Yi=rhoYi[i]/rho;
-            Yi.max(0.0);
-
-            if (!inviscid)
-            {
-                const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
-                tmp<volScalarField> DEff = chemistry->rhoD(i) + turbulence->mut()/Sct;
-
-                if((ddtSchemes == "RK2SSP") || (ddtSchemes == "RK3SSP"))
+                if (!inviscid)
                 {
+                    const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
+                    tmp<volScalarField> DEff = chemistry->rhoD(i) + turbulence->mut()/Sct;
+
                     rhoYi_rhs = 
                         (
                             turbName == "laminar"
@@ -118,46 +97,89 @@ time_monitor_corrDiff += double(end - start) / double(CLOCKS_PER_SEC);
 
                     Yi = rhoYi[i]/rho;
                     Yi.max(0.0);
+
                 }
-                else
-                {
-                    // original term
-                    // YiEqn -= fvm::laplacian(DEff(), Yi) - mvConvection->fvmDiv(phiUc, Yi);
 
-                    fvScalarMatrix YiEqn
-                    (
-                            fvm::ddt(rho, Yi) - fvc::ddt(rho, Yi)
-                        -
-                            (
-                                turbName == "laminar"
-                                ?  (fvm::laplacian(DEff(), Yi) + mvConvection->fvmDiv(phiUc, Yi))
-                                :  fvm::laplacian(DEff(), Yi)
-                            )
-                    );
+                Yi.correctBoundaryConditions();
+                rhoYi[i] = rho*Yi;
 
-                    YiEqn.relax();
-
-                    YiEqn.solve("Yi");
-
-                    Yi.max(0.0);
-                }
+            } 
+            else
+            {
+                // original convection term
+                fvScalarMatrix YiEqn
+                (
+                     fvm::ddt(rho, Yi)
+                   + mvConvection->fvmDiv(rhoPhi, Yi)
+                  ==
+                      combustion->R(Yi)
+                    + parcels.SYi(i, Yi)
+                );
                 
-            }
+                // solve
+                // (
+                //       fvm::ddt(rhoYi[i])
+                //     + fvc::div(rhoPhiYi)
+                // == 
+                //       chemistry->RR(i)
+                //     + parcels.SYi(i, rhoYi[i])
+                // );
 
-            // original term
-            // YiEqn.relax();
-            // YiEqn.solve("Yi");
-            // Yi.max(0.0);
+                // Yi=rhoYi[i]/rho;
+                // Yi.max(0.0);
 
-            if((ddtSchemes == "RK2SSP") || (ddtSchemes == "RK3SSP")) Yi.correctBoundaryConditions();
-            rhoYi[i] = rho*Yi;
+                if (!inviscid)
+                {
+                    const surfaceScalarField phiUc = linearInterpolate(sumYDiffError) & mesh.Sf();
+                    tmp<volScalarField> DEff = chemistry->rhoD(i) + turbulence->mut()/Sct;
+
+                    // original term
+                    YiEqn -= 
+                        (
+                            turbName == "laminar"
+                            ? (fvm::laplacian(DEff(), Yi) - mvConvection->fvmDiv(phiUc, Yi))
+                            : fvm::laplacian(DEff(), Yi)   
+                        );
+
+
+                    // fvScalarMatrix YiEqn
+                    // (
+                    //         fvm::ddt(rho, Yi) - fvc::ddt(rho, Yi)
+                    //      -
+                    //         (
+                    //             turbName == "laminar"
+                    //             ?  (fvm::laplacian(DEff(), Yi) - mvConvection->fvmDiv(phiUc, Yi))
+                    //             :  fvm::laplacian(DEff(), Yi)
+                    //         )
+                    // );
+
+                    // YiEqn.relax();
+
+                    // YiEqn.solve("Yi");
+
+                    // Yi.max(0.0);
+                }
+                // original term
+                YiEqn.relax();
+                YiEqn.solve("Yi");
+                Yi.max(0.0);
+                rhoYi[i] = rho*Yi;
+
+            }      
             Yt += Yi;
         }
     }
 
-    Y[inertIndex] = scalar(1) - Yt;
-    Y[inertIndex].max(0.0);
-    rhoYi[inertIndex] = rho*Y[inertIndex];
+    // Y[inertIndex] = scalar(1) - Yt;
+    // Y[inertIndex].max(0.0);
+    // rhoYi[inertIndex] = rho*Y[inertIndex];
+
+    forAll(Y, i)
+    {
+        Y[i] = Y[i]/Yt;
+        Y[i].max(0.0);
+        rhoYi[i] = rho*Y[i];
+    }
 
     end = std::clock();
     time_monitor_Y += double(end - start) / double(CLOCKS_PER_SEC);
