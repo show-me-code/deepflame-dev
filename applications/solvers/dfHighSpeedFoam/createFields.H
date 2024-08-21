@@ -1,17 +1,24 @@
+#include "readGravitationalAcceleration.H"
 #include "createRDeltaT.H"
 
 word ddtSchemes("Euler");
 if (mesh.schemesDict().readIfPresent("timeScheme", ddtSchemes))
 {
-    if(ddtSchemes == "RK2SSP" || ddtSchemes == "RK3SSP")
+    if(ddtSchemes == "RK2SSP" || ddtSchemes == "RK3SSP" || ddtSchemes == "Euler")
     {
         Info<< "ddtSchemes: " << ddtSchemes << endl;
+        if(ddtSchemes == "RK2SSP" || ddtSchemes == "RK3SSP")
+        {
+            Info<< "!! Note: RK2SSP and RK3SSP are not available for two-phase flow simulaiton. "
+                << "If you want to simulate two-phase flows, please change time scheme to 'Euler' ."
+                << endl;
+        }
     }
     else
     {
         FatalErrorInFunction
             << "This timeScheme is not a valid choice. "
-            << "Please use RK2SSP or RK3SSP scheme."
+            << "Please use Euler, RK2SSP or RK3SSP scheme."
             << abort(FatalError);
     }
 }
@@ -44,13 +51,14 @@ if((ddtSchemes != "RK2SSP") && (ddtSchemes != "RK3SSP"))
     }
 }
 
-
 Info<< "Reading thermophysical properties\n" << endl;
 
 // psiThermo* pThermo = new hePsiThermo<psiThermo, CanteraMixture>(mesh, word::null);
 // psiThermo& thermo = *pThermo;
 rhoThermo* pThermo = new heRhoThermo<rhoThermo, CanteraMixture>(mesh, word::null);
 rhoThermo& thermo = *pThermo;
+
+SLGThermo slgThermo(mesh, thermo);
 
 //move from creatFieldRefs.H to createFields.H
 //p needed to be created before e
@@ -116,6 +124,51 @@ volVectorField rhoU
     rho*U
 );
 
+surfaceScalarField phi("phi", fvc::flux(rhoU));
+
+Info<< "Creating flux properties\n" << endl;
+surfaceScalarField rhoPhi
+(
+    IOobject
+    (
+        "rhoPhi",
+        mesh.time().timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("0", dimDensity*dimVelocity*dimArea, 0.0)
+);
+
+surfaceVectorField rhoUPhi
+(
+    IOobject
+    (
+        "rhoUPhi",
+        mesh.time().timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedVector("0", dimDensity*sqr(dimVelocity)*dimArea, Zero)
+);
+
+surfaceScalarField rhoEPhi
+(
+    IOobject
+    (
+        "rhoEPhi",
+        mesh.time().timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("0", dimDensity*pow3(dimVelocity)*dimArea, 0.0)
+);
+
 surfaceScalarField pos
 (
     IOobject
@@ -140,7 +193,7 @@ surfaceScalarField neg
     dimensionedScalar(dimless, -1.0)
 );
 
-surfaceScalarField phi("phi", fvc::flux(rhoU));
+autoPtr<Foam::fluxScheme> fluxSchemeFields(Foam::fluxScheme::New(mesh));
 
 Info<< "Creating turbulence model\n" << endl;
 autoPtr<compressible::turbulenceModel> turbulence
@@ -153,6 +206,7 @@ autoPtr<compressible::turbulenceModel> turbulence
         thermo
     )
 );
+
 const word turbName(mesh.objectRegistry::lookupObject<IOdictionary>("turbulenceProperties").lookup("simulationType"));
 
 multivariateSurfaceInterpolationScheme<scalar>::fieldTable fields;
@@ -186,15 +240,8 @@ volScalarField rhoE
     rho*(ea + 0.5*magSqr(U))
 );
 
-const word combModelName(mesh.objectRegistry::lookupObject<IOdictionary>("combustionProperties").lookup("combustionModel"));
-Info << "Combustion Model Name is confirmed as "<< combModelName << endl;
-
-
-if(combModelName!="ESF" && combModelName!="flareFGM"  && combModelName!="DeePFGM" && combModelName!="FSD")
-{
-    chemistry->correctThermo();
-    Info<< "At initial time, min/max(T) = " << min(T).value() << ", " << max(T).value() << endl;
-}
+chemistry->correctThermo();
+Info<< "At initial time, min/max(T) = " << min(T).value() << ", " << max(T).value() << endl;
 
 forAll(Y, i)
 {
@@ -223,6 +270,9 @@ forAll(rhoYi,i)
         )
     );
 }
+
+#include "createMRF.H"
+#include "createClouds.H"
 
 const scalar Sct = chemistry->lookupOrDefault("Sct", 1.);
 volScalarField diffAlphaD
@@ -263,4 +313,30 @@ volVectorField sumYDiffError
     ),
     mesh,
     dimensionedVector("sumYDiffError", dimDynamicViscosity/dimLength, Zero)
+);
+
+volScalarField gradP
+(
+    IOobject
+    (
+        "gradP",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::AUTO_WRITE
+    ),
+    mag(fvc::grad(thermo.p()))
+);
+
+volScalarField pMax
+(
+    IOobject
+    (
+        "pMax",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::AUTO_WRITE
+    ),
+    thermo.p()
 );

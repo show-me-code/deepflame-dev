@@ -1,6 +1,6 @@
 if ((ddtSchemes == "RK2SSP") || (ddtSchemes == "RK3SSP"))
 {
-    rhoU_rhs = -fvc::div(phiUp);
+    rhoU_rhs = -fvc::div(rhoUPhi);
 
     rhoU =  rkcoe1[nrk]*rhoU_save
           + rkcoe2[nrk]*rhoU
@@ -24,10 +24,15 @@ if ((ddtSchemes == "RK2SSP") || (ddtSchemes == "RK3SSP"))
 }
 else
 {
+    MRF.correctBoundaryVelocity(U);
+
     solve
     (
-        fvm::ddt(rhoU)
-      + fvc::div(phiUp)
+            fvm::ddt(rhoU)
+        + fvc::div(rhoUPhi)
+        + MRF.DDt(rho, U)
+      ==
+          parcels.SU(rhoU)
     );
     U.ref() = rhoU()/rho();
     U.correctBoundaryConditions();
@@ -37,9 +42,9 @@ else
     {
         solve
         (
-            fvm::ddt(rho, U) - fvc::ddt(rho, U)
-          - fvm::laplacian(turbulence->muEff(), U)
-          - fvc::div(tauMC)
+              fvm::ddt(rho, U) - fvc::ddt(rho, U)
+           -  fvm::laplacian(turbulence->muEff(), U)
+           -  fvc::div(tauMC)
         );
         rhoU = rho*U;
     }

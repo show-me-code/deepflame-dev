@@ -1,0 +1,9 @@
+fluxScheme/fluxScheme.C
+fluxScheme/newFluxScheme.C
+
+HLLC/HLLC.C
+HLLCP/HLLCP.C
+Kurganov/Kurganov.C
+Tadmor/Tadmor.C
+
+LIB = $(DF_LIBBIN)/libfluxSchemes
