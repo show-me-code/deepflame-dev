@@ -27,6 +27,19 @@ The neural network models used in the tutorial examples can be found at– [AIS 
 Detailed guide for installation and tutorials is available on [our documentation website](https://deepflame.deepmodeling.com).
 
 ## Features
+New in v1.4 (2024/8/22):
+- Reorganize the update order of mass, velocity and temperature for Lagrangian particles and introduce the liquidEvaporationSpalding model as new evaporation model.
+- Add source terms for liquid phase in the `dfLowMachFoam` solver
+- Incorporate Euler-Lagrangian source terms into the `dfHighSpeedFoam` solver to facilitate numerical simulations of two-phase supersonic reactive flows
+- Provide new flux schemes (including HLLC and HLLCP) for `dfHighSpeedFoam` solver (adopted from detonationFoam ) and do some modifications
+- Add lagrangianExtraFunctionObjects function (adopted from lagrangianExtraFunctionObjects ) in submodules to write to disk in the old positions file format
+- Introduce new cases to evaluate the accuracy of `dfHighSpeedFoam` solver and provide two-phase 1D/2D detonation cases
+- Add AUSMDV scheme as new flux scheme for `dfHighSpeedFoam`
+- Add compatibility of neural network training and inference for chemical source terms with the Baidu PaddlePaddle framework
+- Adjust original examples referring to the modification of solvers
+- Add 2D aachenBomb case in test
+- Update PaddlePaddle options for DNN model development and inference in document homepage
+
 New in v1.3 (2023/12/30):
 - Complete the full-loop GPU implementation of the `dfLowMachFoam` solver, enabling efficient execution of all computations on GPU
 - Introduce `DF-ODENet` model, which utilizes sampling from canonical combustion simulation configurations to reduce training costs and improve computational efficiency
