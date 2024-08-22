@@ -35,7 +35,7 @@ New in v1.4 (2024/8/22):
 - Add lagrangianExtraFunctionObjects function (adopted from lagrangianExtraFunctionObjects ) in submodules to write to disk in the old positions file format
 - Introduce new cases to evaluate the accuracy of `dfHighSpeedFoam` solver and provide two-phase 1D/2D detonation cases
 - Add AUSMDV scheme as new flux scheme for `dfHighSpeedFoam`
-- Add compatibility of neural network training and inference for chemical source terms with the Baidu PaddlePaddle framework
+- add compatibility of neural network inference for chemical source terms with the Baidu PaddlePaddle framework
 - Adjust original examples referring to the modification of solvers
 - Add 2D aachenBomb case in test
 - Update PaddlePaddle options for DNN model development and inference in document homepage
