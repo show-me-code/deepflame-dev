@@ -234,7 +234,7 @@ J Kersey, E Loth, D Lankford. Effect of evaporating droplets on shock waves. AIA
 
 
 Two-Dimensional Detonation in Water-droplet-laden C2H4/air Mixtures
--------------------------------------------------------
+--------------------------------------------------------------------
 
 
 **Problem Description**
