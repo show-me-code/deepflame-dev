@@ -4,3 +4,6 @@
 [submodule "submodules/WENOEXT"]
 	path = submodules/WENOEXT
 	url = https://github.com/WENO-OF/WENOEXT.git
+[submodule "submodules/lagrangianExtraFunctionObjects"]
+	path = submodules/lagrangianExtraFunctionObjects
+	url = git@github.com:blueCFD/lagrangianExtraFunctionObjects.git
