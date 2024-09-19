@@ -375,32 +375,3 @@ volScalarField pMax
     ),
     thermo.p()
 );
-
-// use to analysis
-volScalarField::Internal Sm
-(
-    IOobject
-    (
-        "Sm",
-        runTime.timeName(),
-        mesh,
-        IOobject::NO_READ,
-        IOobject::AUTO_WRITE
-    ),
-    mesh,
-    dimensionedScalar(dimMass/dimTime/dimVolume, Zero)
-);
-
-volScalarField::Internal Se
-(
-    IOobject
-    (
-        "Se",
-        runTime.timeName(),
-        mesh,
-        IOobject::NO_READ,
-        IOobject::AUTO_WRITE
-    ),
-    mesh,
-    dimensionedScalar(dimEnergy/dimTime/dimVolume, Zero)
-);
