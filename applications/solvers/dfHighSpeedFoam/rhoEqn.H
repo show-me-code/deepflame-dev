@@ -10,6 +10,14 @@ if ((ddtSchemes == "RK2SSP") || (ddtSchemes == "RK3SSP"))
 }
 else
 {
+    // use to analysis 
+    volScalarField::Internal massSource(0.0*Sm); 
+    forAll(parcels.rhoTrans(),i)
+    {
+        massSource += parcels.rhoTrans(i)/runTime.deltaT()/mesh.V();
+    }
+    Sm = massSource;
+
     solve
     (
         fvm::ddt(rho)

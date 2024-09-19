@@ -124,7 +124,20 @@ volVectorField rhoU
     rho*U
 );
 
-surfaceScalarField phi("phi", fvc::flux(rhoU));
+// surfaceScalarField phi("phi", fvc::flux(rhoU));
+surfaceScalarField phi
+(
+    IOobject
+    (
+        "phi",
+        mesh.time().timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("0", dimVelocity*dimArea, 0.0)
+);
 
 Info<< "Creating flux properties\n" << endl;
 surfaceScalarField rhoPhi
@@ -271,6 +284,28 @@ forAll(rhoYi,i)
     );
 }
 
+PtrList<surfaceScalarField> rhoPhiYi(nspecies);
+forAll(rhoPhiYi,i)
+{
+    rhoPhiYi.set
+    (
+        i,
+        new surfaceScalarField
+        (
+            IOobject
+            (
+                "rhoPhi" + Y[i].name(),
+                runTime.timeName(),
+                mesh,
+                IOobject::NO_READ,
+                IOobject::NO_WRITE
+            ),
+            mesh,
+            dimensionedScalar("0", dimDensity*dimVelocity*dimArea, 0.0)
+        )
+    );
+}
+
 #include "createMRF.H"
 #include "createClouds.H"
 
@@ -339,4 +374,33 @@ volScalarField pMax
         IOobject::AUTO_WRITE
     ),
     thermo.p()
+);
+
+// use to analysis
+volScalarField::Internal Sm
+(
+    IOobject
+    (
+        "Sm",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::AUTO_WRITE
+    ),
+    mesh,
+    dimensionedScalar(dimMass/dimTime/dimVolume, Zero)
+);
+
+volScalarField::Internal Se
+(
+    IOobject
+    (
+        "Se",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::AUTO_WRITE
+    ),
+    mesh,
+    dimensionedScalar(dimEnergy/dimTime/dimVolume, Zero)
 );

@@ -18,11 +18,15 @@ if((ddtSchemes == "RK2SSP") || (ddtSchemes == "RK3SSP"))
 }
 else
 {
+    // use to analysis
+    Se = parcels.hsTrans()/runTime.deltaT()/mesh.V();
+
     tmp<fvScalarMatrix> thcSource(new fvScalarMatrix(rhoE, dimEnergy/dimTime));
     fvScalarMatrix& hcSource = thcSource.ref();
     forAll(Y, i)
     {
         hcSource.source() -= parcels.rhoTrans(i)*chemistry->mixture().Hc(i)/runTime.deltaT();
+        Se.field() += parcels.rhoTrans(i)*chemistry->mixture().Hc(i)/runTime.deltaT()/mesh.V();
     }
 
     solve
