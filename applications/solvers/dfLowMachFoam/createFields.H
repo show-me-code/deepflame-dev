@@ -3,11 +3,11 @@
 
 Info<< "Reading thermophysical properties\n" << endl;
 
+CanteraMixture::setEnergyName("ha");
 // fluidThermo* pThermo = new hePsiThermo<psiThermo, CanteraMixture>(mesh, word::null);
 fluidThermo* pThermo = new heRhoThermo<rhoThermo, CanteraMixture>(mesh, word::null);
 fluidThermo& thermo = *pThermo;
-// thermo.validate(args.executable(), "ha");
-
+Info<< "Readed thermophysical properties\n" << endl;
 SLGThermo slgThermo(mesh, thermo);
 
 const volScalarField& psi = thermo.psi();
@@ -100,7 +100,6 @@ forAll(Y, i)
 }
 const word inertSpecie(chemistry->lookup("inertSpecie"));
 const label inertIndex(chemistry->species()[inertSpecie]);
-chemistry->setEnergyName("ha");
 chemistry->updateEnergy();
 
 

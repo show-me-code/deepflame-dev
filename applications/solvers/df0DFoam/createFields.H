@@ -2,11 +2,10 @@
 
 Info<< "Reading thermophysical properties\n" << endl;
 
+CanteraMixture::setEnergyName("ha");
 // fluidThermo* pThermo = new hePsiThermo<psiThermo, CanteraMixture>(mesh, word::null);
 fluidThermo* pThermo = new heRhoThermo<rhoThermo, CanteraMixture>(mesh, word::null);
 fluidThermo& thermo = *pThermo;
-
-// thermo.validate(args.executable(), "ha");
 
 volScalarField& p = thermo.p();
 
@@ -94,7 +93,6 @@ dfChemistryModel<basicThermo> chemistry(thermo);
 PtrList<volScalarField>& Y = chemistry.Y();
 const word inertSpecie(chemistry.lookup("inertSpecie"));
 const label inertIndex(chemistry.species()[inertSpecie]);
-chemistry.setEnergyName("ha");
 chemistry.updateEnergy();
 
 forAll(Y, i)
