@@ -53,6 +53,7 @@ if((ddtSchemes != "RK2SSP") && (ddtSchemes != "RK3SSP"))
 
 Info<< "Reading thermophysical properties\n" << endl;
 
+CanteraMixture::setEnergyName("ea");
 // psiThermo* pThermo = new hePsiThermo<psiThermo, CanteraMixture>(mesh, word::null);
 // psiThermo& thermo = *pThermo;
 rhoThermo* pThermo = new heRhoThermo<rhoThermo, CanteraMixture>(mesh, word::null);
@@ -234,7 +235,6 @@ dfChemistryModel<basicThermo>* chemistry = combustion->chemistry();
 PtrList<volScalarField>& Y = chemistry->Y();
 const word inertSpecie(chemistry->lookup("inertSpecie"));
 const label inertIndex(chemistry->species()[inertSpecie]);
-chemistry->setEnergyName("ea");
 chemistry->updateEnergy();
 
 volScalarField& ea = thermo.he();

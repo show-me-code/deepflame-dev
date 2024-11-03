@@ -75,7 +75,7 @@ class CanteraMixture
         const volScalarField& Tref_;
         const volScalarField& pref_;
         mutable scalarList yTemp_;
-        word energyName_;
+        static word energyName_;
 
         //- Construct as copy (not implemented)
         CanteraMixture(const CanteraMixture&);
@@ -346,7 +346,7 @@ public:
     //- Read dictionary
     void read(const dictionary&);
 
-    void setEnergyName(word name){energyName_=name;}
+    static void setEnergyName(word name){energyName_=name;}
 };
 
 

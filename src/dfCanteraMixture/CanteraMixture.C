@@ -26,6 +26,8 @@ License
 #include "CanteraMixture.H"
 #include "fvMesh.H"
 
+Foam::word Foam::CanteraMixture::energyName_ = "InvalidEnergyName";
+
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 Foam::CanteraMixture::CanteraMixture
@@ -49,8 +51,7 @@ Foam::CanteraMixture::CanteraMixture
     CanteraMechanismFile_(fileName(CanteraTorchProperties_.lookup("CanteraMechanismFile")).expand()),
     transportModelName_(CanteraTorchProperties_.lookup("transportModel")),
     Tref_(mesh.objectRegistry::lookupObject<volScalarField>("T")),
-    pref_(mesh.objectRegistry::lookupObject<volScalarField>("p")),
-    energyName_("energy")
+    pref_(mesh.objectRegistry::lookupObject<volScalarField>("p"))
 {
     if(!isFile(CanteraMechanismFile_))
     {
